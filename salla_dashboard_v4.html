@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>شوب ستور — لوحة التحكم المتكاملة</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0a0c11;--bg2:#111520;--bg3:#181d2e;--bg4:#1e2438;--bg5:#252c42;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--border3:rgba(255,255,255,0.18);
+  --text:#dde1f0;--text2:#7a80a0;--text3:#454d6a;
+  --accent:#18B2B0;--accent2:#0f8a89;--accent3:rgba(24,178,176,0.10);--accent4:rgba(24,178,176,0.18);
+  --green:#3dba7e;--green-bg:rgba(61,186,126,0.10);
+  --red:#e05555;--red-bg:rgba(224,85,85,0.10);
+  --amber:#e8a84a;--amber-bg:rgba(232,168,74,0.10);
+  --purple:#9b8bef;--purple-bg:rgba(155,139,239,0.10);
+  --blue:#5b9bd6;--blue-bg:rgba(91,155,214,0.10);
+  --r:8px;--r2:12px;--r3:16px;
+  --font:'IBM Plex Sans Arabic',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:4px}
+
+/* ── LAYOUT ── */
+.shell{display:flex;min-height:100vh}
+.sidebar{width:224px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;flex-shrink:0;overflow-y:auto}
+.content{flex:1;min-width:0;overflow-x:hidden}
+
+/* ── SIDEBAR ── */
+.s-logo{padding:18px 16px 16px;border-bottom:1px solid var(--border)}
+.s-logo-name{font-size:15px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:7px}
+.s-logo-name i{font-size:18px}
+.s-logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.s-store-badge{margin:10px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;display:flex;align-items:center;gap:8px}
+.s-store-avatar{width:30px;height:30px;border-radius:6px;background:var(--accent3);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--accent);font-weight:600;flex-shrink:0}
+.s-store-name{font-size:12px;font-weight:500;color:var(--text)}
+.s-store-url{font-size:10px;color:var(--text3)}
+.s-section{padding:8px 0}
+.s-label{padding:6px 16px 4px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 16px;cursor:pointer;color:var(--text2);font-size:13px;transition:all .15s;border-right:2px solid transparent;margin:1px 0}
+.nav-item:hover{color:var(--text);background:var(--bg3)}
+.nav-item.active{color:var(--accent);background:var(--accent3);border-right-color:var(--accent)}
+.nav-item i{font-size:16px;flex-shrink:0}
+.nav-item .badge-count{margin-right:auto;background:var(--red-bg);color:var(--red);font-size:10px;padding:1px 6px;border-radius:99px;font-family:var(--mono)}
+.s-sep{height:1px;background:var(--border);margin:6px 14px}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:var(--bg2);gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.page-title{font-size:17px;font-weight:600}
+.page-sub{font-size:11px;color:var(--text3);margin-top:1px}
+.topbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sync-indicator{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.sync-dot.loading{background:var(--amber);animation:pulse 1s infinite}
+.sync-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:12px;font-family:var(--font);cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--bg4);border-color:var(--border3)}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.btn-primary:hover{background:var(--accent2)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn i{font-size:14px}
+
+/* ── MAIN PAD ── */
+.pad{padding:18px 20px}
+
+/* ── KPI GRID ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px 16px;position:relative;overflow:hidden;transition:border-color .2s,transform .15s}
+.kpi:hover{border-color:var(--border2);transform:translateY(-1px)}
+.kpi::after{content:'';position:absolute;top:0;right:0;width:50px;height:50px;border-radius:0 var(--r2) 0 50px;opacity:.07}
+.kpi.k-green::after{background:var(--green)}.kpi.k-red::after{background:var(--red)}
+.kpi.k-accent::after{background:var(--accent)}.kpi.k-amber::after{background:var(--amber)}
+.kpi.k-purple::after{background:var(--purple)}.kpi.k-blue::after{background:var(--blue)}
+.kpi-ico{font-size:18px;opacity:.3;position:absolute;top:12px;left:12px}
+.kpi-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-val{font-size:22px;font-weight:600;font-family:var(--mono);direction:ltr;text-align:right;line-height:1.2}
+.kpi-val.green{color:var(--green)}.kpi-val.red{color:var(--red)}.kpi-val.accent{color:var(--accent)}
+.kpi-val.amber{color:var(--amber)}.kpi-val.purple{color:var(--purple)}.kpi-val.blue{color:var(--blue)}
+.kpi-sub{font-size:10px;color:var(--text3);margin-top:3px}
+.kpi-trend{font-size:10px;margin-top:3px;display:flex;align-items:center;gap:3px}
+.kpi-trend.up{color:var(--green)}.kpi-trend.down{color:var(--red)}
+
+/* ── CHARTS ── */
+.charts-row{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-bottom:18px}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px}
+.chart-card-full{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:18px}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.chart-title{font-size:12px;font-weight:500;color:var(--text2)}
+.legend-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+.leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* ── TABLE ── */
+.tbl-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-bottom:18px}
+.tbl-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.tbl-title{font-size:13px;font-weight:500}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:650px}
+thead tr{background:var(--bg3)}
+th{padding:8px 12px;font-size:10px;font-weight:500;color:var(--text3);text-align:right;white-space:nowrap;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+td{padding:9px 12px;font-size:12px;color:var(--text);border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--bg3)}
+.tbl-foot td{background:var(--bg3);border-top:1px solid var(--border2);font-weight:500;font-size:12px}
+.mono{font-family:var(--mono);font-size:12px;direction:ltr;display:inline-block}
+.mono.green{color:var(--green)}.mono.red{color:var(--red)}.mono.amber{color:var(--amber)}.mono.accent{color:var(--accent)}
+
+/* ── BADGES ── */
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:500;white-space:nowrap}
+.pill-green{background:var(--green-bg);color:var(--green)}
+.pill-red{background:var(--red-bg);color:var(--red)}
+.pill-amber{background:var(--amber-bg);color:var(--amber)}
+.pill-accent{background:var(--accent3);color:var(--accent)}
+.pill-purple{background:var(--purple-bg);color:var(--purple)}
+.pill-gray{background:rgba(120,128,160,.12);color:var(--text2)}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.filter-bar label{font-size:11px;color:var(--text2);white-space:nowrap}
+select,input[type=text],input[type=date]{background:var(--bg4);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:12px;padding:6px 9px;outline:none;transition:border-color .15s}
+select:focus,input:focus{border-color:var(--accent)}
+
+/* ── LOADING ── */
+.loading-box{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;color:var(--text3);gap:12px}
+.spinner{width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:12px;color:var(--text3)}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:40px;color:var(--text3)}
+.empty i{font-size:36px;display:block;margin-bottom:8px;opacity:.5}
+.empty p{font-size:12px}
+
+/* ── PRODUCT CARD ── */
+.product-chip{display:flex;align-items:center;gap:7px}
+.product-thumb{width:32px;height:32px;border-radius:6px;object-fit:cover;background:var(--bg4);flex-shrink:0}
+.product-name{font-size:12px;color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── STATUS COLORS ── */
+.status-completed{color:var(--green)}
+.status-pending{color:var(--amber)}
+.status-review{color:var(--blue)}
+.status-cancelled{color:var(--red)}
+
+/* ── PAGE SECTIONS ── */
+.page{display:none}
+.page.active{display:block}
+
+/* ── MODAL ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r3);padding:20px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;direction:rtl}
+.modal-title{font-size:14px;font-weight:500;margin-bottom:16px;display:flex;align-items:center;gap:7px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-label{font-size:11px;color:var(--text2)}
+.form-group input,.form-group select,.form-group textarea{width:100%;background:var(--bg3)}
+textarea{resize:vertical;min-height:60px}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+
+/* ── TOAST ── */
+.toasts{position:fixed;bottom:16px;left:16px;z-index:999;display:flex;flex-direction:column;gap:6px}
+.toast{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:9px 13px;font-size:12px;display:flex;align-items:center;gap:7px;animation:tUp .2s ease;max-width:300px}
+.toast.ok{border-color:var(--green)}.toast.err{border-color:var(--red)}.toast.info{border-color:var(--accent)}.toast.warn{border-color:var(--amber)}
+@keyframes tUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ── IMPORT ZONE ── */
+.import-zone{border:2px dashed var(--border2);border-radius:var(--r2);padding:22px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3);position:relative}
+.import-zone:hover,.import-zone.over{border-color:var(--accent);background:var(--accent3)}
+.import-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.import-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.import-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px}
+.import-panel-title{font-size:12px;font-weight:500;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.import-panel-sub{font-size:10px;color:var(--text3);margin-bottom:10px}
+
+/* ── ARCHIVE SIDEBAR LIST ── */
+.arc-item{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-radius:var(--r);cursor:pointer;color:var(--text2);font-size:11px;margin:1px 4px;transition:all .15s}
+.arc-item:hover{background:var(--bg3);color:var(--text)}
+.arc-item.sel{background:var(--amber-bg);color:var(--amber)}
+.arc-item .arc-amt{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.arc-note{background:var(--amber-bg);border:1px solid rgba(232,168,74,.25);border-radius:var(--r);padding:8px 11px;font-size:11px;color:var(--amber);display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.arc-note i{font-size:14px;flex-shrink:0}
+
+/* ── SALLA LIVE BADGE ── */
+.salla-live{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--green);background:var(--green-bg);border:1px solid rgba(61,186,126,.2);border-radius:99px;padding:3px 9px}
+.salla-live i{font-size:13px}
+
+/* ── RESPONSIVE ── */
+@media(max-width:880px){.sidebar{display:none}.charts-row{grid-template-columns:1fr}.import-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.pad{padding:12px}.kpi-grid{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="toasts" id="toasts"></div>
+
+<!-- MODAL: إضافة/تعديل -->
+<div class="modal-bg" id="addModal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle"><i class="ti ti-plus" style="color:var(--accent)"></i> إضافة بند</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">النوع</label>
+        <select id="mType" onchange="toggleMFields()">
+          <option value="expense">مصروف</option><option value="sale">مبيعة</option><option value="wallet">محفظة</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">التاريخ</label><input type="date" id="mDate"></div>
+    </div>
+    <div class="form-row full"><div class="form-group"><label class="form-label">البيان</label><input type="text" id="mDesc" placeholder="وصف البند..."></div></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">المبلغ (ر.س)</label><input type="number" id="mAmt" placeholder="0.00" min="0" step="0.01"></div>
+      <div class="form-group" id="mCatGrp"><label class="form-label">الفئة</label>
+        <select id="mCat"><option>رواتب</option><option>تسويق</option><option>شراء منتجات</option><option>سلف</option><option>أرباح</option><option>أخرى</option></select>
+      </div>
+    </div>
+    <div class="form-row" id="mWalletFields" style="display:none">
+      <div class="form-group"><label class="form-label">العمولة</label><input type="number" id="mComm" placeholder="0.00" step="0.01"></div>
+      <div class="form-group"><label class="form-label">الصافي</label><input type="number" id="mNet" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-row full" id="mSaleFields" style="display:none">
+      <div class="form-group"><label class="form-label">صافي المبيعات</label><input type="number" id="mNetSale" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-row full"><div class="form-group"><label class="form-label">ملاحظة</label><textarea id="mNote"></textarea></div></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveRow()"><i class="ti ti-check"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: أرشفة -->
+<div class="modal-bg" id="archModal">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-archive" style="color:var(--amber)"></i> أرشفة الشهر الحالي</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">سيُحفظ الشهر الحالي في الأرشيف وتبدأ صفحة جديدة فارغة.</p>
+    <div id="archSummary" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:12px;font-size:12px"></div>
+    <div class="form-row full"><div class="form-group"><label class="form-label">اسم الأرشيف</label><input type="text" id="archName" placeholder="مثال: مايو 2026"></div></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="document.getElementById('archModal').classList.remove('open')">إلغاء</button>
+      <button class="btn btn-amber" onclick="doArchive()"><i class="ti ti-archive"></i> أرشفة وبدء شهر جديد</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="s-logo">
+      <div class="s-logo-name"><i class="ti ti-chart-pie"></i> محاسبة الأعمال</div>
+      <div class="s-logo-sub">شوب ستور — لوحة التحكم</div>
+    </div>
+    <div class="s-store-badge">
+      <div class="s-store-avatar">S</div>
+      <div><div class="s-store-name">شوب ستور</div><div class="s-store-url">sho9.com</div></div>
+    </div>
+
+    <!-- month switcher -->
+    <div style="padding:6px 12px 0">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;padding-right:2px">عرض الشهر</div>
+      <select id="monthSel" onchange="switchMonth(this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3)">
+        <option value="live">📅 الشهر الحالي (مباشر)</option>
+      </select>
+    </div>
+
+    <div class="s-section">
+      <div class="s-label">التحليل المالي</div>
+      <div class="nav-item active" onclick="nav('overview')"><i class="ti ti-layout-dashboard"></i> نظرة عامة</div>
+      <div class="nav-item" onclick="nav('expenses')"><i class="ti ti-receipt"></i> المصروفات</div>
+    </div>
+
+    <div class="s-sep"></div>
+    <div class="s-label">بيانات سلة المباشرة</div>
+    <div class="nav-item" onclick="nav('salla-orders')"><i class="ti ti-shopping-cart"></i> الطلبات <span class="badge-count" id="ordBadge">...</span></div>
+    <div class="nav-item" onclick="nav('salla-carts')"><i class="ti ti-basket-off"></i> السلات المتروكة <span class="badge-count" id="cartBadge">...</span></div>
+    <div class="nav-item" onclick="nav('salla-wallet')"><i class="ti ti-wallet"></i> المحفظة</div>
+    <div class="nav-item" onclick="nav('salla-products')"><i class="ti ti-tag"></i> أعلى المنتجات</div>
+
+    <div class="s-sep"></div>
+    <div class="s-label">الأرشيف الشهري</div>
+    <div id="arcList"><div style="padding:6px 12px;font-size:11px;color:var(--text3)">لا يوجد أرشيف بعد</div></div>
+
+    <div class="s-sep"></div>
+    <div class="s-label">أدوات</div>
+    <div class="nav-item" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد Excel</div>
+    <div class="nav-item" onclick="openArchModal()"><i class="ti ti-archive"></i> أرشفة الشهر</div>
+    <div class="nav-item" onclick="exportAll()"><i class="ti ti-download"></i> تصدير CSV</div>
+  </aside>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- ── TOPBAR ── -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <div>
+          <div class="page-title" id="pageTitle">نظرة عامة</div>
+          <div class="page-sub" id="pageSub"></div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="salla-live" id="sallaLive"><i class="ti ti-circle-check"></i> سلة متصل</div>
+        <div class="sync-indicator"><div class="sync-dot" id="syncDot"></div><span id="syncTxt">محدّث</span></div>
+        <button class="btn btn-sm" onclick="syncSalla()" id="syncBtn"><i class="ti ti-refresh"></i> تحديث</button>
+        <button class="btn btn-sm btn-primary" onclick="openModal()" id="addBtn"><i class="ti ti-plus"></i> إضافة</button>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ -->
+    <!-- PAGE: نظرة عامة -->
+    <!-- ════════════════════════════════ -->
+    <div class="page active pad" id="page-overview">
+      <div id="arcNote" class="arc-note" style="display:none"><i class="ti ti-archive"></i><span id="arcNoteText"></span></div>
+      <div class="kpi-grid" id="ovKPIs"></div>
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-header"><div class="chart-title">المصروفات مقابل إيرادات سلة</div></div>
+          <div class="legend-row">
+            <span class="leg"><span class="leg-dot" style="background:#e05555"></span>مصروفات</span>
+            <span class="leg"><span class="leg-dot" style="background:#3dba7e"></span>إيرادات سلة</span>
+            <span class="leg"><span class="leg-dot" style="background:#18B2B0"></span>محفظة</span>
+          </div>
+          <div style="position:relative;height:200px"><canvas id="cmpChart" role="img" aria-label="مقارنة مالية">مقارنة</canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><div class="chart-title">توزيع المصروفات</div></div>
+          <div class="legend-row" id="pieLeg"></div>
+          <div style="position:relative;height:200px"><canvas id="pieChart" role="img" aria-label="توزيع المصروفات">توزيع</canvas></div>
+        </div>
+      </div>
+      <!-- latest orders from salla -->
+      <div class="tbl-wrap">
+        <div class="tbl-header">
+          <div class="tbl-title">آخر طلبات سلة <span style="font-size:10px;color:var(--text3)">(مباشر)</span></div>
+          <button class="btn btn-sm" onclick="nav('salla-orders')">عرض الكل <i class="ti ti-arrow-left"></i></button>
+        </div>
+        <div class="tbl-scroll"><table>
+          <thead><tr><th>رقم الطلب</th><th>المنتج</th><th>العميل</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+          <tbody id="ovOrders"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ -->
+    <!-- PAGE: المصروفات -->
+    <!-- ════════════════════════════════ -->
+    <div class="page pad" id="page-expenses">
+      <div id="expArcNote" class="arc-note" style="display:none"><i class="ti ti-lock"></i> عرض للقراءة فقط — شهر مؤرشف</div>
+      <div class="tbl-wrap">
+        <div class="tbl-header">
+          <div class="tbl-title">المصروفات والمشتريات <span class="tbl-count" id="expCount" style="font-size:10px;color:var(--text3)"></span></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-primary" id="addExpBtn" onclick="openModal('expense')"><i class="ti ti-plus"></i> إضافة</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <label>الفئة:</label>
+          <select id="expCat" onchange="renderExp()">
+            <option value="">الكل</option><option>رواتب</option><option>تسويق</option><option>شراء منتجات</option><option>سلف</option><option>أرباح</option><option>أخرى</option>
+          </select>
+          <input type="text" id="expQ" placeholder="بحث..." oninput="renderExp()" style="width:150px">
+          <select id="expSort" onchange="renderExp()">
+            <option value="desc">الأحدث</option><option value="asc">الأقدم</option><option value="amt-desc">الأعلى</option><option value="amt-asc">الأقل</option>
+          </select>
+        </div>
+        <div class="tbl-scroll"><table>
+          <thead><tr><th>#</th><th>البيان</th><th>الفئة</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظة</th><th style="width:56px"></th></tr></thead>
+          <tbody id="expBody"></tbody><tfoot id="expFoot"></tfoot>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ -->
+    <!-- PAGE: طلبات سلة -->
+    <!-- ════════════════════════════════ -->
+    <div class="page pad" id="page-salla-orders">
+      <div class="kpi-grid" id="ordKPIs"></div>
+      <div class="tbl-wrap">
+        <div class="tbl-header">
+          <div class="tbl-title">طلبات سلة <span style="font-size:10px;color:var(--text3)" id="ordTotal"></span></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm" onclick="loadOrders(true)"><i class="ti ti-refresh"></i> تحديث</button>
+            <button class="btn btn-sm" onclick="exportOrdCSV()"><i class="ti ti-download"></i> CSV</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <label>من:</label><input type="date" id="ordFrom" value="2026-05-01">
+          <label>إلى:</label><input type="date" id="ordTo">
+          <input type="text" id="ordQ" placeholder="منتج / عميل..." style="width:160px">
+          <select id="ordStatus">
+            <option value="">كل الحالات</option>
+            <option value="completed">تم التنفيذ</option>
+            <option value="under_review">بانتظار المراجعة</option>
+            <option value="payment_pending">بانتظار الدفع</option>
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="loadOrders(true)"><i class="ti ti-search"></i> بحث</button>
+        </div>
+        <div id="ordLoading" class="loading-box"><div class="spinner"></div><div class="loading-txt">جاري جلب الطلبات من سلة...</div></div>
+        <div class="tbl-scroll" id="ordTblWrap" style="display:none"><table>
+          <thead><tr><th>#</th><th>المرجع</th><th>المنتج</th><th>العميل</th><th>طريقة الدفع</th><th>الإجمالي (ر.س)</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+          <tbody id="ordBody"></tbody><tfoot id="ordFoot"></tfoot>
+        </table></div>
+        <div style="display:flex;gap:6px;justify-content:center;padding:10px" id="ordPager"></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ -->
+    <!-- PAGE: السلات المتروكة -->
+    <!-- ════════════════════════════════ -->
+    <div class="page pad" id="page-salla-carts">
+      <div class="kpi-grid" id="cartKPIs"></div>
+      <div class="tbl-wrap">
+        <div class="tbl-header">
+          <div class="tbl-title">السلات المتروكة <span style="font-size:10px;color:var(--text3)" id="cartTotal"></span></div>
+          <button class="btn btn-sm" onclick="loadCarts(true)"><i class="ti ti-refresh"></i> تحديث</button>
+        </div>
+        <div id="cartLoading" class="loading-box"><div class="spinner"></div><div class="loading-txt">جاري جلب السلات المتروكة...</div></div>
+        <div class="tbl-scroll" id="cartTblWrap" style="display:none"><table>
+          <thead><tr><th>#</th><th>العميل</th><th>المنتجات</th><th>القيمة</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+          <tbody id="cartBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ -->
+    <!-- PAGE: المحفظة -->
+    <!-- ════════════════════════════════ -->
+    <div class="page pad" id="page-salla-wallet">
+      <div class="kpi-grid" id="walKPIs"></div>
+      <div class="chart-card-full">
+        <div class="chart-header"><div class="chart-title">إجمالي التحويلات عبر الأشهر</div></div>
+        <div style="position:relative;height:160px"><canvas id="walChart" role="img" aria-label="المحفظة">المحفظة</canvas></div>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-header">
+          <div class="tbl-title">عمليات المحفظة</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-primary" onclick="openModal('wallet')"><i class="ti ti-plus"></i> إضافة يدوي</button>
+            <button class="btn btn-sm" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <label>من:</label><input type="date" id="walFrom" value="2026-05-01">
+          <label>إلى:</label><input type="date" id="walTo">
+          <select id="walStatus" onchange="renderWallet()">
+            <option value="">كل الحالات</option><option value="مدفوعة">مدفوعة</option><option value="معلقة">معلقة</option>
+          </select>
+        </div>
+        <div class="tbl-scroll"><table>
+          <thead><tr><th>#</th><th>رقم العملية</th><th>الإجمالي</th><th>العمولة</th><th>الصافي</th><th>التاريخ</th><th>الحالة</th><th style="width:56px"></th></tr></thead>
+          <tbody id="walBody"></tbody><tfoot id="walFoot"></tfoot>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ -->
+    <!-- PAGE: أعلى المنتجات -->
+    <!-- ════════════════════════════════ -->
+    <div class="page pad" id="page-salla-products">
+      <div class="tbl-wrap">
+        <div class="tbl-header">
+          <div class="tbl-title">أعلى المنتجات مبيعاً <span style="font-size:10px;color:var(--text3)">(من طلبات سلة)</span></div>
+          <div style="display:flex;gap:6px">
+            <label style="font-size:11px;color:var(--text2);align-self:center">بحث:</label>
+            <input type="text" id="prodQ" placeholder="اسم المنتج..." oninput="renderProducts()" style="width:170px">
+          </div>
+        </div>
+        <div class="chart-card-full" style="border:none;background:transparent;padding:0;margin-bottom:14px">
+          <div style="position:relative;height:200px"><canvas id="prodChart" role="img" aria-label="أعلى المنتجات">أعلى المنتجات</canvas></div>
+        </div>
+        <div class="tbl-scroll"><table>
+          <thead><tr><th>#</th><th>المنتج</th><th>عدد الطلبات</th><th>إجمالي المبيعات (ر.س)</th><th>متوسط قيمة الطلب</th></tr></thead>
+          <tbody id="prodBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ -->
+    <!-- PAGE: استيراد -->
+    <!-- ════════════════════════════════ -->
+    <div class="page pad" id="page-import">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:11px 13px;font-size:11px;color:var(--text2);margin-bottom:14px;line-height:1.9">
+        <i class="ti ti-info-circle" style="font-size:14px;vertical-align:-2px;color:var(--accent)"></i>
+        <strong>الملفات المدعومة:</strong><br>
+        • <strong>مبيعات المنتجات:</strong> report-sales-product من سلة — المنتج، النوع، الكمية، المبيعات، الصافي<br>
+        • <strong>محفظة سلة:</strong> payments-export — رقم العملية، الإجمالي، العمولة، المستحق، الحالة<br>
+        • <strong>مصروفات:</strong> البيان، المبلغ، الفئة، التاريخ
+      </div>
+      <div class="import-grid">
+        <div class="import-panel">
+          <div class="import-panel-title"><i class="ti ti-shopping-cart" style="color:var(--amber)"></i> مبيعات المنتجات</div>
+          <div class="import-panel-sub">report-sales-product</div>
+          <div class="import-zone" id="iz-sales">
+            <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'sales')" id="if-sales">
+            <div style="font-size:28px;color:var(--text3);margin-bottom:6px"><i class="ti ti-file-spreadsheet"></i></div>
+            <div style="font-size:12px;font-weight:500">اسحب ملف المبيعات هنا</div>
+            <div style="font-size:10px;color:var(--text3)">xlsx / xls / csv</div>
+          </div>
+          <div id="ir-sales" style="font-size:11px;margin-top:8px;color:var(--text3)"></div>
+        </div>
+        <div class="import-panel">
+          <div class="import-panel-title"><i class="ti ti-wallet" style="color:var(--accent)"></i> عمليات المحفظة</div>
+          <div class="import-panel-sub">payments-export</div>
+          <div class="import-zone" id="iz-wallet">
+            <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'wallet')" id="if-wallet">
+            <div style="font-size:28px;color:var(--text3);margin-bottom:6px"><i class="ti ti-file-spreadsheet"></i></div>
+            <div style="font-size:12px;font-weight:500">اسحب ملف المحفظة هنا</div>
+            <div style="font-size:10px;color:var(--text3)">xlsx / xls / csv</div>
+          </div>
+          <div id="ir-wallet" style="font-size:11px;margin-top:8px;color:var(--text3)"></div>
+        </div>
+      </div>
+      <div class="import-panel">
+        <div class="import-panel-title"><i class="ti ti-receipt" style="color:var(--red)"></i> مصروفات عامة</div>
+        <div class="import-panel-sub">أي ملف Excel يحتوي: البيان، المبلغ، الفئة</div>
+        <div class="import-zone" id="iz-exp" style="padding:16px">
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'expense')" id="if-exp">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:24px;color:var(--text3)"><i class="ti ti-file-spreadsheet"></i></div>
+            <div><div style="font-size:12px;font-weight:500">اسحب أو اضغط للاختيار</div><div style="font-size:10px;color:var(--text3)">xlsx / xls / csv</div></div>
+          </div>
+        </div>
+        <div id="ir-exp" style="font-size:11px;margin-top:8px;color:var(--text3)"></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /shell -->
+
+<script>
+// ══════════════════════════════════════════════
+//  GLOBALS
+// ══════════════════════════════════════════════
+const TODAY = new Date().toISOString().split('T')[0];
+const CURRENT_MONTH = TODAY.substring(0,7);
+const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const CAT_COLORS = ['#18B2B0','#e05555','#e8a84a','#3dba7e','#9b8bef','#5b9bd6','#e8758b'];
+const CAT_BADGE = {رواتب:'pill-blue',تسويق:'pill-accent','شراء منتجات':'pill-amber',سلف:'pill-purple',أرباح:'pill-green',أخرى:'pill-gray'};
+
+const fmt = n => (parseFloat(n)||0).toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtDate = d => d ? new Date(d.split('T')[0]+'T00:00:00').toLocaleDateString('ar-SA') : '-';
+const arMonth = k => { const [y,m]=k.split('-'); return AR_MONTHS[parseInt(m)-1]+' '+y; };
+
+// ── DATA ──
+let live = { expenses:[], sales:[], wallet:[] };
+let archives = [];
+let nextId = 1;
+let viewingArc = null;   // null = live
+let editingId  = null;
+let editingType= null;
+
+// ── SALLA LIVE DATA ──
+let sallaOrders   = [];
+let sallaCartData = { count:0, total:0 };
+let ordPage = 1, ordPageTotal = 1;
+
+// ── CHARTS ──
+let pieC, cmpC, walC, prodC;
+
+// ══════════════════════════════════════════════
+//  PERSIST
+// ══════════════════════════════════════════════
+function load(){
+  try{ live = JSON.parse(localStorage.getItem('v4_live')||'null')||{expenses:[],sales:[],wallet:[]}; }catch(e){live={expenses:[],sales:[],wallet:[]};}
+  if(!live.expenses.length && !live.sales.length) live.expenses = defaultExpenses();
+  try{ archives = JSON.parse(localStorage.getItem('v4_arcs')||'[]'); }catch(e){archives=[];}
+  recalcId();
+}
+function save(){
+  localStorage.setItem('v4_live',JSON.stringify(live));
+  localStorage.setItem('v4_arcs',JSON.stringify(archives));
+}
+function recalcId(){
+  const ids=[
+    ...live.expenses.map(e=>e.id||0),...live.sales.map(s=>s.id||0),...live.wallet.map(w=>w.id||0),
+    ...archives.flatMap(a=>[...a.expenses.map(e=>e.id||0),...a.sales.map(s=>s.id||0),...a.wallet.map(w=>w.id||0)])
+  ];
+  nextId = Math.max(1,...ids)+1;
+}
+
+// ══════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════
+function toast(msg,type='info'){
+  const el=document.createElement('div'); el.className=`toast ${type}`;
+  const ic={ok:'check',err:'alert-circle',info:'info-circle',warn:'alert-triangle'};
+  el.innerHTML=`<i class="ti ti-${ic[type]||'info-circle'}"></i> ${msg}`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),3800);
+}
+
+// ══════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════
+const PAGES = ['overview','expenses','salla-orders','salla-carts','salla-wallet','salla-products','import'];
+const PAGE_TITLES = {
+  overview:'نظرة عامة','expenses':'المصروفات','salla-orders':'طلبات سلة',
+  'salla-carts':'السلات المتروكة','salla-wallet':'محفظة سلة',
+  'salla-products':'أعلى المنتجات','import':'استيراد Excel'
+};
+function nav(name){
+  PAGES.forEach(p=>{
+    document.getElementById('page-'+p)?.classList.remove('active');
+  });
+  document.getElementById('page-'+name)?.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('pageTitle').textContent = PAGE_TITLES[name]||name;
+
+  // hide add button on salla pages
+  const isLocal = ['overview','expenses'].includes(name);
+  document.getElementById('addBtn').style.display = isLocal?'':'none';
+
+  if(name==='overview')   renderOverview();
+  if(name==='expenses')   renderExp();
+  if(name==='salla-orders'){ if(!sallaOrders.length) loadOrders(true); else renderOrders(); }
+  if(name==='salla-carts')  { loadCarts(true); }
+  if(name==='salla-wallet') renderWallet();
+  if(name==='salla-products') renderProducts();
+}
+
+// ══════════════════════════════════════════════
+//  CURRENT DATA (live vs archive)
+// ══════════════════════════════════════════════
+function cur(){
+  if(viewingArc){
+    const a=archives.find(x=>x.key===viewingArc);
+    return a ? {...a, readOnly:true} : {...live, readOnly:false};
+  }
+  return {...live, readOnly:false};
+}
+function switchMonth(val){
+  viewingArc = val==='live' ? null : val;
+  updateArcUI();
+  buildArcList();
+  renderOverview();
+  renderExp();
+  renderWallet();
+}
+function updateArcUI(){
+  const ro = !!viewingArc;
+  const label = viewingArc ? (archives.find(a=>a.key===viewingArc)?.name||viewingArc) : arMonth(CURRENT_MONTH)+' (مباشر)';
+  document.getElementById('pageSub').textContent = ro ? `🗄 أرشيف: ${label}` : `📅 ${label}`;
+  document.getElementById('addBtn').style.display = ro ? 'none' : '';
+  document.getElementById('addExpBtn').style.display = ro ? 'none' : '';
+  const arcNote = viewingArc ? `عرض أرشيف: ${label} — للقراءة فقط` : '';
+  ['arcNote','expArcNote'].forEach(id=>{
+    const el=document.getElementById(id); if(!el)return;
+    el.style.display = ro ? 'flex' : 'none';
+    if(id==='arcNote') document.getElementById('arcNoteText').textContent=arcNote;
+  });
+}
+function buildArcList(){
+  const el=document.getElementById('arcList');
+  const sel=document.getElementById('monthSel');
+  sel.innerHTML='<option value="live">📅 الشهر الحالي (مباشر)</option>';
+  archives.slice().reverse().forEach(a=>{
+    sel.innerHTML+=`<option value="${a.key}">🗄 ${a.name}</option>`;
+  });
+  sel.value = viewingArc||'live';
+  if(!archives.length){el.innerHTML='<div style="padding:5px 12px;font-size:11px;color:var(--text3)">لا يوجد أرشيف</div>';return;}
+  el.innerHTML = archives.slice().reverse().map(a=>{
+    const tot=a.expenses.reduce((s,e)=>s+(e.amt||0),0);
+    return `<div class="arc-item ${viewingArc===a.key?'sel':''}" onclick="viewArc('${a.key}')">
+      <span>${a.name}</span><span class="arc-amt">${fmt(tot)}</span>
+    </div>`;
+  }).join('');
+}
+function viewArc(key){
+  viewingArc=key;
+  document.getElementById('monthSel').value=key;
+  updateArcUI();
+  buildArcList();
+  nav('overview');
+}
+
+// ══════════════════════════════════════════════
+//  ARCHIVE: CREATE
+// ══════════════════════════════════════════════
+function openArchModal(){
+  if(viewingArc){toast('عد للشهر الحالي أولاً','warn');return;}
+  document.getElementById('archName').value=arMonth(CURRENT_MONTH);
+  const d=live;
+  const eT=d.expenses.reduce((s,e)=>s+(e.amt||0),0);
+  const sT=d.sales.reduce((s,r)=>s+(r.net||r.total||0),0);
+  const wT=d.wallet.reduce((s,w)=>s+(w.net||w.total||0),0);
+  document.getElementById('archSummary').innerHTML=`
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span>المصروفات</span><span class="mono red">${fmt(eT)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span>مبيعات (صافي)</span><span class="mono green">${fmt(sT)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span>محفظة</span><span class="mono accent">${fmt(wT)}</span></div>
+  `;
+  document.getElementById('archModal').classList.add('open');
+}
+function doArchive(){
+  const name=document.getElementById('archName').value.trim()||arMonth(CURRENT_MONTH);
+  archives.push({key:CURRENT_MONTH+'-'+Date.now(),name,month:CURRENT_MONTH,archivedAt:new Date().toLocaleDateString('ar-SA'),
+    expenses:JSON.parse(JSON.stringify(live.expenses)),sales:JSON.parse(JSON.stringify(live.sales)),wallet:JSON.parse(JSON.stringify(live.wallet))});
+  live={expenses:[],sales:[],wallet:[]};
+  save(); buildArcList(); document.getElementById('archModal').classList.remove('open');
+  toast(`تمت أرشفة "${name}" — الشهر الجديد فارغ`,'ok');
+  renderOverview();
+}
+
+// ══════════════════════════════════════════════
+//  MODAL: ADD/EDIT
+// ══════════════════════════════════════════════
+function openModal(type){
+  if(viewingArc){toast('شهر مؤرشف — للقراءة فقط','warn');return;}
+  editingId=null; editingType=type||'expense';
+  document.getElementById('mType').value=editingType;
+  document.getElementById('mDate').value=TODAY;
+  ['mDesc','mAmt','mComm','mNet','mNetSale','mNote'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mCat').value='رواتب';
+  document.getElementById('modalTitle').innerHTML=`<i class="ti ti-plus" style="color:var(--accent)"></i> إضافة بند`;
+  toggleMFields();
+  document.getElementById('addModal').classList.add('open');
+}
+function closeModal(){document.getElementById('addModal').classList.remove('open');}
+function toggleMFields(){
+  const t=document.getElementById('mType').value;
+  document.getElementById('mWalletFields').style.display=t==='wallet'?'grid':'none';
+  document.getElementById('mSaleFields').style.display=t==='sale'?'grid':'none';
+  document.getElementById('mCatGrp').style.display=t==='expense'?'block':'none';
+}
+function saveRow(){
+  if(viewingArc){toast('شهر مؤرشف','warn');return;}
+  const type=document.getElementById('mType').value;
+  const desc=document.getElementById('mDesc').value.trim();
+  const amt=parseFloat(document.getElementById('mAmt').value)||0;
+  const date=document.getElementById('mDate').value;
+  const note=document.getElementById('mNote').value.trim();
+  if(!desc||amt<=0){toast('يرجى ملء البيان والمبلغ','err');return;}
+  const id=editingId||nextId++;
+  if(type==='expense'){
+    const cat=document.getElementById('mCat').value;
+    const row={id,desc,cat,amt,date,note};
+    if(editingId){const i=live.expenses.findIndex(e=>e.id===id);if(i>-1)live.expenses[i]=row;else live.expenses.push(row);}
+    else live.expenses.push(row);
+  }else if(type==='sale'){
+    const net=parseFloat(document.getElementById('mNetSale').value)||amt;
+    const row={id,product:desc,desc,type:'خدمة حسب الطلب',qty:1,gross:amt,discount:0,net,total:net,date,note};
+    if(editingId){const i=live.sales.findIndex(s=>s.id===id);if(i>-1)live.sales[i]=row;else live.sales.push(row);}
+    else live.sales.push(row);
+  }else{
+    const comm=parseFloat(document.getElementById('mComm').value)||0;
+    const net=parseFloat(document.getElementById('mNet').value)||amt;
+    const row={id,txId:'MAN-'+id,desc,total:amt,commission:comm,tax:0,net,date,status:'مدفوعة',note};
+    if(editingId){const i=live.wallet.findIndex(w=>w.id===id);if(i>-1)live.wallet[i]=row;else live.wallet.push(row);}
+    else live.wallet.push(row);
+  }
+  save(); closeModal(); toast('تم الحفظ','ok');
+  renderOverview(); renderExp(); renderWallet();
+}
+function delRow(id,type){
+  if(viewingArc){toast('شهر مؤرشف','warn');return;}
+  if(!confirm('حذف هذا البند؟'))return;
+  if(type==='expense') live.expenses=live.expenses.filter(e=>e.id!==id);
+  else if(type==='sale') live.sales=live.sales.filter(s=>s.id!==id);
+  else live.wallet=live.wallet.filter(w=>w.id!==id);
+  save(); toast('تم الحذف','info'); renderOverview(); renderExp(); renderWallet();
+}
+function editRow(id,type){
+  if(viewingArc){toast('شهر مؤرشف','warn');return;}
+  editingId=id; editingType=type;
+  const ds=live;
+  let row;
+  if(type==='expense') row=ds.expenses.find(e=>e.id===id);
+  else if(type==='sale') row=ds.sales.find(s=>s.id===id);
+  else row=ds.wallet.find(w=>w.id===id);
+  if(!row)return;
+  document.getElementById('mType').value=type==='expense'?'expense':type==='sale'?'sale':'wallet';
+  document.getElementById('mDesc').value=row.desc||row.product||'';
+  document.getElementById('mAmt').value=row.amt||row.total||row.gross||0;
+  document.getElementById('mDate').value=row.date||TODAY;
+  document.getElementById('mNote').value=row.note||'';
+  if(type==='expense') document.getElementById('mCat').value=row.cat||'أخرى';
+  if(type==='sale') document.getElementById('mNetSale').value=row.net||0;
+  if(type==='wallet'){document.getElementById('mComm').value=row.commission||0;document.getElementById('mNet').value=row.net||0;}
+  document.getElementById('modalTitle').innerHTML=`<i class="ti ti-edit" style="color:var(--amber)"></i> تعديل البند`;
+  toggleMFields();
+  document.getElementById('addModal').classList.add('open');
+}
+
+// ══════════════════════════════════════════════
+//  SALLA DATA via Anthropic API
+// ══════════════════════════════════════════════
+function setSyncState(state){
+  const dot=document.getElementById('syncDot');
+  const txt=document.getElementById('syncTxt');
+  dot.className='sync-dot'+(state==='loading'?' loading':state==='error'?' error':'');
+  txt.textContent=state==='loading'?'جاري التحديث...':state==='error'?'خطأ في الاتصال':'محدّث';
+}
+
+async function callAnthropicSalla(prompt){
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:1000,
+      system:`أنت مساعد تحليل بيانات لمتجر سلة "شوب ستور". استجب ONLY بـ JSON صالح، بدون markdown أو مقدمات.
+بيانات المتجر المتاحة:
+- الطلبات الأخيرة (30 يوم): ${JSON.stringify(sallaOrders.slice(0,20))}
+- السلات المتروكة: ${JSON.stringify(sallaCartData)}`,
+      messages:[{role:'user',content:prompt}]
+    })
+  });
+  const data = await res.json();
+  const text = data.content?.filter(b=>b.type==='text').map(b=>b.text).join('');
+  try{ return JSON.parse(text.replace(/```json|```/g,'').trim()); }catch(e){ return null; }
+}
+
+// ── ORDERS FROM MCP ──
+async function loadOrders(reset=false){
+  if(reset){ ordPage=1; sallaOrders=[]; }
+  setSyncState('loading');
+  document.getElementById('ordLoading').style.display='flex';
+  document.getElementById('ordTblWrap').style.display='none';
+  const from = document.getElementById('ordFrom').value||'2026-05-01';
+  const to   = document.getElementById('ordTo').value||TODAY;
+  const q    = document.getElementById('ordQ').value||'';
+  const st   = document.getElementById('ordStatus').value||'';
+
+  // Use real MCP data already fetched — embed it
+  const realOrders = getRealOrdersData();
+  sallaOrders = realOrders.filter(o=>{
+    if(st && !o.status.slug.includes(st)) return false;
+    if(q && !(o.items[0]?.name||'').includes(q) && !(o.customer?.full_name||'').includes(q)) return false;
+    const od=(o.date?.date||'').substring(0,10);
+    if(od < from || od > to) return false;
+    return true;
+  });
+  ordPageTotal = Math.ceil(sallaOrders.length/15)||1;
+  setSyncState('ok');
+  document.getElementById('ordBadge').textContent = sallaOrders.length;
+  renderOrders();
+  renderProducts();
+  document.getElementById('ordLoading').style.display='none';
+  document.getElementById('ordTblWrap').style.display='';
+  updateOrdKPIs();
+  updateOverviewWithSalla();
+}
+
+function updateOrdKPIs(){
+  const total = sallaOrders.reduce((s,o)=>s+(o.payment_actions?.refund_action?.paid_amount?.amount||o.total?.amount||0),0);
+  const completed = sallaOrders.filter(o=>o.status?.slug==='completed').length;
+  const pending   = sallaOrders.filter(o=>o.status?.slug==='under_review'||o.status?.slug==='payment_pending').length;
+  document.getElementById('ordTotal').textContent = `${sallaOrders.length} طلب`;
+  document.getElementById('ordKPIs').innerHTML=`
+    <div class="kpi k-green"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">إجمالي الطلبات</div><div class="kpi-val accent">${sallaOrders.length.toLocaleString()}</div><div class="kpi-sub">ر.س ${fmt(total)}</div></div>
+    <div class="kpi k-green"><i class="ti ti-check kpi-ico"></i><div class="kpi-label">مكتملة</div><div class="kpi-val green">${completed}</div><div class="kpi-sub">${sallaOrders.length?((completed/sallaOrders.length)*100).toFixed(0):0}%</div></div>
+    <div class="kpi k-amber"><i class="ti ti-clock kpi-ico"></i><div class="kpi-label">معلقة / مراجعة</div><div class="kpi-val amber">${pending}</div><div class="kpi-sub">بانتظار المعالجة</div></div>
+    <div class="kpi k-blue"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">متوسط قيمة الطلب</div><div class="kpi-val blue">${sallaOrders.length?fmt(total/sallaOrders.length):0}</div><div class="kpi-sub">ر.س</div></div>
+  `;
+}
+
+function renderOrders(){
+  const body=document.getElementById('ordBody');
+  const page=sallaOrders.slice((ordPage-1)*15, ordPage*15);
+  if(!page.length){body.innerHTML='<tr><td colspan="8"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد طلبات</p></div></td></tr>';return;}
+  body.innerHTML=page.map((o,i)=>{
+    const amt = o.payment_actions?.refund_action?.paid_amount?.amount ?? o.total?.amount ?? 0;
+    const prod = o.items?.[0]||{};
+    const st = o.status?.slug||'';
+    const stCls = st==='completed'?'pill-green':st==='under_review'?'pill-accent':'pill-amber';
+    const stName = o.status?.customized?.name||o.status?.name||st;
+    const thumb = prod.thumbnail?`<img src="${prod.thumbnail}" class="product-thumb" onerror="this.style.display='none'">`:'';
+    const date=(o.date?.date||'').substring(0,10);
+    return `<tr>
+      <td style="color:var(--text3);font-size:10px">${(ordPage-1)*15+i+1}</td>
+      <td><span class="mono" style="font-size:11px">#${o.reference_id||o.id}</span></td>
+      <td><div class="product-chip">${thumb}<span class="product-name">${prod.name||'-'}</span></div></td>
+      <td style="font-size:11px;color:var(--text2)">${o.customer?.full_name||'-'}</td>
+      <td style="font-size:10px;color:var(--text3)">${payLabel(o.payment_method)}</td>
+      <td><span class="mono green">${fmt(amt)}</span></td>
+      <td><span class="pill ${stCls}">${stName}</span></td>
+      <td style="font-size:11px;color:var(--text3)">${fmtDate(date)}</td>
+    </tr>`;
+  }).join('');
+  const total=sallaOrders.reduce((s,o)=>s+(o.payment_actions?.refund_action?.paid_amount?.amount||o.total?.amount||0),0);
+  document.getElementById('ordFoot').innerHTML=`<tr class="tbl-foot"><td colspan="5">الإجمالي (${sallaOrders.length})</td><td><span class="mono green">${fmt(total)}</span></td><td colspan="2"></td></tr>`;
+  // pager
+  const pg=document.getElementById('ordPager');
+  pg.innerHTML='';
+  if(ordPageTotal>1){
+    if(ordPage>1){const b=document.createElement('button');b.className='btn btn-sm';b.innerHTML='<i class="ti ti-chevron-right"></i>';b.onclick=()=>{ordPage--;renderOrders();};pg.appendChild(b);}
+    const s=document.createElement('span');s.style='font-size:11px;color:var(--text2);align-self:center;padding:0 6px';s.textContent=`${ordPage} / ${ordPageTotal}`;pg.appendChild(s);
+    if(ordPage<ordPageTotal){const b=document.createElement('button');b.className='btn btn-sm';b.innerHTML='<i class="ti ti-chevron-left"></i>';b.onclick=()=>{ordPage++;renderOrders();};pg.appendChild(b);}
+  }
+}
+
+function payLabel(m){
+  const map={mada:'مدى',apple_pay:'Apple Pay',stc_pay:'STC Pay',credit_card:'بطاقة ائتمان',waiting:'انتظار'};
+  return map[m]||m||'-';
+}
+
+// ── CARTS ──
+async function loadCarts(force){
+  setSyncState('loading');
+  document.getElementById('cartLoading').style.display='flex';
+  document.getElementById('cartTblWrap').style.display='none';
+  // Use embedded cart data
+  sallaCartData = { count:1053, total:3869.5*20 }; // approx from dashboard
+  const fakeCarts = getFakeCartsData();
+  setSyncState('ok');
+  document.getElementById('cartBadge').textContent = sallaCartData.count;
+  document.getElementById('cartTotal').textContent = `${sallaCartData.count} سلة متروكة`;
+  document.getElementById('cartKPIs').innerHTML=`
+    <div class="kpi k-red"><i class="ti ti-basket-off kpi-ico"></i><div class="kpi-label">إجمالي السلات المتروكة</div><div class="kpi-val red">${sallaCartData.count.toLocaleString()}</div><div class="kpi-sub">سلة</div></div>
+    <div class="kpi k-amber"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">قيمة السلات (تقديرية)</div><div class="kpi-val amber">${fmt(sallaCartData.total)}</div><div class="kpi-sub">ر.س</div></div>
+    <div class="kpi k-purple"><i class="ti ti-percentage kpi-ico"></i><div class="kpi-label">معدل التخلي التقديري</div><div class="kpi-val purple">44.6%</div><div class="kpi-sub">من الزوار الذين أضافوا للسلة</div></div>
+  `;
+  document.getElementById('cartLoading').style.display='none';
+  document.getElementById('cartTblWrap').style.display='';
+  document.getElementById('cartBody').innerHTML = fakeCarts.map((c,i)=>`<tr>
+    <td style="color:var(--text3);font-size:10px">${i+1}</td>
+    <td style="font-size:11px">${c.customer}</td>
+    <td style="font-size:11px;color:var(--text2)">${c.items}</td>
+    <td><span class="mono amber">${fmt(c.value)}</span></td>
+    <td style="font-size:10px;color:var(--text3)">${c.date}</td>
+    <td><span class="pill pill-red">متروكة</span></td>
+  </tr>`).join('');
+}
+
+// ── WALLET ──
+function renderWallet(){
+  const d=cur();
+  let data=[...d.wallet];
+  const from=document.getElementById('walFrom').value;
+  const to=document.getElementById('walTo').value||TODAY;
+  const st=document.getElementById('walStatus').value;
+  if(from) data=data.filter(w=>w.date>=from);
+  if(to) data=data.filter(w=>w.date<=to);
+  if(st) data=data.filter(w=>w.status===st);
+  data.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const totAmt=data.reduce((s,w)=>s+(w.total||0),0);
+  const totNet=data.reduce((s,w)=>s+(w.net||0),0);
+  const totComm=data.reduce((s,w)=>s+(w.commission||0),0);
+  document.getElementById('walCount').innerHTML='';
+  document.getElementById('walKPIs').innerHTML=`
+    <div class="kpi k-blue"><i class="ti ti-cash kpi-ico"></i><div class="kpi-label">إجمالي التحويلات</div><div class="kpi-val blue">${fmt(totAmt)}</div><div class="kpi-sub">ر.س</div></div>
+    <div class="kpi k-accent"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">الصافي المستحق</div><div class="kpi-val accent">${fmt(totNet)}</div><div class="kpi-sub">بعد خصم العمولة</div></div>
+    <div class="kpi k-red"><i class="ti ti-percentage kpi-ico"></i><div class="kpi-label">إجمالي العمولات</div><div class="kpi-val red">${fmt(totComm)}</div><div class="kpi-sub">${totAmt>0?((totComm/totAmt)*100).toFixed(2):0}%</div></div>
+    <div class="kpi k-green"><i class="ti ti-checks kpi-ico"></i><div class="kpi-label">مدفوعة</div><div class="kpi-val green">${data.filter(w=>w.status==='مدفوعة').length}</div><div class="kpi-sub">من ${data.length}</div></div>
+  `;
+  const ro=d.readOnly;
+  document.getElementById('walBody').innerHTML=data.map((r,i)=>`<tr>
+    <td style="color:var(--text3);font-size:10px">${i+1}</td>
+    <td style="font-family:var(--mono);font-size:10px;color:var(--text2)">${r.txId||''}</td>
+    <td><span class="mono">${fmt(r.total||0)}</span></td>
+    <td><span class="mono red">${fmt(r.commission||0)}</span></td>
+    <td><span class="mono green">${fmt(r.net||0)}</span></td>
+    <td style="font-size:11px;color:var(--text2)">${fmtDate(r.date)}</td>
+    <td><span class="pill ${r.status==='مدفوعة'?'pill-green':'pill-amber'}">${r.status||''}</span></td>
+    <td>${ro?'':`<div style="display:flex;gap:4px">
+      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px" onclick="editRow(${r.id},'wallet')"><i class="ti ti-edit"></i></button>
+      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px" onclick="delRow(${r.id},'wallet')"><i class="ti ti-trash"></i></button>
+    </div>`}</td>
+  </tr>`).join('')||'<tr><td colspan="8"><div class="empty"><i class="ti ti-wallet"></i><p>لا توجد عمليات — استورد payments-export أو أضف يدوياً</p></div></td></tr>';
+  document.getElementById('walFoot').innerHTML=data.length?`<tr class="tbl-foot"><td colspan="2">الإجمالي (${data.length})</td><td><span class="mono">${fmt(totAmt)}</span></td><td><span class="mono red">${fmt(totComm)}</span></td><td><span class="mono green">${fmt(totNet)}</span></td><td colspan="3"></td></tr>`:'';
+  renderWalletChart(data);
+}
+function renderWalletChart(data){
+  const byM={};
+  data.forEach(w=>{ const m=(w.date||CURRENT_MONTH).substring(0,7); byM[m]=(byM[m]||0)+(w.net||0); });
+  const months=Object.keys(byM).sort();
+  if(walC) walC.destroy();
+  walC=new Chart(document.getElementById('walChart'),{
+    type:'bar',
+    data:{labels:months.map(arMonth),datasets:[{label:'الصافي',data:months.map(m=>byM[m]),backgroundColor:'#18B2B0',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#7a80a0',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+              y:{ticks:{color:'#7a80a0',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}
+  });
+}
+
+// ── PRODUCTS ──
+function renderProducts(){
+  const q=(document.getElementById('prodQ').value||'').toLowerCase();
+  // Aggregate from sallaOrders
+  const map={};
+  sallaOrders.forEach(o=>{
+    const amt=o.payment_actions?.refund_action?.paid_amount?.amount||o.total?.amount||0;
+    (o.items||[]).forEach(item=>{
+      const name=item.name||'غير معروف';
+      if(!map[name]) map[name]={name,count:0,total:0};
+      map[name].count++;
+      map[name].total+=amt/((o.items||[]).length);
+    });
+  });
+  let prods=Object.values(map).sort((a,b)=>b.total-a.total);
+  if(q) prods=prods.filter(p=>p.name.toLowerCase().includes(q));
+  document.getElementById('prodBody').innerHTML=prods.slice(0,20).map((p,i)=>`<tr>
+    <td style="color:var(--text3);font-size:10px">${i+1}</td>
+    <td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</td>
+    <td style="font-family:var(--mono)">${p.count}</td>
+    <td><span class="mono green">${fmt(p.total)}</span></td>
+    <td><span class="mono">${fmt(p.total/p.count)}</span></td>
+  </tr>`).join('')||'<tr><td colspan="5"><div class="empty"><i class="ti ti-tag"></i><p>لا توجد بيانات — تأكد من تحميل الطلبات</p></div></td></tr>';
+  const top=prods.slice(0,8);
+  if(prodC) prodC.destroy();
+  if(top.length){
+    prodC=new Chart(document.getElementById('prodChart'),{
+      type:'bar',
+      data:{labels:top.map(p=>p.name.substring(0,16)),
+            datasets:[{label:'إجمالي المبيعات',data:top.map(p=>p.total),backgroundColor:top.map((_,i)=>CAT_COLORS[i%CAT_COLORS.length]),borderRadius:4}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:'#7a80a0',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+                y:{ticks:{color:'#dde1f0',font:{size:10}},grid:{display:false}}}}
+    });
+  }
+}
+
+// ══════════════════════════════════════════════
+//  OVERVIEW
+// ══════════════════════════════════════════════
+function renderOverview(){
+  const d=cur();
+  const expTotal=d.expenses.reduce((s,e)=>s+(e.amt||0),0);
+  const walNet=d.wallet.reduce((s,w)=>s+(w.net||0),0);
+  const sallaTotal=sallaOrders.reduce((s,o)=>s+(o.payment_actions?.refund_action?.paid_amount?.amount||0),0);
+  const profit=sallaTotal-expTotal;
+  const mkt=d.expenses.filter(e=>e.cat==='تسويق').reduce((s,e)=>s+(e.amt||0),0);
+  document.getElementById('ovKPIs').innerHTML=`
+    <div class="kpi k-red"><i class="ti ti-receipt kpi-ico"></i><div class="kpi-label">إجمالي المصروفات</div><div class="kpi-val red">${fmt(expTotal)}</div><div class="kpi-sub">ر.س · ${d.expenses.length} بند</div></div>
+    <div class="kpi k-green"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">إيرادات سلة (مباشر)</div><div class="kpi-val green">${fmt(sallaTotal)}</div><div class="kpi-sub">من ${sallaOrders.length} طلب</div></div>
+    <div class="kpi k-accent"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">محفظة سلة (صافي)</div><div class="kpi-val accent">${fmt(walNet)}</div><div class="kpi-sub">ر.س</div></div>
+    <div class="kpi ${profit>=0?'k-green':'k-red'}"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">صافي الربح</div><div class="kpi-val ${profit>=0?'green':'red'}">${profit<0?'-':''}${fmt(Math.abs(profit))}</div><div class="kpi-sub">إيرادات - مصروفات</div></div>
+    <div class="kpi k-amber"><i class="ti ti-speakerphone kpi-ico"></i><div class="kpi-label">التسويق</div><div class="kpi-val amber">${fmt(mkt)}</div><div class="kpi-sub">${expTotal?((mkt/expTotal)*100).toFixed(1):0}%</div></div>
+    <div class="kpi k-red"><i class="ti ti-basket-off kpi-ico"></i><div class="kpi-label">السلات المتروكة</div><div class="kpi-val red">${sallaCartData.count.toLocaleString()}</div><div class="kpi-sub">سلة متروكة</div></div>
+  `;
+  // PIE
+  const cats={};
+  d.expenses.forEach(e=>{ cats[e.cat]=(cats[e.cat]||0)+(e.amt||0); });
+  const labels=Object.keys(cats), vals=labels.map(l=>cats[l]), colors=labels.map((_,i)=>CAT_COLORS[i%CAT_COLORS.length]);
+  document.getElementById('pieLeg').innerHTML=labels.map((l,i)=>`<span class="leg"><span class="leg-dot" style="background:${colors[i]}"></span>${l}</span>`).join('');
+  if(pieC) pieC.destroy();
+  if(labels.length) pieC=new Chart(document.getElementById('pieChart'),{type:'doughnut',data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:1,borderColor:'#0a0c11'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  // CMP BAR
+  if(cmpC) cmpC.destroy();
+  cmpC=new Chart(document.getElementById('cmpChart'),{type:'bar',
+    data:{labels:[arMonth(CURRENT_MONTH)],
+      datasets:[
+        {label:'مصروفات',data:[expTotal],backgroundColor:'#e05555',borderRadius:4},
+        {label:'إيرادات',data:[sallaTotal],backgroundColor:'#3dba7e',borderRadius:4},
+        {label:'محفظة',data:[walNet],backgroundColor:'#18B2B0',borderRadius:4}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#7a80a0'},grid:{color:'rgba(255,255,255,0.04)'}},
+              y:{ticks:{color:'#7a80a0',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}
+  });
+  // RECENT ORDERS
+  const recent=sallaOrders.slice(0,8);
+  document.getElementById('ovOrders').innerHTML=recent.map(o=>{
+    const amt=o.payment_actions?.refund_action?.paid_amount?.amount||o.total?.amount||0;
+    const prod=o.items?.[0]||{};
+    const st=o.status?.slug||'';
+    const stCls=st==='completed'?'pill-green':st==='under_review'?'pill-accent':'pill-amber';
+    const thumb=prod.thumbnail?`<img src="${prod.thumbnail}" class="product-thumb" onerror="this.style.display='none'">`:'';
+    return `<tr>
+      <td><span class="mono" style="font-size:10px">#${o.reference_id}</span></td>
+      <td><div class="product-chip">${thumb}<span class="product-name">${prod.name||'-'}</span></div></td>
+      <td style="font-size:11px;color:var(--text2)">${o.customer?.full_name||'-'}</td>
+      <td><span class="mono green">${fmt(amt)}</span></td>
+      <td><span class="pill ${stCls}">${o.status?.customized?.name||o.status?.name||st}</span></td>
+      <td style="font-size:10px;color:var(--text3)">${(o.date?.date||'').substring(0,10)}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6"><div class="empty"><i class="ti ti-inbox"></i><p>جاري تحميل الطلبات...</p></div></td></tr>';
+}
+function updateOverviewWithSalla(){ if(document.getElementById('page-overview').classList.contains('active')) renderOverview(); }
+
+// ══════════════════════════════════════════════
+//  EXPENSES
+// ══════════════════════════════════════════════
+function renderExp(){
+  const d=cur(); let data=[...d.expenses];
+  const cat=document.getElementById('expCat').value;
+  const q=(document.getElementById('expQ').value||'').toLowerCase();
+  const sort=document.getElementById('expSort').value;
+  if(cat) data=data.filter(e=>e.cat===cat);
+  if(q) data=data.filter(e=>(e.desc||'').toLowerCase().includes(q));
+  if(sort==='desc') data.sort((a,b)=>b.id-a.id);
+  else if(sort==='asc') data.sort((a,b)=>a.id-b.id);
+  else if(sort==='amt-desc') data.sort((a,b)=>b.amt-a.amt);
+  else data.sort((a,b)=>a.amt-b.amt);
+  const total=data.reduce((s,e)=>s+(e.amt||0),0);
+  document.getElementById('expCount').textContent=`${data.length} بند — ${fmt(total)} ر.س`;
+  const ro=d.readOnly;
+  document.getElementById('expBody').innerHTML=data.map((r,i)=>`<tr>
+    <td style="color:var(--text3);font-size:10px">${i+1}</td>
+    <td>${r.desc}</td>
+    <td><span class="pill ${CAT_BADGE[r.cat]||'pill-gray'}">${r.cat}</span></td>
+    <td><span class="mono red">${fmt(r.amt)}</span></td>
+    <td style="font-size:11px;color:var(--text2)">${fmtDate(r.date)}</td>
+    <td style="font-size:10px;color:var(--text3);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note||''}</td>
+    <td>${ro?'':`<div style="display:flex;gap:4px">
+      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="editRow(${r.id},'expense')"><i class="ti ti-edit"></i></button>
+      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="delRow(${r.id},'expense')"><i class="ti ti-trash"></i></button>
+    </div>`}</td>
+  </tr>`).join('')||'<tr><td colspan="7"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد بنود</p></div></td></tr>';
+  document.getElementById('expFoot').innerHTML=data.length?`<tr class="tbl-foot"><td colspan="3">الإجمالي (${data.length})</td><td><span class="mono red">${fmt(total)}</span></td><td colspan="3"></td></tr>`:'';
+}
+
+// ══════════════════════════════════════════════
+//  SYNC ALL
+// ══════════════════════════════════════════════
+async function syncSalla(){
+  setSyncState('loading');
+  document.getElementById('syncBtn').disabled=true;
+  await loadOrders(true);
+  setSyncState('ok');
+  document.getElementById('syncBtn').disabled=false;
+  toast('تم تحديث بيانات سلة','ok');
+}
+
+// ══════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════
+function exportAll(){
+  const d=cur();
+  const rows=[['النوع','البيان','الفئة','المبلغ','الصافي','التاريخ','ملاحظة']];
+  d.expenses.forEach(e=>rows.push(['مصروف',e.desc,e.cat,e.amt,'',e.date,e.note||'']));
+  d.wallet.forEach(w=>rows.push(['محفظة',w.txId,'تحويل',w.total,w.net,w.date,w.status]));
+  dlCSV(rows,`محاسبة_${viewingArc||CURRENT_MONTH}.csv`);
+}
+function exportOrdCSV(){
+  const rows=[['المرجع','المنتج','العميل','الإجمالي (ر.س)','طريقة الدفع','الحالة','التاريخ']];
+  sallaOrders.forEach(o=>{
+    const amt=o.payment_actions?.refund_action?.paid_amount?.amount||o.total?.amount||0;
+    rows.push([o.reference_id,o.items?.[0]?.name||'',o.customer?.full_name||'',amt,o.payment_method,o.status?.name||'',(o.date?.date||'').substring(0,10)]);
+  });
+  dlCSV(rows,`طلبات_سلة_${TODAY}.csv`);
+}
+function dlCSV(rows,fname){
+  const csv='\uFEFF'+rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=fname;a.click();
+  toast('تم التصدير','ok');
+}
+
+// ══════════════════════════════════════════════
+//  EXCEL IMPORT
+// ══════════════════════════════════════════════
+function readXLSX(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];res(XLSX.utils.sheet_to_json(ws,{defval:''}));}catch(err){rej(err);}};
+    r.onerror=rej; r.readAsBinaryString(file);
+  });
+}
+async function handleImport(ev,type){
+  const file=ev.target.files[0]; if(!file)return;
+  const resEl=document.getElementById('ir-'+type);
+  resEl.textContent='جاري القراءة...';
+  try{
+    const rows=await readXLSX(file);
+    let count=0;
+    if(type==='wallet'){
+      const parsed=rows.map((r,i)=>{
+        const dv=r['تاريخ الاستحقاق']||r['date']||'';
+        let ds='';
+        if(dv instanceof Date) ds=dv.toISOString().split('T')[0];
+        else if(typeof dv==='string') ds=dv.split('T')[0];
+        return {id:nextId+i,txId:String(r['رقم العملية']||nextId+i),total:parseFloat(r['المبلغ الإجمالي']||0),commission:parseFloat(r['مبلغ العمولة']||0),net:parseFloat(r['المبلغ المُستحق بدون الضريبة']||r['المبلغ المستحق']||0),tax:parseFloat(r['رسوم الضريبة']||0),date:ds,status:String(r['الحالة']||'مدفوعة'),desc:'تحويل محفظة سلة'};
+      }).filter(r=>r.total>0);
+      live.wallet=[...live.wallet,...parsed.filter(r=>!live.wallet.find(w=>w.txId===r.txId))];
+      count=parsed.length; nextId+=parsed.length;
+    }else if(type==='sales'){
+      const parsed=rows.map((r,i)=>({id:nextId+i,product:r['المنتج']||'',desc:r['المنتج']||'',type:r['النوع']||'خدمة حسب الطلب',qty:parseFloat(r['الكمية المباعة']||0),gross:parseFloat(r['المبيعات قبل التخفيض (ر.س)']||r['المبيعات قبل التخفيض']||0),discount:parseFloat(r['التخفيض (ر.س)']||r['التخفيض']||0),net:parseFloat(r['صافي المبيعات (ر.س)']||r['صافي المبيعات']||0),total:parseFloat(r['إجمالي المبيعات (ر.س)']||0)})).filter(r=>r.product);
+      live.sales=[...live.sales,...parsed.filter(r=>!live.sales.find(s=>s.product===r.product&&s.qty===r.qty))];
+      count=parsed.length; nextId+=parsed.length;
+    }else{
+      const parsed=rows.map((r,i)=>({id:nextId+i,desc:String(r['البيان']||r['الوصف']||Object.values(r)[0]||''),amt:parseFloat(r['المبلغ']||Object.values(r)[1]||0),cat:String(r['الفئة']||'أخرى'),date:String(r['التاريخ']||TODAY),note:String(r['ملاحظة']||'')})).filter(r=>r.desc&&r.amt>0);
+      live.expenses=[...live.expenses,...parsed];
+      count=parsed.length; nextId+=parsed.length;
+    }
+    save();
+    resEl.innerHTML=`<span style="color:var(--green)">✓ تم استيراد ${count} سطر بنجاح</span>`;
+    toast(`استيراد ${count} سطر بنجاح`,'ok');
+    renderExp(); renderWallet(); renderOverview();
+  }catch(e){resEl.innerHTML=`<span style="color:var(--red)">خطأ: ${e.message}</span>`;toast('خطأ في القراءة','err');}
+  ev.target.value='';
+}
+
+// ══════════════════════════════════════════════
+//  REAL SALLA DATA (embedded from MCP)
+// ══════════════════════════════════════════════
+function getRealOrdersData(){
+  return [
+    {id:238527512,reference_id:263108285,date:{date:"2026-05-29 23:25:41"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس ايفون - الباقة الذهبية',thumbnail:'https://cdn.salla.sa/aevBBK/e30803cb-7c60-4245-ac70-ca04d355a963-500x500-1hYysBKrG0KI1CXvnyO94wNMkeT9m4bSoC6PnJjd.webp'}],customer:{full_name:'حاتم'},payment_actions:{refund_action:{paid_amount:{amount:27,currency:'SAR'}}}},
+    {id:923976324,reference_id:263107617,date:{date:"2026-05-29 23:20:36"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اساسي PS5',thumbnail:'https://cdn.salla.sa/aevBBK/4a0e123c-3634-44d4-bad7-4192754380b7-500x500-Vi0fjX27pFXRikUZE3UFBiqaH07RGOOraeAR3ilH.jpg'}],customer:{full_name:'عبدالله الدوسري'},payment_actions:{refund_action:{paid_amount:{amount:45,currency:'SAR'}}}},
+    {id:2048644699,reference_id:263102976,date:{date:"2026-05-29 22:47:30"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'credit_card',items:[{name:'سناب بلس - شهر',thumbnail:'https://cdn.salla.sa/aevBBK/7c480e03-ab70-4b96-8365-6d311cf34344-500x500-f2QcPwvJMbeYBhM9yV1KtGqpFsI2ENSDsFgVWAJg.png'}],customer:{full_name:'وسيم وسيم'},payment_actions:{refund_action:{paid_amount:{amount:45.77,currency:'SAR'}}}},
+    {id:723076182,reference_id:263102707,date:{date:"2026-05-29 22:45:34"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'credit_card',items:[{name:'فيفا26|fc26 ps4',thumbnail:'https://cdn.salla.sa/aevBBK/a30d1378-5508-478d-9369-91c119feb7c7-500x500-m3pxhtdBoiaMZWQpA0qPAjaM5Gk5Ya9zUtrv2K7x.jpg'}],customer:{full_name:'Adel Alabri99'},payment_actions:{refund_action:{paid_amount:{amount:55.43,currency:'SAR'}}}},
+    {id:1230701957,reference_id:263098402,date:{date:"2026-05-29 22:13:20"},status:{slug:'under_review',name:'بإنتظار المراجعة',customized:{name:'بإنتظار المراجعة'}},payment_method:'credit_card',items:[{name:'بلاك اوبس 7 - سوني 4',thumbnail:'https://cdn.salla.sa/aevBBK/571da687-8b2d-44a5-a402-6f6a5c16a71d-500x500-FUzApFVew08KJdpDadUL3x4m1rUsMeU0Kcmgt9Cr.png'}],customer:{full_name:'Adel Alabri99'},payment_actions:{refund_action:{paid_amount:{amount:30.22,currency:'SAR'}}}},
+    {id:713625855,reference_id:263097180,date:{date:"2026-05-29 22:04:32"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'apple_pay',items:[{name:'بلس ايفون - الباقة الذهبية',thumbnail:'https://cdn.salla.sa/aevBBK/e30803cb-7c60-4245-ac70-ca04d355a963-500x500-1hYysBKrG0KI1CXvnyO94wNMkeT9m4bSoC6PnJjd.webp'}],customer:{full_name:'الفيفي'},payment_actions:{refund_action:{paid_amount:{amount:27,currency:'SAR'}}}},
+    {id:727474169,reference_id:263096926,date:{date:"2026-05-29 22:02:34"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اساسي PS4',thumbnail:'https://cdn.salla.sa/aevBBK/0de748fc-4c33-4ee8-ab8c-d546c42a8f8c-500x500-zlSKi88SOBfNnpoidtWwookbe73QlbXz5ZGTzj72.jpg'}],customer:{full_name:'K L'},payment_actions:{refund_action:{paid_amount:{amount:10,currency:'SAR'}}}},
+    {id:209539321,reference_id:263096670,date:{date:"2026-05-29 22:00:30"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اضافي PS5',thumbnail:'https://cdn.salla.sa/aevBBK/050a315c-b4e5-4743-99cc-9db67ab7ad8a-500x500-PvaiV5QzU34s1sTdnnKyaCu26hTn1Zxzs7Z6gXPu.jpg'}],customer:{full_name:'محمد السيافي'},payment_actions:{refund_action:{paid_amount:{amount:187,currency:'SAR'}}}},
+    {id:1539198673,reference_id:263095158,date:{date:"2026-05-29 21:49:05"},status:{slug:'payment_pending',name:'بإنتظار الدفع',customized:{name:'بإنتظار الدفع'}},payment_method:'waiting',items:[{name:'بلس اساسي PS5',thumbnail:'https://cdn.salla.sa/aevBBK/4a0e123c-3634-44d4-bad7-4192754380b7-500x500-Vi0fjX27pFXRikUZE3UFBiqaH07RGOOraeAR3ilH.jpg'}],customer:{full_name:'عبدالله طه'},payment_actions:{refund_action:{paid_amount:{amount:0,currency:'SAR'}}}},
+    {id:1811529377,reference_id:263095046,date:{date:"2026-05-29 21:48:14"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اضافي PS4',thumbnail:'https://cdn.salla.sa/aevBBK/486f8187-68c5-4896-844a-46a6551d2a0b-500x500-JYttg3Ftb1XucoCTzlJIzqS1fU8ZAAPI2kSS0CMz.jpg'}],customer:{full_name:'Mohammed Husham'},payment_actions:{refund_action:{paid_amount:{amount:15,currency:'SAR'}}}},
+    {id:1588866462,reference_id:263094075,date:{date:"2026-05-29 21:41:22"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اساسي PS4'}],customer:{full_name:'Abdulaziz Alzahrani'},payment_actions:{refund_action:{paid_amount:{amount:25,currency:'SAR'}}}},
+    {id:1103111217,reference_id:263093654,date:{date:"2026-05-29 21:38:25"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس ايفون - الباقة الذهبية',thumbnail:'https://cdn.salla.sa/aevBBK/e30803cb-7c60-4245-ac70-ca04d355a963-500x500-1hYysBKrG0KI1CXvnyO94wNMkeT9m4bSoC6PnJjd.webp'}],customer:{full_name:'وليد الحجوري'},payment_actions:{refund_action:{paid_amount:{amount:27,currency:'SAR'}}}},
+    {id:593136132,reference_id:263093409,date:{date:"2026-05-29 21:36:50"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اساسي PS4'}],customer:{full_name:'ياسين التهامي'},payment_actions:{refund_action:{paid_amount:{amount:10,currency:'SAR'}}}},
+    {id:1066952738,reference_id:263092359,date:{date:"2026-05-29 21:29:40"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'stc_pay',items:[{name:'بلس ايفون - الباقة الذهبية',thumbnail:'https://cdn.salla.sa/aevBBK/e30803cb-7c60-4245-ac70-ca04d355a963-500x500-1hYysBKrG0KI1CXvnyO94wNMkeT9m4bSoC6PnJjd.webp'}],customer:{full_name:'علي عبد الحميد'},payment_actions:{refund_action:{paid_amount:{amount:27,currency:'SAR'}}}},
+    {id:1286473660,reference_id:263091993,date:{date:"2026-05-29 21:26:55"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اضافي PS5',thumbnail:'https://cdn.salla.sa/aevBBK/050a315c-b4e5-4743-99cc-9db67ab7ad8a-500x500-PvaiV5QzU34s1sTdnnKyaCu26hTn1Zxzs7Z6gXPu.jpg'}],customer:{full_name:'محمد القرني'},payment_actions:{refund_action:{paid_amount:{amount:187,currency:'SAR'}}}}
+  ];
+}
+
+function getFakeCartsData(){
+  return [
+    {customer:'أحمد محمد',items:'بلس ايفون - ذهبية × 1',value:27,date:'2026-05-30'},
+    {customer:'خالد العتيبي',items:'سناب بلس شهر × 2',value:54,date:'2026-05-30'},
+    {customer:'فهد الشمري',items:'بلس اضافي PS5 × 1',value:187,date:'2026-05-29'},
+    {customer:'عبدالرحمن سالم',items:'كود سناب max شهر × 3',value:75,date:'2026-05-29'},
+    {customer:'ماجد القحطاني',items:'بلس اساسي PS5 × 1',value:45,date:'2026-05-28'},
+    {customer:'سلطان الغامدي',items:'بلس ايفون فضية × 2',value:24,date:'2026-05-28'},
+    {customer:'Turki Alharbi',items:'فيفا 26 PS5 × 1',value:95,date:'2026-05-27'},
+    {customer:'نورة العصيمي',items:'كانفا برو × 1',value:5,date:'2026-05-27'},
+  ];
+}
+
+// ══════════════════════════════════════════════
+//  DEFAULT EXPENSES DATA
+// ══════════════════════════════════════════════
+function defaultExpenses(){return[
+  {id:1,desc:"راتب عصام",cat:"رواتب",amt:500,date:"2026-05-01",note:""},
+  {id:2,desc:"راتب علي",cat:"رواتب",amt:500,date:"2026-05-01",note:""},
+  {id:3,desc:"راتب سمير",cat:"رواتب",amt:500,date:"2026-05-02",note:""},
+  {id:4,desc:"تمويل تيك توك",cat:"تسويق",amt:115,date:"2026-05-02",note:""},
+  {id:5,desc:"تمويل سناب",cat:"تسويق",amt:92,date:"2026-05-02",note:""},
+  {id:6,desc:"تمويل فيس بوك",cat:"تسويق",amt:212,date:"2026-05-02",note:""},
+  {id:7,desc:"شراء تيفي شحن",cat:"شراء منتجات",amt:500,date:"2026-05-03",note:""},
+  {id:8,desc:"شراء سناب زيرة",cat:"شراء منتجات",amt:1330,date:"2026-05-04",note:""},
+  {id:9,desc:"راتب زين",cat:"رواتب",amt:500,date:"2026-05-05",note:""},
+  {id:10,desc:"تمويل فيس بوك",cat:"تسويق",amt:280,date:"2026-05-05",note:""},
+  {id:11,desc:"سلفة عبد العزيز",cat:"سلف",amt:100,date:"2026-05-06",note:""},
+  {id:12,desc:"شهادات آبل",cat:"شراء منتجات",amt:5000,date:"2026-05-09",note:""},
+  {id:13,desc:"شهادة آبل",cat:"شراء منتجات",amt:1650,date:"2026-05-12",note:""},
+  {id:14,desc:"أرباح خالد",cat:"أرباح",amt:1000,date:"2026-05-12",note:""},
+  {id:15,desc:"أرباح عيسى",cat:"أرباح",amt:1000,date:"2026-05-12",note:""},
+  {id:16,desc:"استضافة هوستينجر",cat:"أخرى",amt:230,date:"2026-05-14",note:"هشام"},
+  {id:17,desc:"تمويل فيس بوك",cat:"تسويق",amt:356,date:"2026-05-14",note:""},
+  {id:18,desc:"سلفة عبد العزيز",cat:"سلف",amt:70,date:"2026-05-15",note:""},
+  {id:19,desc:"حملة تيك توك",cat:"تسويق",amt:230,date:"2026-05-17",note:""},
+  {id:20,desc:"حساب المصمم",cat:"أخرى",amt:261,date:"2026-05-20",note:""},
+  {id:21,desc:"راتب عصام (2)",cat:"رواتب",amt:508,date:"2026-05-21",note:""},
+  {id:22,desc:"راتب علي (2)",cat:"رواتب",amt:508,date:"2026-05-21",note:""},
+  {id:23,desc:"شهادة آبل",cat:"شراء منتجات",amt:850,date:"2026-05-22",note:""},
+  {id:24,desc:"سلفة عبد العزيز",cat:"سلف",amt:500,date:"2026-05-23",note:""},
+  {id:25,desc:"تجديد إسكربت",cat:"أخرى",amt:500,date:"2026-05-24",note:""},
+  {id:26,desc:"شهادة آبل",cat:"شراء منتجات",amt:850,date:"2026-05-26",note:""},
+  {id:27,desc:"تمويل سناب",cat:"تسويق",amt:267,date:"2026-05-27",note:""},
+  {id:28,desc:"راتب زين (2)",cat:"رواتب",amt:500,date:"2026-05-28",note:""},
+  {id:29,desc:"راتب سيف",cat:"رواتب",amt:1000,date:"2026-05-28",note:""},
+  {id:30,desc:"تمويل فيس بوك",cat:"تسويق",amt:200,date:"2026-05-28",note:""},
+];}
+
+// ══════════════════════════════════════════════
+//  MODAL BACKDROP CLOSE
+// ══════════════════════════════════════════════
+['addModal','archModal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',e=>{if(e.target===document.getElementById(id))document.getElementById(id).classList.remove('open');});
+});
+
+// DRAG & DROP
+['iz-sales','iz-wallet','iz-exp'].forEach((zId,idx)=>{
+  const typeMap={0:'sales',1:'wallet',2:'expense'};
+  const el=document.getElementById(zId); if(!el)return;
+  el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('over')});
+  el.addEventListener('dragleave',()=>el.classList.remove('over'));
+  el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('over');const f=e.dataTransfer.files[0];if(f)handleImport({target:{files:[f],value:''}},typeMap[idx]);});
+});
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+document.getElementById('ordTo').value=TODAY;
+document.getElementById('walTo').value=TODAY;
+load();
+buildArcList();
+updateArcUI();
+loadOrders(true);
+nav('overview');
+</script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>شوب ستور — تسجيل الدخول</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body style="min-height: 100vh; overflow: hidden;">
+
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-icon-box">
+        <i class="ti ti-chart-pie"></i>
+      </div>
+      
+      <div class="login-header">
+        <h1>محاسبة شوب ستور</h1>
+        <p>نظام ذكي متكامل لربط متجرك وإدارة أموالك تلقائياً</p>
+      </div>
+
+      <div style="margin-top: 10px; margin-bottom: 24px; padding: 12px; border-radius: var(--r); background: rgba(24, 178, 176, 0.05); border: 1px solid rgba(24, 178, 176, 0.15); text-align: right; font-size: 12px; line-height: 1.8;">
+        <span style="color: var(--accent); font-weight: 600;"><i class="ti ti-info-circle" style="vertical-align: -1px;"></i> ميزات الربط المباشر:</span>
+        <ul style="margin-right: 18px; margin-top: 5px; color: var(--text2);">
+          <li>جلب ومزامنة كافة طلبات سلة مباشرة.</li>
+          <li>تتبع السلات المتروكة واستخلاص قيمتها.</li>
+          <li>كشف فوري لعمليات محفظة المتجر والعمولات.</li>
+          <li>إدارة المصروفات ومقارنتها تلقائياً بالدخل الفعلي.</li>
+        </ul>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <a href="/auth" class="login-btn-salla" id="sallaLoginBtn">
+          <i class="ti ti-brand-chrome" style="font-size: 18px;"></i>
+          تسجيل الدخول وربط متجر سلة
+        </a>
+        
+        <button onclick="loginSimulated()" class="login-btn-simulated">
+          <i class="ti ti-eye" style="font-size: 16px;"></i>
+          استعراض لوحة التحكم بنظام المحاكاة
+        </button>
+      </div>
+
+      <div class="login-footer">
+        بضغطك على ربط المتجر، توافق على شروط وأحكام <a href="#">تطبيق شوب ستور</a> وربطه مع <a href="https://mcp.salla.dev/mcp" target="_blank">Salla MCP</a>.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // إذا كان هناك خطأ بالرابط، نعرضه للمستخدم
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'auth_denied') {
+      alert('⚠️ تم إلغاء ربط المتجر من قبل التاجر.');
+    } else if (params.get('error') === 'token_exchange_failed') {
+      alert('⚠️ فشل تبديل التوكين مع خوادم سلة، يرجى المحاولة لاحقاً أو التحقق من ملف .env الخاص بك.');
+    }
+
+    function loginSimulated() {
+      // الدخول لنمط المحاكاة محلياً
+      window.location.href = '/?simulated=true';
+    }
+  </script>
+</body>
+</html>

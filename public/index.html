@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>شوب ستور — لوحة التحكم المتكاملة</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+
+  <div class="toasts" id="toasts"></div>
+
+  <!-- MODAL: إضافة/تعديل مصروف -->
+  <div class="modal-bg" id="addModal">
+    <div class="modal">
+      <div class="modal-title" id="modalTitle"><i class="ti ti-plus" style="color:var(--accent)"></i> إضافة بند مصروفات</div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">النوع</label>
+          <select id="mType" onchange="toggleMFields()">
+            <option value="expense">مصروف تشغيلي</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">التاريخ</label>
+          <input type="date" id="mDate">
+        </div>
+      </div>
+      
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">البيان (الوصف)</label>
+          <input type="text" id="mDesc" placeholder="مثال: فاتورة استضافة، تمويل حملة...">
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">المبلغ (ر.س)</label>
+          <input type="number" id="mAmt" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group" id="mCatGrp">
+          <label class="form-label">الفئة</label>
+          <select id="mCat" onchange="toggleMFields()">
+            <option>رواتب</option>
+            <option>تسويق</option>
+            <option>شراء منتجات</option>
+            <option>سلف</option>
+            <option>أرباح</option>
+            <option>أخرى</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- حقول شراء المنتجات الديناميكية -->
+      <div id="mPurchaseFields" style="display:none; width:100%;">
+        <div class="form-row full">
+          <div class="form-group">
+            <label class="form-label">المنتج (اختر من قائمة منتجات سلة الموجودة)</label>
+            <select id="mProductSelect" style="width: 100%;" onchange="toggleCustomProductField()"></select>
+            <input type="text" id="mProductCustom" placeholder="اكتب اسم المنتج المخصص هنا..." style="display:none; margin-top:6px; width: 100%;">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">الكمية</label>
+            <input type="number" id="mQuantity" placeholder="1" min="1" oninput="recalcPurchaseAmt()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">سعر الشراء للقطعة (ر.س)</label>
+            <input type="number" id="mPurchasePrice" placeholder="0.00" min="0" step="0.01" oninput="recalcPurchaseAmt()">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">سعر البيع للقطعة (ر.س)</label>
+            <input type="number" id="mSellingPrice" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-group" style="justify-content: center; align-items: flex-start; padding-top: 18px;">
+            <div style="font-size:11px; color:var(--text2);">
+              * إجمالي المحسوب: <span id="mCalcTotal" class="mono accent" style="font-weight:600;">0.00</span> ر.س
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- حقول التسويق الديناميكية -->
+      <div id="mMarketingFields" style="display:none; width:100%;">
+        <div class="form-row full">
+          <div class="form-group">
+            <label class="form-label">اسم المنصة الإعلانية</label>
+            <select id="mPlatformSelect" style="width: 100%;">
+              <option value="سناب شات">Snapchat (سناب شات)</option>
+              <option value="تيك توك">TikTok (تيك توك)</option>
+              <option value="انستقرام/فيسبوك">Instagram / Facebook (انستقرام/فيسبوك)</option>
+              <option value="منصة إكس">X (تويتر سابقاً)</option>
+              <option value="جوجل/يوتيوب">Google / YouTube (جوجل)</option>
+              <option value="أخرى">منصة أخرى</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">ملاحظات إضافية</label>
+          <textarea id="mNote" placeholder="تفاصيل المصروف..."></textarea>
+        </div>
+      </div>
+      
+      <div class="modal-foot">
+        <button class="btn" onclick="closeModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveRow()"><i class="ti ti-check"></i> حفظ البند</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: تفاصيل المصروف المنبثق -->
+  <div class="modal-bg" id="detailsModal">
+    <div class="modal" style="max-width: 520px; border-color: rgba(255,255,255,0.1); background: rgba(17, 21, 32, 0.9); backdrop-filter: blur(20px);">
+      <div class="modal-title" style="font-size: 15px; font-weight: 600; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">
+        <i class="ti ti-receipt"></i> تفاصيل بند المصروفات والمشتريات التشغيلية
+      </div>
+      
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        
+        <!-- صف معلومات رئيسية -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; background:var(--bg3); padding:12px; border-radius:var(--r); border:1px solid var(--border)">
+          <div>
+            <div style="font-size:10px; color:var(--text2); margin-bottom:2px">الفئة</div>
+            <span id="dCat" class="pill pill-blue">-</span>
+          </div>
+          <div>
+            <div style="font-size:10px; color:var(--text2); margin-bottom:2px">التاريخ</div>
+            <span id="dDate" style="font-weight:600; font-family:var(--mono); font-size:12px;">-</span>
+          </div>
+        </div>
+
+        <!-- البيان والوصف -->
+        <div>
+          <div style="font-size:10px; color:var(--text2); margin-bottom:4px">البيان (الوصف)</div>
+          <div id="dDesc" style="font-size:13px; font-weight:600; color:#fff; background:var(--bg3); padding:10px 12px; border-radius:var(--r); border:1px solid var(--border)">-</div>
+        </div>
+
+        <!-- المبلغ المالي -->
+        <div>
+          <div style="font-size:10px; color:var(--text2); margin-bottom:4px">المبلغ الإجمالي</div>
+          <div style="background:var(--bg3); padding:10px 12px; border-radius:var(--r); border:1px solid var(--border); display:flex; align-items:center; justify-content:space-between">
+            <span id="dAmt" class="mono red" style="font-size:16px; font-weight:700;">-</span>
+            <span style="font-size:11px; color:var(--text2)">ريال سعودي</span>
+          </div>
+        </div>
+
+        <!-- تفاصيل خاصة بالمشتريات (شراء منتجات) -->
+        <div id="dPurchaseSection" style="display:none; background:rgba(232, 168, 74, 0.04); border:1px solid rgba(232, 168, 74, 0.15); padding:14px; border-radius:var(--r2);">
+          <div style="font-size:11px; font-weight:600; color:var(--amber); margin-bottom:10px; display:flex; align-items:center; gap:5px">
+            <i class="ti ti-shopping-cart"></i> تفاصيل مشتريات المنتجات
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div>
+              <div style="font-size:10px; color:var(--text2)">اسم المنتج</div>
+              <div id="dProductName" style="font-weight:600; font-size:12px; color:#fff; margin-top:2px; line-height:1.6; max-height:4.8em; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">-</div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:6px">
+              <div>
+                <div style="font-size:10px; color:var(--text2)">الكمية</div>
+                <div id="dQuantity" class="mono" style="font-weight:600; margin-top:2px">-</div>
+              </div>
+              <div>
+                <div style="font-size:10px; color:var(--text2)">سعر الشراء</div>
+                <div id="dPurchasePrice" class="mono red" style="font-weight:600; margin-top:2px">-</div>
+              </div>
+              <div>
+                <div style="font-size:10px; color:var(--text2)">سعر البيع</div>
+                <div id="dSellingPrice" class="mono green" style="font-weight:600; margin-top:2px">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- تفاصيل خاصة بالتسويق -->
+        <div id="dMarketingSection" style="display:none; background:rgba(24, 178, 176, 0.04); border:1px solid rgba(24, 178, 176, 0.15); padding:14px; border-radius:var(--r2);">
+          <div style="font-size:11px; font-weight:600; color:var(--accent); margin-bottom:8px; display:flex; align-items:center; gap:5px">
+            <i class="ti ti-speakerphone"></i> تفاصيل المنصة الإعلانية
+          </div>
+          <div>
+            <div style="font-size:10px; color:var(--text2)">المنصة الإعلانية المستهدفة</div>
+            <div id="dPlatformName" style="font-weight:600; font-size:12px; color:#fff; margin-top:2px">-</div>
+          </div>
+        </div>
+
+        <!-- ملاحظات -->
+        <div>
+          <div style="font-size:10px; color:var(--text2); margin-bottom:4px">ملاحظات وتفاصيل إضافية</div>
+          <div id="dNote" style="font-size:11px; color:var(--text2); background:var(--bg3); padding:10px 12px; border-radius:var(--r); border:1px solid var(--border); min-height:50px; white-space:pre-line;">-</div>
+        </div>
+
+      </div>
+
+      <div class="modal-foot" style="margin-top:20px; padding-top:10px">
+        <button class="btn btn-primary" onclick="closeDetailsModal()"><i class="ti ti-check"></i> إغلاق النافذة</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: أرشفة الشهر -->
+  <div class="modal-bg" id="archModal">
+    <div class="modal">
+      <div class="modal-title"><i class="ti ti-archive" style="color:var(--amber)"></i> أرشفة الشهر الحالي</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">سيتم حفظ بيانات المصروفات للشهر الحالي في الأرشيف مغلقة، وتبدأ صفحة جديدة فارغة لإدخال مصروفات الشهر الجديد.</p>
+      
+      <div id="archSummary" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:12px;font-size:12px"></div>
+      
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">اسم الأرشيف</label>
+          <input type="text" id="archName" placeholder="مثال: مايو 2026">
+        </div>
+      </div>
+      
+      <div class="modal-foot">
+        <button class="btn" onclick="document.getElementById('archModal').classList.remove('open')">إلغاء</button>
+        <button class="btn btn-primary" style="background: var(--amber); border-color: var(--amber);" onclick="doArchive()"><i class="ti ti-archive"></i> أرشفة وبدء شهر جديد</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: جرد وتسوية المنتج -->
+  <div class="modal-bg" id="jardModal">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-title"><i class="ti ti-box" style="color:var(--accent)"></i> جرد وتسوية مخزون المنتج</div>
+      
+      <div style="background:var(--bg3); border:1px solid var(--border); border-radius:var(--r); padding:10px 12px; margin-bottom:14px; font-size:12px;">
+        <span style="color:var(--text2)" id="jNameLabel">اسم المنتج:</span>
+        <div id="jProductName" style="font-weight:600; color:#fff; margin-top:2px;">-</div>
+        <input type="text" id="jProductNameInput" placeholder="اكتب اسم المنتج بالكامل هنا..." style="width:100%; margin-top:6px; display:none;">
+      </div>
+      
+      <div id="jCalcStockRow" style="background:rgba(24, 178, 176, 0.04); border:1px solid rgba(24, 178, 176, 0.15); border-radius:var(--r); padding:10px 12px; margin-bottom:14px; display:flex; justify-content:space-between; font-size:11px;">
+        <div>
+          <span style="color:var(--text2)">المحسوب آلياً (مشتريات - مبيعات):</span>
+          <div id="jCalcStock" class="mono accent" style="font-weight:600; font-size:12px; margin-top:2px;">0 قطعة</div>
+        </div>
+      </div>
+
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">رصيد التسوية / الرصيد الافتتاحي اليدوي (قطعة)</label>
+          <input type="number" id="jStockOffset" placeholder="أدخل المخزون المضاف يدوياً (مثال: +10 أو -3)">
+          <span style="font-size:9px; color:var(--text3); margin-top:2px;">* الرصيد الافتتاحي هو قيمة تضاف للمخزون المحسوب (موجبة للزيادة أو سالبة للخصم وجرد العجز).</span>
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">تكلفة الشراء المخصصة للقطعة (ر.س)</label>
+          <input type="number" id="jCost" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">سعر البيع المخصص للقطعة (ر.س)</label>
+          <input type="number" id="jPrice" placeholder="0.00" min="0" step="0.01">
+        </div>
+      </div>
+      
+      <div class="modal-foot">
+        <button class="btn" onclick="closeJardModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveJard()"><i class="ti ti-check"></i> حفظ تسوية الجرد</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div class="shell">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="s-logo">
+        <div style="display:flex; flex-direction:column;">
+          <div class="s-logo-name"><i class="ti ti-chart-pie"></i> محاسبة الأعمال</div>
+          <div class="s-logo-sub">لوحة التحكم المتكاملة</div>
+        </div>
+        <button class="sidebar-close" onclick="toggleSidebar(false)" title="إغلاق القائمة"><i class="ti ti-x"></i></button>
+      </div>
+      
+      <!-- Store Badge & Disconnect Option -->
+      <div class="s-store-badge">
+        <div class="s-store-avatar" id="storeAvatar">S</div>
+        <div>
+          <div class="s-store-name" id="storeName">جاري التحميل...</div>
+          <div class="s-store-url" id="storeUrl">-</div>
+        </div>
+        <button onclick="disconnectSallaStore()" title="تسجيل الخروج وقطع الربط بالمتجر" style="margin-right: auto; background: transparent; border: none; color: var(--red); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; padding: 4px; transition: opacity .15s;" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">
+          <i class="ti ti-logout"></i>
+        </button>
+      </div>
+
+      <!-- Month Switcher (Dropdown) -->
+      <div style="padding:6px 12px 0">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;padding-right:2px">عرض الشهر</div>
+        <select id="monthSel" onchange="switchMonth(this.value)" style="width:100%;font-size:12px;padding:6px 8px;background:var(--bg3)">
+          <option value="live">📅 الشهر الحالي (مباشر)</option>
+        </select>
+      </div>
+
+      <div class="s-section">
+        <div class="s-label">التحليل المالي</div>
+        <div class="nav-item active" onclick="nav('overview')"><i class="ti ti-layout-dashboard"></i> نظرة عامة</div>
+        <div class="nav-item" onclick="nav('expenses')"><i class="ti ti-receipt"></i> المصروفات</div>
+      </div>
+
+      <div class="s-sep"></div>
+      <div class="s-label">بيانات سلة المباشرة</div>
+      <div class="nav-item" onclick="nav('salla-orders')"><i class="ti ti-shopping-cart"></i> الطلبات المباشرة <span class="badge-count" id="ordBadge">...</span></div>
+      <div class="nav-item" onclick="nav('salla-carts')"><i class="ti ti-basket-off"></i> السلات المتروكة <span class="badge-count" id="cartBadge">...</span></div>
+      <div class="nav-item" onclick="nav('salla-wallet')"><i class="ti ti-wallet"></i> كشف المحفظة</div>
+      <div class="nav-item" onclick="nav('salla-products')"><i class="ti ti-box"></i> المخزون والمنتجات</div>
+
+      <div class="s-sep"></div>
+      <div class="s-label">الأرشيف الشهري</div>
+      <div id="arcList"><div style="padding:6px 12px;font-size:11px;color:var(--text3)">لا يوجد أرشيف بعد</div></div>
+
+      <div class="s-sep"></div>
+      <div class="s-label">أدوات إدارية</div>
+      <div class="nav-item" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد ملفات Excel</div>
+      <div class="nav-item" onclick="openArchModal()"><i class="ti ti-calendar-plus"></i> بدء شهر جديد (أرشفة)</div>
+      <div class="nav-item" onclick="exportAll()"><i class="ti ti-download"></i> تصدير البيانات (CSV)</div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="content">
+
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="topbar-left">
+          <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar(true)" title="فتح القائمة"><i class="ti ti-menu-2"></i></button>
+          <div>
+            <div class="page-title" id="pageTitle">نظرة عامة</div>
+            <div class="page-sub" id="pageSub"></div>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="salla-live" id="sallaLive"><i class="ti ti-circle-check"></i> متصل بسلة</div>
+          <div class="sync-indicator"><div class="sync-dot" id="syncDot"></div><span id="syncTxt">محدّث</span></div>
+          <button class="btn btn-sm" onclick="openArchModal()" id="newMonthBtn" style="color:var(--amber); border-color:rgba(232,168,74,0.3); background:transparent;"><i class="ti ti-calendar-plus"></i> بدء شهر جديد</button>
+          <button class="btn btn-sm" onclick="syncSalla()" id="syncBtn"><i class="ti ti-refresh"></i> تحديث مزامنة سلة</button>
+          <button class="btn btn-sm btn-primary" onclick="openModal()" id="addBtn"><i class="ti ti-plus"></i> إضافة مصروف</button>
+        </div>
+      </div>
+
+      <!-- PAGE: OVERVIEW -->
+      <div class="page active pad" id="page-overview">
+        <div id="arcNote" class="arc-note" style="display:none"><i class="ti ti-archive"></i><span id="arcNoteText"></span></div>
+        <div class="kpi-grid" id="ovKPIs"></div>
+        
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-header"><div class="chart-title">المقارنة المالية الشهرية</div></div>
+            <div class="legend-row">
+              <span class="leg"><span class="leg-dot" style="background:#e05555"></span>إجمالي المصروفات</span>
+              <span class="leg"><span class="leg-dot" style="background:#3dba7e"></span>إيرادات سلة المباشرة</span>
+              <span class="leg"><span class="leg-dot" style="background:#18B2B0"></span>صافي المحفظة التقديري</span>
+            </div>
+            <div style="position:relative;height:200px"><canvas id="cmpChart">مقارنة</canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header"><div class="chart-title">تصنيف توزيع المصروفات</div></div>
+            <div class="legend-row" id="pieLeg"></div>
+            <div style="position:relative;height:200px"><canvas id="pieChart">توزيع</canvas></div>
+          </div>
+        </div>
+        
+        <!-- Table: Latest Orders in Overview -->
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">آخر الطلبات المستلمة من سلة <span style="font-size:10px;color:var(--text3)">(مباشر)</span></div>
+            <button class="btn btn-sm" onclick="nav('salla-orders')">عرض كافة الطلبات <i class="ti ti-arrow-left"></i></button>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>رقم المرجع</th>
+                  <th>المنتج الأساسي</th>
+                  <th>العميل</th>
+                  <th>قيمة الطلب</th>
+                  <th>الحالة</th>
+                  <th>التاريخ والوقت</th>
+                </tr>
+              </thead>
+              <tbody id="ovOrders"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: EXPENSES -->
+      <div class="page pad" id="page-expenses">
+        <div id="expArcNote" class="arc-note" style="display:none"><i class="ti ti-lock"></i> عرض للقراءة فقط — البيانات مؤرشفة في قاعدة البيانات</div>
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">جدول المصروفات والمشتريات التشغيلية <span class="tbl-count" id="expCount" style="font-size:10px;color:var(--text3)"></span></div>
+            <div>
+              <button class="btn btn-sm btn-primary" id="addExpBtn" onclick="openModal('expense')"><i class="ti ti-plus"></i> إضافة مصروف جديد</button>
+            </div>
+          </div>
+          <div class="filter-bar">
+            <label>التصنيف:</label>
+            <select id="expCat" onchange="renderExp()">
+              <option value="">كافة التصنيفات</option>
+              <option>رواتب</option>
+              <option>تسويق</option>
+              <option>شراء منتجات</option>
+              <option>سلف</option>
+              <option>أرباح</option>
+              <option>أخرى</option>
+            </select>
+            <input type="text" id="expQ" placeholder="بحث في البيان..." oninput="renderExp()" style="width:160px">
+            <select id="expSort" onchange="renderExp()">
+              <option value="desc">تاريخ: الأحدث أولاً</option>
+              <option value="asc">تاريخ: الأقدم أولاً</option>
+              <option value="amt-desc">المبلغ: الأعلى أولاً</option>
+              <option value="amt-asc">المبلغ: الأقل أولاً</option>
+            </select>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>البيان (الوصف)</th>
+                  <th>التصنيف</th>
+                  <th>المبلغ (ر.س)</th>
+                  <th>التاريخ</th>
+                  <th>ملاحظات</th>
+                  <th style="width:56px">العمليات</th>
+                </tr>
+              </thead>
+              <tbody id="expBody"></tbody>
+              <tfoot id="expFoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: SALLA ORDERS -->
+      <div class="page pad" id="page-salla-orders">
+        <div class="kpi-grid" id="ordKPIs"></div>
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">سجل طلبات متجر سلة <span style="font-size:10px;color:var(--text3)" id="ordTotal"></span></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm" onclick="loadOrders(true)"><i class="ti ti-refresh"></i> تحديث الطلبات</button>
+              <button class="btn btn-sm" onclick="exportOrdCSV()"><i class="ti ti-download"></i> تصدير الطلبات (CSV)</button>
+            </div>
+          </div>
+          <div class="filter-bar">
+            <label>من:</label><input type="date" id="ordFrom" value="2026-05-01">
+            <label>إلى:</label><input type="date" id="ordTo">
+            <input type="text" id="ordQ" placeholder="بحث باسم المنتج / العميل..." style="width:180px">
+            <select id="ordStatus">
+              <option value="">كافة الحالات</option>
+              <option value="completed">تم التنفيذ</option>
+              <option value="under_review">بانتظار المراجعة</option>
+              <option value="payment_pending">بانتظار الدفع</option>
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="loadOrders(true)"><i class="ti ti-search"></i> تصفية وتحديث</button>
+          </div>
+          
+          <div id="ordLoading" class="loading-box"><div class="spinner"></div><div class="loading-txt">جاري مزامنة وتصفية طلبات متجرك من سلة...</div></div>
+          
+          <div class="tbl-scroll" id="ordTblWrap" style="display:none">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>المرجع</th>
+                  <th>المنتج</th>
+                  <th>العميل</th>
+                  <th>طريقة الدفع</th>
+                  <th>الإجمالي (ر.س)</th>
+                  <th>حالة الطلب</th>
+                  <th>تاريخ الطلب</th>
+                </tr>
+              </thead>
+              <tbody id="ordBody"></tbody>
+              <tfoot id="ordFoot"></tfoot>
+            </table>
+          </div>
+          <div style="display:flex;gap:6px;justify-content:center;padding:10px" id="ordPager"></div>
+        </div>
+      </div>
+
+      <!-- PAGE: ABANDONED CARTS -->
+      <div class="page pad" id="page-salla-carts">
+        <div class="kpi-grid" id="cartKPIs"></div>
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">قائمة السلات المتروكة في المتجر <span style="font-size:10px;color:var(--text3)" id="cartTotal"></span></div>
+            <button class="btn btn-sm" onclick="loadCarts(true)"><i class="ti ti-refresh"></i> تحديث السلات</button>
+          </div>
+          
+          <div id="cartLoading" class="loading-box"><div class="spinner"></div><div class="loading-txt">جاري استيراد السلات المتروكة من متجرك...</div></div>
+          
+          <div class="tbl-scroll" id="cartTblWrap" style="display:none">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم العميل</th>
+                  <th>المنتجات في السلة</th>
+                  <th>قيمة السلة</th>
+                  <th>التاريخ والوقت</th>
+                  <th>الحالة</th>
+                </tr>
+              </thead>
+              <tbody id="cartBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: WALLET -->
+      <div class="page pad" id="page-salla-wallet">
+        <div class="kpi-grid" id="walKPIs"></div>
+        <div class="chart-card-full">
+          <div class="chart-header"><div class="chart-title">أداء التحويلات وصافي الدخل الشهري</div></div>
+          <div style="position:relative;height:160px"><canvas id="walChart">المحفظة</canvas></div>
+        </div>
+        <!-- Collapsible Import Box for Wallet -->
+        <div class="import-panel" id="walletImportBox" style="display:none; margin-bottom: 14px; border: 1.5px dashed rgba(91, 155, 214, 0.4); background: rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <div class="import-panel-title" style="font-size:12px; font-weight:600; color:var(--blue); display: flex; align-items: center; gap: 6px;"><i class="ti ti-wallet"></i> استيراد كشف حساب المحفظة (Excel)</div>
+            <button class="btn btn-sm" onclick="toggleWalletImportBox()" style="background:transparent; border:none; padding:2px; color:var(--text2); cursor:pointer;"><i class="ti ti-x"></i></button>
+          </div>
+          <div class="import-panel-sub" style="margin-bottom:12px; color: var(--text2)">قم بسحب وإفلات ملف كشف الحركات والمدفوعات المصدر من منصة سلة، أو اضغط لاختياره لرفع تسويات المحفظة وحساب الصافي الفعلي.</div>
+          <div class="import-zone" id="iz-wallet-page" style="padding:22px; background: rgba(24, 29, 46, 0.5)">
+            <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'wallet')" id="if-wallet-page">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+              <div style="font-size:32px;color:var(--blue)"><i class="ti ti-file-spreadsheet"></i></div>
+              <div>
+                <div style="font-size:12px;font-weight:600">اسحب ملف كشف المحفظة هنا أو اضغط للاختيار</div>
+                <div style="font-size:10px;color:var(--text2)">يدعم xlsx / xls / csv</div>
+              </div>
+            </div>
+          </div>
+          <div id="ir-wallet-page" style="font-size:11px;margin-top:8px;color:var(--text2)"></div>
+        </div>
+
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">عمليات الدفع والتسوية للمبيعات الإلكترونية</div>
+            <div style="display:flex; gap: 6px;">
+              <button class="btn btn-sm btn-primary" style="background:var(--blue); border-color:var(--blue)" onclick="toggleWalletImportBox()"><i class="ti ti-file-import"></i> استيراد كشف المحفظة (Excel)</button>
+              <button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="clearWalletImportedData()"><i class="ti ti-trash"></i> حذف تسويات المحفظة</button>
+            </div>
+          </div>
+          <div class="filter-bar">
+            <label>من تاريخ:</label><input type="date" id="walFrom" value="2026-05-01">
+            <label>إلى تاريخ:</label><input type="date" id="walTo">
+            <select id="walStatus" onchange="renderWallet()">
+              <option value="">جميع العمليات</option>
+              <option value="مدفوعة">مدفوعة</option>
+            </select>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>رقم العملية / الطلب</th>
+                  <th>مبلغ المبيعة (ر.س)</th>
+                  <th>عمولة سلة المقدرة</th>
+                  <th>الصافي المستحق</th>
+                  <th>التاريخ</th>
+                  <th>حالة التحويل</th>
+                  <th>ملاحظة</th>
+                </tr>
+              </thead>
+              <tbody id="walBody"></tbody>
+              <tfoot id="walFoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: TOP PRODUCTS -->
+      <div class="page pad" id="page-salla-products">
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">إدارة ومتابعة مخزون المنتجات <span style="font-size:10px;color:var(--text3)">(محتسب تلقائياً بناءً على المشتريات والمبيعات)</span></div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="prodQ" placeholder="بحث باسم المنتج..." oninput="renderProducts()" style="width:180px">
+              <button class="btn btn-sm" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد من Excel</button>
+              <button class="btn btn-sm btn-primary" onclick="openJardModal('')"><i class="ti ti-plus"></i> إضافة منتج يدوي</button>
+            </div>
+          </div>
+          <div class="chart-card-full" style="border:none;background:transparent;padding:0;margin-bottom:14px">
+            <div style="position:relative;height:200px"><canvas id="prodChart">أعلى المنتجات</canvas></div>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم المنتج بالكامل</th>
+                  <th>المخزون الحالي</th>
+                  <th>الكمية المشتراة</th>
+                  <th>الكمية المباعة</th>
+                  <th>سعر التكلفة (ر.س)</th>
+                  <th>سعر البيع (ر.س)</th>
+                  <th>إجمالي المبيعات (ر.س)</th>
+                  <th style="width:100px">العمليات</th>
+                </tr>
+              </thead>
+              <tbody id="prodBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: IMPORT -->
+      <div class="page pad" id="page-import">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;font-size:11px;color:var(--text2);margin-bottom:14px;line-height:1.9">
+          <i class="ti ti-info-circle" style="font-size:14px;vertical-align:-2px;color:var(--accent)"></i>
+          <strong>نظام التحليل المالي السحابي والأوفلاين:</strong><br>
+          • <strong>الحل الأسرع بدون توثيق:</strong> إذا كنت لا ترغب في تقديم العنوان الوطني والتوثيقات لمنصة شركاء سلة، يمكنك ببساطة تصدير ملفات Excel (للطلبات / تقرير المبيعات / كشف المحفظة) من متجر سلة الخاص بك، وسحبها وإفلاتها هنا فوراً.<br>
+          • <strong>أتمتة وحفظ دائم:</strong> سيقوم النظام تلقائياً بقراءة بياناتك وحفظ مبيعاتك وتسويات البنك الخاصة بك بشكل دائم في قاعدة البيانات SQLite ليعمل نظامك بالكامل دون انقطاع!
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:14px;margin-bottom:14px;">
+          
+          <!-- لوحة المصروفات -->
+          <div class="import-panel" style="margin-bottom:0">
+            <div class="import-panel-title"><i class="ti ti-receipt" style="color:var(--red)"></i> 1. استيراد المصروفات والرواتب (Excel)</div>
+            <div class="import-panel-sub">قم بإدراج ملف Excel يحتوي على أعمدة: البيان، المبلغ، الفئة، التاريخ.</div>
+            <div class="import-zone" id="iz-exp" style="padding:22px">
+              <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'expense')" id="if-exp">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                <div style="font-size:32px;color:var(--text3)"><i class="ti ti-file-spreadsheet"></i></div>
+                <div>
+                  <div style="font-size:12px;font-weight:600">اسحب ملف المصروفات هنا أو اضغط للاختيار</div>
+                  <div style="font-size:10px;color:var(--text3)">xlsx / xls / csv</div>
+                </div>
+              </div>
+            </div>
+            <div id="ir-expense" style="font-size:11px;margin-top:8px;color:var(--text3)"></div>
+          </div>
+
+          <!-- لوحة مبيعات سلة -->
+          <div class="import-panel" style="margin-bottom:0">
+            <div class="import-panel-title"><i class="ti ti-shopping-cart" style="color:var(--green)"></i> 2. استيراد مبيعات وطلبات سلة (Excel)</div>
+            <div class="import-panel-sub">اسحب ملف "تقرير مبيعات المنتجات" أو "تقرير الطلبات" المصدر من متجر سلة.</div>
+            <div class="import-zone" id="iz-sales" style="padding:22px">
+              <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'sales')" id="if-sales">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                <div style="font-size:32px;color:var(--text3)"><i class="ti ti-upload"></i></div>
+                <div>
+                  <div style="font-size:12px;font-weight:600">اسحب ملف إكسل مبيعات سلة هنا أو اضغط للاختيار</div>
+                  <div style="font-size:10px;color:var(--text3)">ملف تقرير المبيعات / تقرير الطلبات</div>
+                </div>
+              </div>
+            </div>
+            <div id="ir-sales" style="font-size:11px;margin-top:8px;color:var(--text3)"></div>
+          </div>
+
+          <!-- لوحة تسويات المحفظة -->
+          <div class="import-panel" style="margin-bottom:0">
+            <div class="import-panel-title"><i class="ti ti-wallet" style="color:var(--blue)"></i> 3. استيراد تسويات المحفظة (Excel)</div>
+            <div class="import-panel-sub">اسحب ملف كشف حساب "المحفظة والمدفوعات" المصدر من متجر سلة.</div>
+            <div class="import-zone" id="iz-wallet" style="padding:22px">
+              <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'wallet')" id="if-wallet">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                <div style="font-size:32px;color:var(--text3)"><i class="ti ti-wallet"></i></div>
+                <div>
+                  <div style="font-size:12px;font-weight:600">اسحب ملف كشف المحفظة هنا أو اضغط للاختيار</div>
+                  <div style="font-size:10px;color:var(--text3)">ملف الحركات والمدفوعات المالي لسلة</div>
+                </div>
+              </div>
+            </div>
+            <div id="ir-wallet" style="font-size:11px;margin-top:8px;color:var(--text3)"></div>
+          </div>
+
+          <!-- لوحة استيراد المنتجات والمخزون -->
+          <div class="import-panel" style="margin-bottom:0">
+            <div class="import-panel-title"><i class="ti ti-box" style="color:var(--accent)"></i> 4. استيراد المنتجات والمخزون (Excel)</div>
+            <div class="import-panel-sub">اسحب ملف إكسل للمنتجات يحتوي على الأعمدة: اسم المنتج، المخزون الافتتاحي، سعر التكلفة، سعر البيع.</div>
+            <div class="import-zone" id="iz-products" style="padding:22px">
+              <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'products')" id="if-products">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                <div style="font-size:32px;color:var(--accent)"><i class="ti ti-box"></i></div>
+                <div>
+                  <div style="font-size:12px;font-weight:600">اسحب ملف المنتجات هنا أو اضغط للاختيار</div>
+                  <div style="font-size:10px;color:var(--text3)">xlsx / xls / csv</div>
+                </div>
+              </div>
+            </div>
+            <div id="ir-products" style="font-size:11px;margin-top:8px;color:var(--text3)"></div>
+          </div>
+
+        </div>
+
+        <!-- حالة قاعدة البيانات وإدارة البيانات -->
+        <div class="import-panel" style="background:var(--bg3);border:1px solid var(--border)">
+          <div class="import-panel-title" style="font-size:13px"><i class="ti ti-database" style="color:var(--accent)"></i> حالة قاعدة البيانات المحلية وإدارة البيانات المستوردة</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:12px">
+            <div style="font-size:11px;color:var(--text2);line-height:1.7;flex:1">
+              • حالة اللوحة الحالية: <span id="dbStatusMode" style="font-weight:600;color:var(--amber)">وضع الأوفلاين والمحاكاة الذاتية</span><br>
+              • عدد الطلبات المستوردة في SQLite: <span id="dbStatusOrdersCount" style="font-weight:600;font-family:var(--mono);color:var(--green)">0 طلب</span><br>
+              • عدد عمليات المحفظة المستوردة في SQLite: <span id="dbStatusWalletCount" style="font-weight:600;font-family:var(--mono);color:var(--blue)">0 عملية</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-sm" onclick="syncSalla()" style="border-color:var(--border2)"><i class="ti ti-refresh"></i> إعادة مزامنة وتحديث</button>
+              <button class="btn btn-sm btn-primary" onclick="clearImportedData()" style="background:var(--red);border-color:var(--red);font-size:10px;padding:5px 8px"><i class="ti ti-trash"></i> حذف مبيعات إكسل</button>
+              <button class="btn btn-sm btn-primary" onclick="clearWalletImportedData()" style="background:var(--red);border-color:var(--red);font-size:10px;padding:5px 8px"><i class="ti ti-trash"></i> حذف تسويات المحفظة</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /shell -->
+
+  <!-- Load script files -->
+  <script src="js/app.js"></script>
+</body>
+</html>
