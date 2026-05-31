@@ -936,6 +936,13 @@ textarea {
   color: var(--amber);
   background: var(--amber-bg);
   border-color: rgba(232, 168, 74, .2);
+  transition: all 0.2s ease-in-out;
+}
+
+.salla-live.offline:hover {
+  background: var(--amber);
+  color: #fff;
+  transform: scale(1.05);
 }
 
 .salla-live i {

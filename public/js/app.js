@@ -191,9 +191,18 @@ async function updateDBStatus() {
             if (state.connected) {
                 liveBadge.className = 'salla-live';
                 liveBadge.innerHTML = '<i class="ti ti-circle-check"></i> سلة متصل';
+                liveBadge.style.cursor = 'default';
+                liveBadge.onclick = null;
+                liveBadge.title = `متصل بمتجر: ${state.store.name}`;
             } else {
                 liveBadge.className = 'salla-live offline';
-                liveBadge.innerHTML = (data.imported_count > 0 || data.imported_wallet_count > 0) ? '<i class="ti ti-database"></i> وضع الأوفلاين (مستورد)' : '<i class="ti ti-eye-off"></i> وضع المحاكاة';
+                liveBadge.innerHTML = '<i class="ti ti-plug"></i> اضغط لربط سلة (OAuth)';
+                liveBadge.style.cursor = 'pointer';
+                liveBadge.onclick = () => {
+                    toast('جاري تحويلك إلى صفحة تصريح سلة...', 'info');
+                    setTimeout(() => window.location.href = '/auth', 1000);
+                };
+                liveBadge.title = 'اضغط لربط لوحة التحكم بمتجرك على منصة سلة الفعلي';
             }
         }
     } catch (e) {
