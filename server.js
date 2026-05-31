@@ -1531,6 +1531,32 @@ app.post(['/api/mcp', '/mcp'], express.json(), async (req, res) => {
                         type: 'object',
                         properties: {}
                     }
+                },
+                {
+                    name: 'adjust_product_inventory',
+                    description: 'تعديل وتحديث لوحة المخزون وجرد منتج معين يدوياً (تعديل رصيد التسوية/الجرد، سعر تكلفة الشراء، وسعر البيع)',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            product_name: {
+                                type: 'string',
+                                description: 'اسم المنتج المراد تعديل بيانات مخزونه وجرده يدوياً'
+                            },
+                            stock_offset: {
+                                type: 'number',
+                                description: 'رصيد التسوية أو الجرد الافتتاحي للمخزون (مثال: +10 لزيادة المخزون يدوياً أو -5 لتسجيل عجز)'
+                            },
+                            cost: {
+                                type: 'number',
+                                description: 'سعر تكلفة الشراء المخصصة للقطعة الواحدة'
+                            },
+                            price: {
+                                type: 'number',
+                                description: 'سعر البيع المقدر أو المخصص للقطعة الواحدة'
+                            }
+                        },
+                        required: ['product_name']
+                    }
                 }
             ]
         };
@@ -1721,6 +1747,42 @@ async function handleToolCall(name, args) {
                     });
                 })
                 .catch(err => reject(err));
+        } else if (name === 'adjust_product_inventory') {
+            const { product_name, stock_offset, cost, price } = args;
+            if (!product_name) {
+                return reject(new Error('product_name is required'));
+            }
+            
+            db.get("SELECT * FROM product_adjustments WHERE product_name = ?", [product_name.trim()], (err, row) => {
+                if (err) return reject(err);
+                
+                const finalOffset = stock_offset !== undefined ? parseInt(stock_offset) : (row ? row.stock_offset : 0);
+                const finalCost = cost !== undefined ? parseFloat(cost) : (row ? row.cost : 0);
+                const finalPrice = price !== undefined ? parseFloat(price) : (row ? row.price : 0);
+                
+                db.run(
+                    "INSERT INTO product_adjustments (product_name, stock_offset, cost, price) VALUES (?, ?, ?, ?) ON CONFLICT(product_name) DO UPDATE SET stock_offset = ?, cost = ?, price = ?",
+                    [product_name.trim(), finalOffset, finalCost, finalPrice, finalOffset, finalCost, finalPrice],
+                    function(errRun) {
+                        if (errRun) return reject(errRun);
+                        resolve({
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: JSON.stringify({
+                                        success: true,
+                                        message: `تم تحديث بيانات ومخزون المنتج "${product_name}" بنجاح في قاعدة البيانات ولوحة المخزون!`,
+                                        product_name,
+                                        stock_offset: finalOffset,
+                                        cost: finalCost,
+                                        price: finalPrice
+                                    }, null, 2)
+                                }
+                            ]
+                        });
+                    }
+                );
+            });
         } else {
             reject(new Error(`Unknown tool: ${name}`));
         }
