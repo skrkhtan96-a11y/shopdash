@@ -1431,6 +1431,282 @@ function getSimulatedCarts() {
     };
 }
 
+// ══════════════════════════════════════════════
+//  تفعيل خادم Model Context Protocol (MCP) لـ Claude AI
+// ══════════════════════════════════════════════
+
+const mcpSessions = new Map();
+
+// مسار استقبال اتصال الـ SSE لبدء جلسة MCP
+app.get('/mcp', (req, res) => {
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Methods': '*'
+    });
+    
+    const sessionId = Math.random().toString(36).substring(2, 15);
+    console.log(`[MCP] New Claude AI session established: ${sessionId}`);
+    
+    // حفظ الجلسة
+    mcpSessions.set(sessionId, res);
+    
+    // إرسال حدث endpoint لتعريف العميل بمسار الـ POST
+    res.write(`event: endpoint\ndata: /api/mcp?sessionId=${sessionId}\n\n`);
+    
+    req.on('close', () => {
+        console.log(`[MCP] Claude session closed: ${sessionId}`);
+        mcpSessions.delete(sessionId);
+    });
+});
+
+// مسار استقبال ومعالجة رسائل الـ JSON-RPC من العميل
+app.post('/api/mcp', express.json(), (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', '*');
+
+    const { sessionId } = req.query;
+    const sseRes = mcpSessions.get(sessionId);
+    
+    if (!sseRes) {
+        return res.status(404).json({ error: 'MCP Session not found' });
+    }
+    
+    const message = req.body;
+    const { jsonrpc, id, method, params } = message;
+    
+    console.log(`[MCP] Request from Claude [Session ${sessionId}]:`, method);
+    
+    let result = null;
+    let error = null;
+    
+    if (method === 'initialize') {
+        result = {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+                tools: {}
+            },
+            serverInfo: {
+                name: 'shopdashboard-mcp',
+                version: '1.1.0'
+            }
+        };
+    } else if (method === 'tools/list') {
+        result = {
+            tools: [
+                {
+                    name: 'get_financial_summary',
+                    description: 'جلب الملخص المالي الكامل للمتجر من مبيعات سلة والمصروفات وصافي الأرباح والعمليات المالية',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {}
+                    }
+                },
+                {
+                    name: 'get_inventory_status',
+                    description: 'جلب جرد المخزون وحالته الفعلية والقطع المشتراة والمباعة وتكلفة القطع وإيراداتها المالية لكل منتج',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {}
+                    }
+                },
+                {
+                    name: 'get_expenses_list',
+                    description: 'جلب قائمة المصروفات الكاملة المسجلة بالنظام (تشمل الرواتب، التسويق، شراء المنتجات، الفترات للاشتراكات وغيرها)',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {}
+                    }
+                },
+                {
+                    name: 'trigger_salla_sync',
+                    description: 'طلب بدء مزامنة مبيعات فورية وجلب أحدث طلبات متجر سلة الفعلي إلى قاعدة البيانات المحلية',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {}
+                    }
+                }
+            ]
+        };
+    } else if (method === 'tools/call') {
+        const toolName = params?.name;
+        const toolArgs = params?.arguments || {};
+        
+        handleToolCall(toolName, toolArgs)
+            .then(toolResult => {
+                const response = {
+                    jsonrpc: '2.0',
+                    id,
+                    result: toolResult
+                };
+                sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+            })
+            .catch(err => {
+                const response = {
+                    jsonrpc: '2.0',
+                    id,
+                    error: { code: -32603, message: err.message }
+                };
+                sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+            });
+            
+        return res.sendStatus(202);
+    } else {
+        error = { code: -32601, message: `Method not found: ${method}` };
+    }
+    
+    if (result || error) {
+        const response = {
+            jsonrpc: '2.0',
+            id
+        };
+        if (result) response.result = result;
+        if (error) response.error = error;
+        
+        sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+    }
+    
+    res.sendStatus(200);
+});
+
+// دالة معالجة تفاصيل الأدوات وجلب البيانات من SQLite
+async function handleToolCall(name, args) {
+    return new Promise((resolve, reject) => {
+        if (name === 'get_financial_summary') {
+            db.all("SELECT * FROM expenses", [], (errExp, expenses) => {
+                if (errExp) return reject(errExp);
+                db.all("SELECT * FROM salla_imported_orders", [], (errSales, sales) => {
+                    if (errSales) return reject(errSales);
+                    db.all("SELECT * FROM salla_imported_wallet", [], (errWallet, wallet) => {
+                        if (errWallet) return reject(errWallet);
+                        
+                        const totalExpenses = expenses.reduce((s, e) => s + (e.amt || 0), 0);
+                        const totalRevenue = sales.reduce((s, o) => s + (o.amount || 0), 0);
+                        const netProfit = totalRevenue - totalExpenses;
+                        
+                        resolve({
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: JSON.stringify({
+                                        store_name: "شوب ستور - لوحة تحكم المحاسبة الذكية",
+                                        total_revenue_sar: totalRevenue,
+                                        total_expenses_sar: totalExpenses,
+                                        net_profit_sar: netProfit,
+                                        wallet_total_operations: wallet.length,
+                                        orders_count: sales.length
+                                    }, null, 2)
+                                }
+                            ]
+                        });
+                    });
+                });
+            });
+        } else if (name === 'get_inventory_status') {
+            db.all("SELECT * FROM expenses", [], (errExp, expenses) => {
+                if (errExp) return reject(errExp);
+                db.all("SELECT * FROM salla_imported_orders", [], (errSales, sales) => {
+                    if (errSales) return reject(errSales);
+                    db.all("SELECT * FROM product_adjustments", [], (errAdj, adjustments) => {
+                        if (errAdj) return reject(errAdj);
+                        
+                        const map = {};
+                        sales.forEach(o => {
+                            const prodName = (o.product_name || 'غير معروف').trim();
+                            if (!map[prodName]) {
+                                map[prodName] = { name: prodName, sold: 0, revenue: 0, purchased: 0, cost: 0 };
+                            }
+                            map[prodName].sold += o.quantity || 1;
+                            map[prodName].revenue += o.amount || 0;
+                        });
+                        
+                        expenses.forEach(e => {
+                            if (e.cat === 'شراء منتجات' && e.product_name) {
+                                const prodName = e.product_name.trim();
+                                if (!map[prodName]) {
+                                    map[prodName] = { name: prodName, sold: 0, revenue: 0, purchased: 0, cost: 0 };
+                                }
+                                map[prodName].purchased += e.quantity || 0;
+                                if (e.purchase_price) map[prodName].cost = e.purchase_price;
+                            }
+                        });
+                        
+                        adjustments.forEach(a => {
+                            const prodName = (a.product_name || '').trim();
+                            if (!map[prodName]) {
+                                map[prodName] = { name: prodName, sold: 0, revenue: 0, purchased: 0, cost: 0 };
+                            }
+                            if (a.cost > 0) map[prodName].cost = a.cost;
+                        });
+                        
+                        const inventory = Object.values(map).map(p => {
+                            const adj = adjustments.find(a => a.product_name === p.name) || { stock_offset: 0 };
+                            const stock = p.purchased - p.sold + adj.stock_offset;
+                            return {
+                                product_name: p.name,
+                                quantity_purchased: p.purchased,
+                                quantity_sold: p.sold,
+                                remaining_stock: stock,
+                                unit_cost_sar: p.cost,
+                                total_revenue_sar: p.revenue
+                            };
+                        });
+                        
+                        resolve({
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: JSON.stringify(inventory, null, 2)
+                                }
+                            ]
+                        });
+                    });
+                });
+            });
+        } else if (name === 'get_expenses_list') {
+            db.all("SELECT * FROM expenses ORDER BY date DESC", [], (err, rows) => {
+                if (err) return reject(err);
+                resolve({
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify(rows.map(e => ({
+                                desc: e.desc,
+                                cat: e.cat,
+                                amt: e.amt,
+                                date: e.date,
+                                note: e.note,
+                                product_name: e.product_name,
+                                quantity: e.quantity,
+                                period: e.period
+                            })), null, 2)
+                        }
+                    ]
+                });
+            });
+        } else if (name === 'trigger_salla_sync') {
+            syncSallaOrdersToLocal()
+                .then(count => {
+                    resolve({
+                        content: [
+                            {
+                                type: 'text',
+                                text: JSON.stringify({ success: true, message: `تمت المزامنة بنجاح: تم سحب ومزامنة ${count} سجل مبيعات من سلة` })
+                            }
+                        ]
+                    });
+                })
+                .catch(err => reject(err));
+        } else {
+            reject(new Error(`Unknown tool: ${name}`));
+        }
+    });
+}
+
 // تشغيل السيرفر
 app.listen(PORT, () => {
     console.log(`=================================================`);
