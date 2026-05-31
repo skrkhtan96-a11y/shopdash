@@ -1471,23 +1471,17 @@ app.get('/mcp', (req, res) => {
     });
 });
 
-// مسار استقبال ومعالجة رسائل الـ JSON-RPC من العميل
-app.post('/api/mcp', express.json(), (req, res) => {
+// مسار استقبال ومعالجة رسائل الـ JSON-RPC من العميل (يدعم كلاً من SSE و Direct HTTP POST)
+app.post(['/api/mcp', '/mcp'], express.json(), async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Access-Control-Allow-Methods', '*');
 
     const { sessionId } = req.query;
-    const sseRes = mcpSessions.get(sessionId);
-    
-    if (!sseRes) {
-        return res.status(404).json({ error: 'MCP Session not found' });
-    }
-    
     const message = req.body;
     const { jsonrpc, id, method, params } = message;
     
-    console.log(`[MCP] Request from Claude [Session ${sessionId}]:`, method);
+    console.log(`[MCP] Request from Claude [Session ${sessionId || 'Sync-Direct'}]:`, method);
     
     let result = null;
     let error = null;
@@ -1544,41 +1538,59 @@ app.post('/api/mcp', express.json(), (req, res) => {
         const toolName = params?.name;
         const toolArgs = params?.arguments || {};
         
-        handleToolCall(toolName, toolArgs)
-            .then(toolResult => {
-                const response = {
-                    jsonrpc: '2.0',
-                    id,
-                    result: toolResult
-                };
-                sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
-            })
-            .catch(err => {
-                const response = {
-                    jsonrpc: '2.0',
-                    id,
-                    error: { code: -32603, message: err.message }
-                };
-                sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
-            });
+        try {
+            const toolResult = await handleToolCall(toolName, toolArgs);
+            const response = {
+                jsonrpc: '2.0',
+                id,
+                result: toolResult
+            };
             
-        return res.sendStatus(202);
+            // إرسال في البث المباشر (SSE) إذا كان متوفراً
+            if (sessionId) {
+                const sseRes = mcpSessions.get(sessionId);
+                if (sseRes) {
+                    sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+                }
+            }
+            
+            // أيضاً نرجع الرد فورياً في جسم الطلب لتوافقية 100%
+            return res.status(200).json(response);
+        } catch (err) {
+            const response = {
+                jsonrpc: '2.0',
+                id,
+                error: { code: -32603, message: err.message }
+            };
+            if (sessionId) {
+                const sseRes = mcpSessions.get(sessionId);
+                if (sseRes) {
+                    sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+                }
+            }
+            return res.status(200).json(response);
+        }
     } else {
         error = { code: -32601, message: `Method not found: ${method}` };
     }
     
-    if (result || error) {
-        const response = {
-            jsonrpc: '2.0',
-            id
-        };
-        if (result) response.result = result;
-        if (error) response.error = error;
-        
-        sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
-    }
+    const response = {
+        jsonrpc: '2.0',
+        id
+    };
+    if (result) response.result = result;
+    if (error) response.error = error;
     
-    res.sendStatus(200);
+    // إرسال الرد المتزامن في جسم الطلب
+    res.status(200).json(response);
+    
+    // إرسال الرد في خط البث (SSE) إذا كان متوفراً
+    if (sessionId) {
+        const sseRes = mcpSessions.get(sessionId);
+        if (sseRes) {
+            sseRes.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+        }
+    }
 });
 
 // دالة معالجة تفاصيل الأدوات وجلب البيانات من SQLite
