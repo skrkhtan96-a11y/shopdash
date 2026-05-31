@@ -1,7 +1,8 @@
 // ══════════════════════════════════════════════
 //  GLOBALS & CONSTANTS
 // ══════════════════════════════════════════════
-const TODAY = new Date().toISOString().split('T')[0];
+const tzOffset = new Date().getTimezoneOffset() * 60000;
+const TODAY = (new Date(Date.now() - tzOffset)).toISOString().split('T')[0];
 const CURRENT_MONTH = TODAY.substring(0, 7);
 const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 const CAT_COLORS = ['#18B2B0', '#e05555', '#e8a84a', '#3dba7e', '#9b8bef', '#5b9bd6', '#e8758b'];
@@ -536,7 +537,7 @@ async function loadOrders(reset = false) {
     if (ordLoading) ordLoading.style.display = 'flex';
     if (ordTblWrap) ordTblWrap.style.display = 'none';
 
-    const from = document.getElementById('ordFrom').value || '2026-05-01';
+    const from = document.getElementById('ordFrom').value || (CURRENT_MONTH + '-01');
     const to = document.getElementById('ordTo').value || TODAY;
     const q = document.getElementById('ordQ')?.value || '';
     const status = document.getElementById('ordStatus')?.value || '';
@@ -3259,6 +3260,11 @@ async function deleteSavedComparison(id) {
 //  DOCUMENT INITIALIZATION
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+    const ordFrom = document.getElementById('ordFrom');
+    const walFrom = document.getElementById('walFrom');
+    if (ordFrom) ordFrom.value = CURRENT_MONTH + '-01';
+    if (walFrom) walFrom.value = CURRENT_MONTH + '-01';
+
     const ordTo = document.getElementById('ordTo');
     const walTo = document.getElementById('walTo');
     if (ordTo) ordTo.value = TODAY;
