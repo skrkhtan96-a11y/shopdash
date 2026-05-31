@@ -31,6 +31,7 @@ db.serialize(() => {
     db.run("ALTER TABLE expenses ADD COLUMN purchase_price REAL", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE expenses ADD COLUMN selling_price REAL", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE expenses ADD COLUMN platform_name TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE expenses ADD COLUMN period TEXT", (err) => { /* تجاهل الخطأ */ });
 
     // 2. جدول الأرشيف الشهري
     db.run(`

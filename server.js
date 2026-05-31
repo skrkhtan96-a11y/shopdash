@@ -787,13 +787,13 @@ app.get('/api/expenses', (req, res) => {
 
 // إضافة مصروف جديد
 app.post('/api/expenses', (req, res) => {
-    const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name } = req.body;
+    const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period } = req.body;
     if (!desc || !cat || isNaN(amt) || !date) {
         return res.status(400).json({ error: 'يرجى تقديم كافة البيانات المطلوبة بشكل صحيح.' });
     }
 
     db.run(
-        "INSERT INTO expenses (desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO expenses (desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             desc,
             cat,
@@ -804,7 +804,8 @@ app.post('/api/expenses', (req, res) => {
             quantity ? parseInt(quantity) : null,
             purchase_price ? parseFloat(purchase_price) : null,
             selling_price ? parseFloat(selling_price) : null,
-            platform_name || null
+            platform_name || null,
+            period || null
         ],
         function (err) {
             if (err) {
@@ -818,10 +819,10 @@ app.post('/api/expenses', (req, res) => {
 // تعديل مصروف
 app.put('/api/expenses/:id', (req, res) => {
     const { id } = req.params;
-    const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name } = req.body;
+    const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period } = req.body;
 
     db.run(
-        "UPDATE expenses SET desc = ?, cat = ?, amt = ?, date = ?, note = ?, product_name = ?, quantity = ?, purchase_price = ?, selling_price = ?, platform_name = ? WHERE id = ?",
+        "UPDATE expenses SET desc = ?, cat = ?, amt = ?, date = ?, note = ?, product_name = ?, quantity = ?, purchase_price = ?, selling_price = ?, platform_name = ?, period = ? WHERE id = ?",
         [
             desc,
             cat,
@@ -833,6 +834,7 @@ app.put('/api/expenses/:id', (req, res) => {
             purchase_price ? parseFloat(purchase_price) : null,
             selling_price ? parseFloat(selling_price) : null,
             platform_name || null,
+            period || null,
             id
         ],
         function (err) {

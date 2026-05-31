@@ -1270,6 +1270,9 @@ function openModal(type) {
     document.getElementById('mNote').value = '';
     document.getElementById('mCat').value = 'رواتب';
     
+    const mPeriod = document.getElementById('mPeriod');
+    if (mPeriod) mPeriod.value = '';
+    
     document.getElementById('modalTitle').innerHTML = `<i class="ti ti-plus" style="color:var(--accent)"></i> إضافة بند مصروفات`;
     toggleMFields();
     document.getElementById('addModal').classList.add('open');
@@ -1305,6 +1308,16 @@ function showExpenseDetails(id) {
         document.getElementById('dQuantity').textContent = row.quantity ? parseInt(row.quantity).toLocaleString('ar-SA') : '1';
         document.getElementById('dPurchasePrice').textContent = row.purchase_price ? fmt(row.purchase_price) + ' ر.س' : '-';
         document.getElementById('dSellingPrice').textContent = row.selling_price ? fmt(row.selling_price) + ' ر.س' : '-';
+
+        const dPeriodSec = document.getElementById('dPeriodSection');
+        if (dPeriodSec) {
+            if (row.period) {
+                dPeriodSec.style.display = 'block';
+                document.getElementById('dPeriod').textContent = row.period;
+            } else {
+                dPeriodSec.style.display = 'none';
+            }
+        }
     } else if (row.cat === 'تسويق') {
         pSec.style.display = 'none';
         mSec.style.display = 'block';
@@ -1462,6 +1475,7 @@ function toggleMFields() {
         pFields.style.display = 'none';
         mFields.style.display = 'none';
     }
+    checkProductPlusPeriod();
 }
 
 // دالة تفريغ وتعبئة المنتجات في القائمة المنسدلة
@@ -1520,6 +1534,35 @@ function toggleCustomProductField() {
     } else {
         customInput.style.display = 'none';
     }
+    checkProductPlusPeriod();
+}
+
+function checkProductPlusPeriod() {
+    const sel = document.getElementById('mProductSelect');
+    const customInput = document.getElementById('mProductCustom');
+    const periodBlock = document.getElementById('mPeriodBlock');
+    if (!sel || !periodBlock) return;
+    
+    const prodName = sel.value === 'custom' ? (customInput?.value || '') : sel.value;
+    const lowerName = prodName.toLowerCase();
+    
+    const isPlusOrPS = prodName.includes('بلس') || 
+                       lowerName.includes('plus') || 
+                       lowerName.includes('ps') || 
+                       prodName.includes('سوني') || 
+                       lowerName.includes('sony') || 
+                       lowerName.includes('playstation');
+                       
+    const cat = document.getElementById('mCat').value;
+    const type = document.getElementById('mType').value;
+                       
+    if (isPlusOrPS && type === 'expense' && cat === 'شراء منتجات') {
+        periodBlock.style.display = 'block';
+    } else {
+        periodBlock.style.display = 'none';
+        const mPeriod = document.getElementById('mPeriod');
+        if (mPeriod) mPeriod.value = '';
+    }
 }
 
 // دالة الحساب التلقائي لمجموع المشتريات
@@ -1558,6 +1601,7 @@ async function saveRow() {
         payload.quantity = parseInt(document.getElementById('mQuantity').value) || null;
         payload.purchase_price = parseFloat(document.getElementById('mPurchasePrice').value) || null;
         payload.selling_price = parseFloat(document.getElementById('mSellingPrice').value) || null;
+        payload.period = document.getElementById('mPeriod').value || null;
     } else if (type === 'expense' && cat === 'تسويق') {
         payload.platform_name = document.getElementById('mPlatformSelect').value;
     }
@@ -1665,6 +1709,12 @@ function editRow(id, type) {
         document.getElementById('mQuantity').value = row.quantity || '';
         document.getElementById('mPurchasePrice').value = row.purchase_price || '';
         document.getElementById('mSellingPrice').value = row.selling_price || '';
+        
+        const mPeriod = document.getElementById('mPeriod');
+        if (mPeriod) {
+            mPeriod.value = row.period || '';
+        }
+        checkProductPlusPeriod();
         
         // تحديث المجموع المحسوب المعروض
         const qty = parseInt(row.quantity) || 0;
