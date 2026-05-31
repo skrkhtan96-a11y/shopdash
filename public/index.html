@@ -652,8 +652,33 @@
         <div class="tbl-wrap">
           <div class="tbl-header">
             <div class="tbl-title">إدارة ومتابعة مخزون المنتجات <span style="font-size:10px;color:var(--text3)">(محتسب تلقائياً بناءً على المشتريات والمبيعات)</span></div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" id="prodQ" placeholder="بحث باسم المنتج..." oninput="renderProducts()" style="width:180px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="text" id="prodQ" placeholder="بحث باسم المنتج..." oninput="renderProducts()" style="width:140px">
+              
+              <!-- تحديد وتصفية أكثر من منتج تفاعلياً -->
+              <div class="custom-multiselect" style="position:relative;display:inline-block;z-index:99">
+                <button class="btn btn-sm" id="prodMultiBtn" onclick="toggleMultiSelectDropdown(event)" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);display:flex;align-items:center;gap:6px;font-size:11px;min-width:160px;justify-content:space-between;padding:5px 8px;height:30px;border-radius:var(--r1);">
+                  <span>تحديد المنتجات (الكل)</span>
+                  <i class="ti ti-chevron-down" style="font-size:10px;opacity:0.7"></i>
+                </button>
+                <div class="multiselect-dropdown" id="prodMultiDropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r1);box-shadow:0 10px 25px rgba(0,0,0,0.3);width:240px;max-height:260px;overflow-y:auto;padding:8px;z-index:999;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
+                  <div style="display:flex;justify-content:space-between;padding:4px 6px;border-bottom:1px solid var(--border2);margin-bottom:6px;gap:6px">
+                    <button type="button" class="btn btn-xs" onclick="multiSelectAll(true, event)" style="font-size:9px;padding:2px 6px;height:20px;border-radius:4px;cursor:pointer;">تحديد الكل</button>
+                    <button type="button" class="btn btn-xs" onclick="multiSelectAll(false, event)" style="font-size:9px;padding:2px 6px;height:20px;border-radius:4px;cursor:pointer;">إلغاء الكل</button>
+                  </div>
+                  <div id="prodMultiOptions" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;padding-right:4px">
+                    <!-- توليد الخيارات برمجياً مع الخانات -->
+                  </div>
+                </div>
+              </div>
+
+              <select id="prodStockFilter" onchange="renderProducts()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:var(--r1);padding:4px 8px;font-size:11px;outline:none;cursor:pointer;height:30px;">
+                <option value="all">كل حالات المخزون</option>
+                <option value="available">متوفر (>= 5)</option>
+                <option value="low">منخفض (< 5)</option>
+                <option value="empty">نفد المخزون (0)</option>
+                <option value="negative">عجز جرد (سالب)</option>
+              </select>
               <button class="btn btn-sm" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد من Excel</button>
               <button class="btn btn-sm btn-primary" onclick="openJardModal('')"><i class="ti ti-plus"></i> إضافة منتج يدوي</button>
             </div>

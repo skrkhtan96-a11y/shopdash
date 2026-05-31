@@ -26,7 +26,8 @@ let state = {
     editingId: null,
     editingType: null,
     user: null, // الحساب النشط حالياً
-    users: [] // حسابات كافة موظفي اللوحة
+    users: [], // حسابات كافة موظفي اللوحة
+    selectedProducts: [] // المنتجات المحددة للتصفية المتعددة
 };
 
 let currentUsername = '';
@@ -1010,9 +1011,44 @@ function renderProducts() {
         };
     });
 
+    // 3.5. توليد وتحديث خيارات التحديد المتعدد
+    const optionsDiv = document.getElementById('prodMultiOptions');
+    if (optionsDiv) {
+        const allNames = Object.keys(map).sort();
+        const existingOptions = Array.from(optionsDiv.querySelectorAll('.prod-multi-chk')).map(chk => chk.value);
+        const isDifferent = JSON.stringify(allNames) !== JSON.stringify(existingOptions.sort());
+        
+        if (isDifferent || optionsDiv.innerHTML === '') {
+            optionsDiv.innerHTML = allNames.map(name => {
+                const isChecked = state.selectedProducts.includes(name);
+                return `<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);cursor:pointer;padding:4px 6px;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                    <input type="checkbox" class="prod-multi-chk" value="${escapeHtml(name)}" ${isChecked ? 'checked' : ''} onchange="onProductCheckboxChange(this)" style="cursor:pointer;accent-color:var(--accent);">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" title="${escapeHtml(name)}">${name}</span>
+                </label>`;
+            }).join('');
+        }
+    }
+
     // التصفية والفرز
     if (q) prods = prods.filter(p => p.name.toLowerCase().includes(q));
     
+    // الفلترة بتحديد المنتجات المتعددة
+    if (state.selectedProducts && state.selectedProducts.length > 0) {
+        prods = prods.filter(p => state.selectedProducts.includes(p.name));
+    }
+    
+    // الفلترة بحالة المخزون
+    const stockFilter = document.getElementById('prodStockFilter')?.value || 'all';
+    if (stockFilter === 'available') {
+        prods = prods.filter(p => p.currentStock >= 5);
+    } else if (stockFilter === 'low') {
+        prods = prods.filter(p => p.currentStock > 0 && p.currentStock < 5);
+    } else if (stockFilter === 'empty') {
+        prods = prods.filter(p => p.currentStock === 0);
+    } else if (stockFilter === 'negative') {
+        prods = prods.filter(p => p.currentStock < 0);
+    }
+
     // الفرز: مبيعات أعلى أولاً
     prods.sort((a, b) => b.soldCount - a.soldCount);
     
@@ -2217,6 +2253,64 @@ function setupDragAndDrop() {
         });
     });
 }
+
+// ══════════════════════════════════════════════
+//  تخصيص التحديد المتعدد التفاعلي للمنتجات
+// ══════════════════════════════════════════════
+function toggleMultiSelectDropdown(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('prodMultiDropdown');
+    if (dropdown) {
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function multiSelectAll(selectBool, e) {
+    if (e) e.stopPropagation();
+    const checkboxes = document.querySelectorAll('.prod-multi-chk');
+    state.selectedProducts = [];
+    checkboxes.forEach(chk => {
+        chk.checked = selectBool;
+        if (selectBool) {
+            state.selectedProducts.push(chk.value);
+        }
+    });
+    updateMultiSelectBtnText();
+    renderProducts();
+}
+
+function updateMultiSelectBtnText() {
+    const btnSpan = document.querySelector('#prodMultiBtn span');
+    if (btnSpan) {
+        if (state.selectedProducts.length === 0) {
+            btnSpan.textContent = 'تحديد المنتجات (الكل)';
+        } else {
+            btnSpan.textContent = `تحديد المنتجات (${state.selectedProducts.length})`;
+        }
+    }
+}
+
+function onProductCheckboxChange(chk) {
+    const val = chk.value;
+    if (chk.checked) {
+        if (!state.selectedProducts.includes(val)) {
+            state.selectedProducts.push(val);
+        }
+    } else {
+        state.selectedProducts = state.selectedProducts.filter(p => p !== val);
+    }
+    updateMultiSelectBtnText();
+    renderProducts();
+}
+
+// إغلاق قائمة التحديد المتعدد عند النقر في الخارج
+window.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('prodMultiDropdown');
+    const btn = document.getElementById('prodMultiBtn');
+    if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
 
 // ══════════════════════════════════════════════
 //  إدارة المستخدمين
