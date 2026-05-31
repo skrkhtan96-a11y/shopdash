@@ -701,6 +701,28 @@ app.post('/api/salla/clear-imports', (req, res) => {
     });
 });
 
+// مسار حذف وتصفير بيانات اللوحة بالكامل للمدير
+app.post('/api/system/clear-all', requireRole(['admin']), (req, res) => {
+    const tables = ['expenses', 'archives', 'salla_imported_orders', 'salla_imported_wallet', 'product_adjustments'];
+    let errorOccurred = false;
+    let completed = 0;
+    
+    tables.forEach(table => {
+        db.run(`DELETE FROM ${table}`, [], (err) => {
+            if (err && !errorOccurred) {
+                errorOccurred = true;
+                return res.status(500).json({ error: err.message });
+            }
+            completed++;
+            if (completed === tables.length && !errorOccurred) {
+                db.run("VACUUM", [], () => {
+                    res.json({ success: true });
+                });
+            }
+        });
+    });
+});
+
 
 // مسار جلب السلات المتروكة
 app.get('/api/salla/abandoned-carts', async (req, res) => {

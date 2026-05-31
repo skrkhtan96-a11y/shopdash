@@ -112,6 +112,12 @@ function applyRoleBasedPermissions() {
         if (addExpBtn) addExpBtn.style.display = 'none';
         if (newMonthBtn) newMonthBtn.style.display = 'none';
     }
+
+    // زر حذف بيانات اللوحة بالكامل متاح فقط للمدير (admin)
+    const clearAllBtn = document.getElementById('btnClearAllSystem');
+    if (clearAllBtn) {
+        clearAllBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
+    }
 }
 
 async function handleLogout() {
@@ -1716,14 +1722,81 @@ async function handleImport(ev, type) {
         let count = 0;
         
         if (type === 'expense') {
+            const parseExcelDate = (dateRaw) => {
+                if (!dateRaw) return TODAY;
+                if (dateRaw instanceof Date) {
+                    if (isNaN(dateRaw.getTime())) return TODAY;
+                    return dateRaw.toISOString().split('T')[0];
+                }
+                
+                const dateStr = String(dateRaw).trim();
+                if (!dateStr) return TODAY;
+                
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    return dateStr;
+                }
+                
+                const parts = dateStr.split(/[\/\-]/);
+                if (parts.length === 3) {
+                    let p0 = parseInt(parts[0], 10);
+                    let p1 = parseInt(parts[1], 10);
+                    let p2 = parseInt(parts[2], 10);
+                    
+                    if (p2 >= 2000) { // Year is last, e.g. D/M/YYYY or M/D/YYYY
+                        let month = p0;
+                        let day = p1;
+                        let year = p2;
+                        
+                        // Smart swap: if month part is > 12, it must be the day
+                        if (p0 > 12) {
+                            day = p0;
+                            month = p1;
+                        }
+                        
+                        const mm = String(month).padStart(2, '0');
+                        const dd = String(day).padStart(2, '0');
+                        return `${year}-${mm}-${dd}`;
+                    } else if (p0 >= 2000) { // Year is first, e.g. YYYY-MM-DD
+                        let year = p0;
+                        let month = p1;
+                        let day = p2;
+                        const mm = String(month).padStart(2, '0');
+                        const dd = String(day).padStart(2, '0');
+                        return `${year}-${mm}-${dd}`;
+                    }
+                }
+                return TODAY;
+            };
+
             for (let r of rows) {
-                const desc = String(r['البيان'] || r['الوصف'] || Object.values(r)[0] || '');
-                const amt = parseFloat(r['المبلغ'] || Object.values(r)[1] || 0);
-                const cat = String(r['الفئة'] || 'أخرى');
-                const date = String(r['التاريخ'] || TODAY);
-                const note = String(r['ملاحظة'] || '');
+                const getRowValue = (row, keys) => {
+                    for (let k of keys) {
+                        if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+                    }
+                    for (let actualKey in row) {
+                        const trimmedActual = actualKey.trim().replace(/\s+/g, ' ');
+                        for (let k of keys) {
+                            const trimmedK = k.trim().replace(/\s+/g, ' ');
+                            if (trimmedActual === trimmedK || trimmedActual.includes(trimmedK)) return row[actualKey];
+                        }
+                    }
+                    return '';
+                };
+
+                const desc = String(getRowValue(r, ['البيان', 'الوصف', 'desc', 'description']) || Object.values(r)[3] || Object.values(r)[0] || '').trim();
+                const amt = parseFloat(getRowValue(r, ['المبلغ', 'القيمة', 'amount', 'amt']) || Object.values(r)[1] || 0);
+                const cat = String(getRowValue(r, ['الفئة', 'القسم', 'category', 'cat']) || Object.values(r)[2] || 'أخرى').trim();
+                const dateRaw = getRowValue(r, ['التاريخ', 'تاريخ', 'date']) || Object.values(r)[0];
+                const note = String(getRowValue(r, ['ملاحظة', 'ملاحظات', 'note', 'notes']) || '').trim();
+                const typeVal = String(getRowValue(r, ['النوع', 'نوع', 'type']) || '').trim();
+                
+                // If type is specified, only import if it is 'مصروف' or contains 'مصروف' (or if not specified at all)
+                if (typeVal && !typeVal.includes('مصروف')) {
+                    continue;
+                }
 
                 if (desc && amt > 0) {
+                    const date = parseExcelDate(dateRaw);
                     await fetch('/api/expenses', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2034,6 +2107,41 @@ async function clearWalletImportedData() {
     } catch (e) {
         console.error(e);
         toast('خطأ في الاتصال بالسيرفر لتصفير المحفظة', 'err');
+    }
+}
+
+async function clearAllSystemData() {
+    if (currentUserRole !== 'admin') {
+        toast('عذراً، هذه الصلاحية للمدير فقط.', 'warn');
+        return;
+    }
+    
+    const confirm1 = confirm('🚨 تحذير هام جداً!\n\nهل أنت متأكد من رغبتك في حذف بيانات اللوحة بالكامل؟\nسيشمل ذلك: المصروفات، الأرشيف، المبيعات المستوردة، تسويات المحفظة، وتعديلات الأسعار والمنتجات.\n\n(ملاحظة: سيتم الاحتفاظ بحسابات المستخدمين وجلسات الدخول وربط سلة لتجنب الخروج)');
+    if (!confirm1) return;
+
+    const confirm2 = confirm('تأكيد نهائي: هل تود المتابعة فعلاً وحذف كافة البيانات؟ لا يمكن استرجاع البيانات بعد الحذف.');
+    if (!confirm2) return;
+
+    try {
+        const response = await fetch('/api/system/clear-all', {
+            method: 'POST'
+        });
+        const resData = await response.json();
+        if (resData.success) {
+            toast('تم حذف بيانات اللوحة بالكامل وتصفير قاعدة البيانات المحلية بنجاح!', 'ok');
+            await updateDBStatus();
+            await loadLocalData();
+            if (typeof loadOrders === 'function') await loadOrders(true);
+            if (typeof renderExp === 'function') renderExp();
+            if (typeof renderWallet === 'function') await renderWallet();
+            if (typeof renderArchives === 'function') await renderArchives();
+            renderOverview();
+        } else {
+            toast(resData.error || 'فشل حذف بيانات اللوحة بالكامل', 'err');
+        }
+    } catch (e) {
+        console.error(e);
+        toast('خطأ في الاتصال بالسيرفر لحذف البيانات', 'err');
     }
 }
 
