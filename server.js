@@ -709,10 +709,13 @@ app.post('/api/salla/imported-orders', (req, res) => {
 // ══════════════════════════════════════════════
 
 // دالة المزامنة التلقائية للطلبات من سلة إلى قاعدة البيانات المحلية
-async function syncSallaOrdersToLocal() {
+async function syncSallaOrdersToLocal(throwOnError = false) {
     try {
         const token = await getOrRefreshToken();
         if (!token) {
+            if (throwOnError) {
+                throw new Error('SALLA_NOT_CONNECTED');
+            }
             console.log('[Auto-Sync] سلة غير متصلة (OAuth). تخطي المزامنة.');
             return 0;
         }
@@ -794,6 +797,9 @@ async function syncSallaOrdersToLocal() {
         return newCount;
     } catch (error) {
         console.error('[Auto-Sync] خطأ أثناء مزامنة سلة تلقائياً:', error.message);
+        if (throwOnError) {
+            throw error;
+        }
         return 0;
     }
 }
@@ -806,9 +812,16 @@ setTimeout(syncSallaOrdersToLocal, 10000);
 // مسار المزامنة الفورية عند طلب التحديث من الواجهة
 app.post('/api/salla/sync-now', async (req, res) => {
     try {
-        const count = await syncSallaOrdersToLocal();
+        const count = await syncSallaOrdersToLocal(true);
         res.json({ success: true, count });
     } catch (e) {
+        if (e.message === 'SALLA_NOT_CONNECTED') {
+            return res.status(400).json({
+                success: false,
+                error: 'SALLA_NOT_CONNECTED',
+                message: 'متجر سلة غير متصل باللوحة حالياً عبر الـ OAuth.'
+            });
+        }
         res.status(500).json({ error: 'فشلت المزامنة المباشرة من سلة حالياً', details: e.message });
     }
 });
@@ -1735,7 +1748,7 @@ async function handleToolCall(name, args) {
                 });
             });
         } else if (name === 'trigger_salla_sync') {
-            syncSallaOrdersToLocal()
+            syncSallaOrdersToLocal(true)
                 .then(count => {
                     resolve({
                         content: [
@@ -1746,7 +1759,24 @@ async function handleToolCall(name, args) {
                         ]
                     });
                 })
-                .catch(err => reject(err));
+                .catch(err => {
+                    if (err.message === 'SALLA_NOT_CONNECTED') {
+                        resolve({
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: JSON.stringify({
+                                        success: false,
+                                        error: "متجر سلة غير متصل باللوحة حالياً عبر الـ OAuth في خادم الويب (SQLite empty config).",
+                                        solution: "يجب على التاجر الدخول إلى لوحة التحكم بالمتصفح (https://shop.nuzum.sbs) ونقر شارة '🔌 اضغط لربط سلة (OAuth)' في الشريط العلوي لتسجيل الدخول الفعلي وتفويض التطبيق بسحب مبيعاته. بعد إتمام هذه الخطوة، ستعمل المزامنة المباشرة وتسحب كافة الطلبات تلقائياً."
+                                    }, null, 2)
+                                }
+                            ]
+                        });
+                    } else {
+                        reject(err);
+                    }
+                });
         } else if (name === 'adjust_product_inventory') {
             const { product_name, stock_offset, cost, price } = args;
             if (!product_name) {
