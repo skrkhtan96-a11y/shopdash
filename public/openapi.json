@@ -1,0 +1,174 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Shop Dashboard Smart Accounting AI API",
+    "description": "واجهة برمجة تطبيقات لوحة تحكم شوب ستور المحاسبية الذكية. تمكن هذه الواجهة ذكاء Claude AI من جلب الإحصائيات المالية المباشرة، جرد المخزون، المصروفات، وطلب مزامنة متجر سلة الفوري.",
+    "version": "1.1.0"
+  },
+  "servers": [
+    {
+      "url": "https://shop.nuzum.sbs",
+      "description": "خادم لوحة التحكم الفعلي (Production Server)"
+    }
+  ],
+  "paths": {
+    "/api/ai/live-data": {
+      "get": {
+        "summary": "جلب الملخص المالي وحالة المخزون والمصروفات بالكامل للذكاء الاصطناعي",
+        "description": "يستعلم هذا المسار عن كافة تفاصيل الحسابات في قاعدة بيانات SQLite المحلية ويدمجها في صيغة JSON موحدة تضم الملخص المالي والأرباح الصافية والمخزون المتبقي والمشتريات وتفاصيل المصاريف.",
+        "operationId": "getLiveAIData",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "description": "رمز الأمان المخصص للسماح بالوصول الحصري (القيمة الافتراضية: claude_ai_secret_123)",
+            "schema": {
+              "type": "string",
+              "default": "claude_ai_secret_123"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "نجاح جلب البيانات الكاملة والموحدة للذكاء الاصطناعي",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "store_name": {
+                      "type": "string",
+                      "example": "شوب ستور - لوحة تحكم المحاسبة الذكية"
+                    },
+                    "financial_summary": {
+                      "type": "object",
+                      "properties": {
+                        "total_revenue_sar": {
+                          "type": "number",
+                          "example": 15420.5
+                        },
+                        "total_expenses_sar": {
+                          "type": "number",
+                          "example": 8940
+                        },
+                        "net_profit_sar": {
+                          "type": "number",
+                          "example": 6480.5
+                        },
+                        "wallet_total_operations": {
+                          "type": "integer",
+                          "example": 45
+                        }
+                      }
+                    },
+                    "recent_orders_count": {
+                      "type": "integer",
+                      "example": 128
+                    },
+                    "inventory_status": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "product_name": {
+                            "type": "string",
+                            "example": "بلس PS5 سنة"
+                          },
+                          "quantity_purchased": {
+                            "type": "integer",
+                            "example": 50
+                          },
+                          "quantity_sold": {
+                            "type": "integer",
+                            "example": 32
+                          },
+                          "remaining_stock": {
+                            "type": "integer",
+                            "example": 18
+                          },
+                          "unit_cost_sar": {
+                            "type": "number",
+                            "example": 120
+                          },
+                          "total_revenue_sar": {
+                            "type": "number",
+                            "example": 6400
+                          }
+                        }
+                      }
+                    },
+                    "expenses_breakdown": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string",
+                            "example": "راتب الموظف عصام"
+                          },
+                          "category": {
+                            "type": "string",
+                            "example": "رواتب"
+                          },
+                          "amount_sar": {
+                            "type": "number",
+                            "example": 500
+                          },
+                          "date": {
+                            "type": "string",
+                            "example": "2026-05-15"
+                          },
+                          "notes": {
+                            "type": "string",
+                            "example": "الدفعة الأولى"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "غير مصرح - رمز الأمان خاطئ أو مفقود"
+          }
+        }
+      }
+    },
+    "/api/salla/sync-now": {
+      "post": {
+        "summary": "طلب مزامنة فورية وجلب أحدث المبيعات من منصة سلة",
+        "description": "يطلب من خادم الويب الاتصال اللحظي بـ Salla API وسحب أحدث الطلبات ومزامنتها داخل قاعدة بيانات SQLite المحلية لتحديث البيانات فوراً.",
+        "operationId": "triggerSallaSync",
+        "responses": {
+          "200": {
+            "description": "تمت عملية المزامنة وحفظ البيانات بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "عدد السجلات التي تمت مزامنتها بنجاح",
+                      "example": 12
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "فشلت المزامنة بسبب خطأ اتصال أو عدم ربط الـ OAuth"
+          }
+        }
+      }
+    }
+  }
+}
