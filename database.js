@@ -118,6 +118,38 @@ db.serialize(() => {
         )
     `);
 
+    // 9. جدول استيراد مبيعات إكسل المخصصة والمقارنة
+    db.run(`
+        CREATE TABLE IF NOT EXISTS product_sales_imports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            import_id TEXT NOT NULL,
+            import_title TEXT NOT NULL,
+            import_date TEXT NOT NULL,
+            product_type TEXT,
+            brand_name TEXT,
+            qty_sold INTEGER DEFAULT 0,
+            sales_before_discount REAL DEFAULT 0,
+            discount REAL DEFAULT 0,
+            cost_of_sales REAL DEFAULT 0,
+            net_sales REAL DEFAULT 0,
+            taxes REAL DEFAULT 0,
+            total_sales REAL DEFAULT 0
+        )
+    `);
+
+    // 10. جدول المقارنات المحفوظة
+    db.run(`
+        CREATE TABLE IF NOT EXISTS saved_comparisons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            compare_type TEXT NOT NULL,
+            param1 TEXT,
+            param2 TEXT,
+            summary_json TEXT,
+            created_at TEXT NOT NULL
+        )
+    `);
+
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {

@@ -697,6 +697,145 @@ app.post('/api/salla/imported-orders', (req, res) => {
     });
 });
 
+// ══════════════════════════════════════════════
+//  مسارات مقارنة المبيعات المستوردة (إكسل المخصص)
+// ══════════════════════════════════════════════
+
+// 1. مسار استيراد ملف إكسل مبيعات مخصص وحفظه
+app.post('/api/sales/import-excel', (req, res) => {
+    const { title, date, rows } = req.body;
+    if (!title || !rows || !Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ error: 'يرجى تقديم عنوان التقرير والصفوف الصالحة.' });
+    }
+    const importId = 'imp_' + Date.now();
+    const importDate = date || new Date().toISOString().split('T')[0];
+    
+    db.serialize(() => {
+        const stmt = db.prepare(`
+            INSERT INTO product_sales_imports 
+            (import_id, import_title, import_date, product_type, brand_name, qty_sold, sales_before_discount, discount, cost_of_sales, net_sales, taxes, total_sales) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        rows.forEach(r => {
+            stmt.run([
+                importId,
+                title,
+                importDate,
+                r.product_type || '',
+                r.brand_name || '',
+                parseInt(r.qty_sold) || 0,
+                parseFloat(r.sales_before_discount) || 0,
+                parseFloat(r.discount) || 0,
+                parseFloat(r.cost_of_sales) || 0,
+                parseFloat(r.net_sales) || 0,
+                parseFloat(r.taxes) || 0,
+                parseFloat(r.total_sales) || 0
+            ]);
+        });
+        
+        stmt.finalize((err) => {
+            if (err) {
+                console.error('خطأ أثناء استيراد مبيعات إكسل:', err.message);
+                return res.status(500).json({ error: 'فشل حفظ التقرير في قاعدة البيانات.' });
+            }
+            res.json({ success: true, import_id: importId, import_title: title, count: rows.length });
+        });
+    });
+});
+
+// 2. مسار جلب قائمة ملفات الاستيراد
+app.get('/api/sales/imports', (req, res) => {
+    db.all(`
+        SELECT import_id, import_title, import_date, COUNT(*) as rows_count,
+               SUM(qty_sold) as total_qty, SUM(total_sales) as total_revenue
+        FROM product_sales_imports 
+        GROUP BY import_id 
+        ORDER BY import_date DESC, id DESC
+    `, [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows);
+    });
+});
+
+// 3. مسار حذف استيراد معين وبياناته
+app.delete('/api/sales/imports/:import_id', (req, res) => {
+    const { import_id } = req.params;
+    db.run("DELETE FROM product_sales_imports WHERE import_id = ?", [import_id], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ success: true, changes: this.changes });
+    });
+});
+
+// 4. مسار جلب تفاصيل الاستيرادات للمقارنة
+app.get('/api/sales/compare-reports', (req, res) => {
+    const { import1, import2 } = req.query;
+    if (!import1 || !import2) {
+        return res.status(400).json({ error: 'يرجى تقديم معرفي الاستيراد للمقارنة.' });
+    }
+    
+    db.all("SELECT * FROM product_sales_imports WHERE import_id IN (?, ?)", [import1, import2], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        
+        const import1Rows = rows.filter(r => r.import_id === import1);
+        const import2Rows = rows.filter(r => r.import_id === import2);
+        
+        res.json({
+            import1: import1Rows,
+            import2: import2Rows
+        });
+    });
+});
+
+// 5. مسار حفظ مقارنة جديدة
+app.post('/api/sales/saved-comparisons', (req, res) => {
+    const { title, compare_type, param1, param2, summary_json } = req.body;
+    if (!title || !compare_type) {
+        return res.status(400).json({ error: 'يرجى تقديم عنوان ونوع المقارنة.' });
+    }
+    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    
+    db.run(`
+        INSERT INTO saved_comparisons (title, compare_type, param1, param2, summary_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `, [title, compare_type, param1 || '', param2 || '', JSON.stringify(summary_json || {}), createdAt], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ success: true, id: this.lastID });
+    });
+});
+
+// 6. مسار جلب المقارنات المحفوظة
+app.get('/api/sales/saved-comparisons', (req, res) => {
+    db.all("SELECT * FROM saved_comparisons ORDER BY id DESC", [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows.map(r => ({
+            ...r,
+            summary_json: JSON.parse(r.summary_json || '{}')
+        })));
+    });
+});
+
+// 7. مسار حذف مقارنة محفوظة
+app.delete('/api/sales/saved-comparisons/:id', (req, res) => {
+    const { id } = req.params;
+    db.run("DELETE FROM saved_comparisons WHERE id = ?", [id], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ success: true, changes: this.changes });
+    });
+});
+
 // مسار حذف وتصفير المبيعات المستوردة من قاعدة البيانات
 app.post('/api/salla/clear-imports', (req, res) => {
     db.run("DELETE FROM salla_imported_orders", [], function (err) {

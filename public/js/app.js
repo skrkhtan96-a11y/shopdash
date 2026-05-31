@@ -40,7 +40,7 @@ let ordPage = 1;
 let ordPageTotal = 1;
 
 // ── CHARTS ──
-let pieC, cmpC, walC, prodC;
+let pieC, cmpC, walC, prodC, compareC;
 
 // ══════════════════════════════════════════════
 //  INIT & CHECK AUTH STATUS
@@ -240,7 +240,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'import', 'users'];
+const PAGES = ['overview', 'expenses', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -248,6 +248,7 @@ const PAGE_TITLES = {
     'salla-carts': 'السلات المتروكة',
     'salla-wallet': 'محفظة سلة',
     'salla-products': 'المخزون والمنتجات',
+    'salla-compare': 'مقارنة المبيعات والفروقات',
     import: 'استيراد Excel',
     users: 'إدارة المستخدمين'
 };
@@ -299,6 +300,7 @@ function nav(name) {
     if (name === 'salla-carts') renderCarts();
     if (name === 'salla-wallet') renderWallet();
     if (name === 'salla-products') renderProducts();
+    if (name === 'salla-compare') initComparePage();
     if (name === 'users') loadUsers();
 }
 
@@ -1051,6 +1053,25 @@ function renderProducts() {
 
     // الفرز: مبيعات أعلى أولاً
     prods.sort((a, b) => b.soldCount - a.soldCount);
+    
+    // 3.7. احتساب إجمالي قيمة المخزون الحالي المتبقي والقطع والمنتجات
+    let totalStockValue = 0;
+    let totalStockQty = 0;
+    prods.forEach(p => {
+        if (p.currentStock > 0) {
+            totalStockValue += p.currentStock * p.avgCost;
+            totalStockQty += p.currentStock;
+        }
+    });
+
+    const prodKPIs = document.getElementById('prodKPIs');
+    if (prodKPIs) {
+        prodKPIs.innerHTML = `
+            <div class="kpi k-accent"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">إجمالي قيمة المخزون المتبقي</div><div class="kpi-val accent">${fmt(totalStockValue)} ر.س</div><div class="kpi-sub">بناءً على التكلفة الفعلية</div></div>
+            <div class="kpi k-green"><i class="ti ti-box kpi-ico"></i><div class="kpi-label">إجمالي القطع المتوفرة</div><div class="kpi-val green">${totalStockQty.toLocaleString('ar-SA')}</div><div class="kpi-sub">قطعة متوفرة للبيع</div></div>
+            <div class="kpi k-blue"><i class="ti ti-tag kpi-ico"></i><div class="kpi-label">عدد المنتجات النشطة</div><div class="kpi-val blue">${prods.length.toLocaleString('ar-SA')}</div><div class="kpi-sub">صنفاً مسجلاً في النظام</div></div>
+        `;
+    }
     
     const body = document.getElementById('prodBody');
     if (!body) return;
@@ -2487,6 +2508,617 @@ async function deleteUser(id) {
         
         toast('تم حذف المستخدم', 'success');
         loadUsers();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+// ══════════════════════════════════════════════
+//  SALES COMPARISON PAGE LOGIC (EXCEL IMPORTS & DELTAS)
+// ══════════════════════════════════════════════
+
+let currentComparisonState = {
+    import1Data: [],
+    import2Data: [],
+    import1Title: '',
+    import2Title: '',
+    aggregated: [],
+    totals: {}
+};
+
+async function initComparePage() {
+    // 1. إعادة تعيين الحقول الافتراضية
+    const dateInput = document.getElementById('cmpImportDate');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = TODAY;
+    }
+    
+    // 2. تحميل التقارير المستوردة المتاحة
+    await loadAvailableImports();
+    
+    // 3. تحميل المقارنات المحفوظة مسبقاً
+    await loadSavedComparisons();
+}
+
+async function loadAvailableImports() {
+    try {
+        const res = await fetch('/api/sales/imports');
+        if (!res.ok) throw new Error('فشل جلب ملفات الاستيراد');
+        const imports = await res.json();
+        
+        // تعبئة قوائم الاختيار (Report A & Report B)
+        const selectA = document.getElementById('cmpReportA');
+        const selectB = document.getElementById('cmpReportB');
+        
+        if (selectA && selectB) {
+            const options = imports.map(imp => {
+                const dateStr = imp.import_date ? new Date(imp.import_date).toLocaleDateString('ar-SA') : '';
+                return `<option value="${imp.import_id}">${imp.import_title} (${dateStr} · ${imp.rows_count} بند · ${fmt(imp.total_revenue)} ر.س)</option>`;
+            }).join('');
+            
+            selectA.innerHTML = '<option value="">-- اختر التقرير الأساسي (A) --</option>' + options;
+            selectB.innerHTML = '<option value="">-- اختر التقرير المقارن (B) --</option>' + options;
+        }
+        
+        // تعبئة جدول الاستيرادات المتوفرة في العمود الأيسر السفلي
+        const body = document.getElementById('availableImportsBody');
+        if (body) {
+            if (imports.length === 0) {
+                body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);font-size:11px;padding:12px">لا توجد ملفات مستوردة بعد</td></tr>';
+                return;
+            }
+            body.innerHTML = imports.map(imp => {
+                const dateStr = imp.import_date ? new Date(imp.import_date).toLocaleDateString('ar-SA') : '';
+                return `<tr>
+                    <td style="font-size:11px;font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(imp.import_title)}">${imp.import_title}</td>
+                    <td style="font-family:var(--mono);font-size:11px">${imp.rows_count} أسطر</td>
+                    <td>
+                        <button class="btn btn-xs btn-primary" onclick="deleteImport('${imp.import_id}')" style="background:var(--red);border-color:var(--red);padding:2px 4px;font-size:9px">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+    } catch (e) {
+        console.error(e);
+        toast('فشل تحميل ملفات الاستيراد المتوفرة', 'error');
+    }
+}
+
+async function handleCompareExcelImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const titleInput = document.getElementById('cmpImportTitle');
+    const dateInput = document.getElementById('cmpImportDate');
+    const resEl = document.getElementById('ir-compare');
+    
+    if (!titleInput.value.trim()) {
+        // اقتراح اسم ذكي بناءً على اسم الملف
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        titleInput.value = baseName;
+    }
+    
+    const title = titleInput.value.trim();
+    const date = dateInput.value || TODAY;
+    
+    if (resEl) resEl.textContent = 'جاري التحليل واستيراد البيانات المخصصة...';
+    
+    try {
+        const rows = await readXLSX(file);
+        
+        // 1. دالة البحث المرن عن الأعمدة
+        const getValueFuzzy = (row, keys) => {
+            for (let k of keys) {
+                if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+            }
+            for (let actualKey in row) {
+                const trimmedActual = actualKey.trim().replace(/\s+/g, ' ');
+                for (let k of keys) {
+                    const trimmedK = k.trim().replace(/\s+/g, ' ');
+                    if (trimmedActual === trimmedK || trimmedActual.includes(trimmedK)) return row[actualKey];
+                }
+            }
+            return '';
+        };
+        
+        // 2. تصفية وتحويل الأسطر لدعم الأعمدة المطلوبة بدقة
+        const mappedRows = [];
+        for (let r of rows) {
+            const type = String(getValueFuzzy(r, ['النوع', 'الفئة', 'Type', 'Category']) || '').trim();
+            const brand = String(getValueFuzzy(r, ['الماركة', 'اسم الماركة', 'المنتج', 'اسم المنتج', 'Brand', 'Product']) || '').trim();
+            
+            // تخطي السطور الفارغة تماماً
+            if (!brand) continue;
+            
+            const qtySold = parseInt(getValueFuzzy(r, ['الكمية المباعة', 'الكمية', 'العدد', 'Qty Sold', 'Quantity Sold', 'Quantity'])) || 0;
+            const beforeDisc = parseFloat(getValueFuzzy(r, ['المبيعات قبل التخفيض (ر.س)', 'المبيعات قبل التخفيض', 'قبل التخفيض', 'Sales Before Discount'])) || 0;
+            const discount = parseFloat(getValueFuzzy(r, ['التخفيض (ر.س)', 'التخفيض', 'الخصم', 'Discount'])) || 0;
+            const costOfSales = parseFloat(getValueFuzzy(r, ['كلفة المبيعات (ر.س)', 'كلفة المبيعات', 'التكلفة', 'Cost Of Sales'])) || 0;
+            const netSales = parseFloat(getValueFuzzy(r, ['صافي المبيعات (ر.س)', 'صافي المبيعات', 'الصافي', 'Net Sales'])) || 0;
+            const taxes = parseFloat(getValueFuzzy(r, ['الضرائب (ر.س)', 'الضرائب', 'الضريبة', 'Taxes', 'Tax'])) || 0;
+            const totalSales = parseFloat(getValueFuzzy(r, ['إجمالي المبيعات (ر.س)', 'إجمالي المبيعات', 'الإجمالي', 'Total Sales'])) || 0;
+            
+            mappedRows.push({
+                product_type: type,
+                brand_name: brand,
+                qty_sold: qtySold,
+                sales_before_discount: beforeDisc,
+                discount: discount,
+                cost_of_sales: costOfSales,
+                net_sales: netSales,
+                taxes: taxes,
+                total_sales: totalSales
+            });
+        }
+        
+        if (mappedRows.length === 0) {
+            throw new Error('لم يتم العثور على أي أسطر صالحة في ملف الإكسل. تأكد من تطابق الماركة أو اسم المنتج.');
+        }
+        
+        // 3. إرسال البيانات للخلفية للحفظ في SQLite
+        const response = await fetch('/api/sales/import-excel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, date, rows: mappedRows })
+        });
+        
+        if (!response.ok) {
+            const errJson = await response.json();
+            throw new Error(errJson.error || 'فشل حفظ البيانات في قاعدة البيانات');
+        }
+        
+        const resData = await response.json();
+        
+        if (resEl) {
+            resEl.innerHTML = `<span style="color:var(--green)">✓ تم استيراد التقرير بنجاح! تم حفظ ${resData.count} سطر في SQLite.</span>`;
+        }
+        
+        toast(`تم استيراد ${resData.count} منتج بنجاح`, 'ok');
+        
+        // إعادة تعيين مدخلات الواجهة
+        titleInput.value = '';
+        event.target.value = '';
+        
+        // إعادة تحميل القوائم والملفات المتوفرة
+        await initComparePage();
+        
+    } catch (err) {
+        console.error(err);
+        if (resEl) resEl.innerHTML = `<span style="color:var(--red)">✕ خطأ: ${escapeHtml(err.message)}</span>`;
+        toast(err.message, 'error');
+    }
+}
+
+async function deleteImport(importId) {
+    if (!confirm('هل أنت متأكد من حذف هذا الملف الاستيرادي بالكامل؟ سيتم مسح بيانات المبيعات المرتبطة به.')) return;
+    
+    try {
+        const res = await fetch(`/api/sales/imports/${importId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('فشل الحذف');
+        toast('تم حذف ملف الاستيراد بنجاح', 'ok');
+        await initComparePage();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function runComparison() {
+    const reportAId = document.getElementById('cmpReportA').value;
+    const reportBId = document.getElementById('cmpReportB').value;
+    
+    if (!reportAId || !reportBId) {
+        toast('يرجى اختيار التقريرين (A) و (B) لبدء المقارنة الفورية', 'error');
+        return;
+    }
+    
+    if (reportAId === reportBId) {
+        toast('الرجاء اختيار تقريرين مختلفين لمقارنتهما وإظهار الفروقات بينهما', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/sales/compare-reports?import1=${reportAId}&import2=${reportBId}`);
+        if (!res.ok) throw new Error('فشل جلب تفاصيل التقارير للمقارنة');
+        
+        const data = await res.json();
+        
+        // حفظ العناوين
+        const selectA = document.getElementById('cmpReportA');
+        const selectB = document.getElementById('cmpReportB');
+        const titleA = selectA.options[selectA.selectedIndex].text.split('(')[0].trim();
+        const titleB = selectB.options[selectB.selectedIndex].text.split('(')[0].trim();
+        
+        currentComparisonState.import1Title = titleA;
+        currentComparisonState.import2Title = titleB;
+        currentComparisonState.import1Data = data.import1;
+        currentComparisonState.import2Data = data.import2;
+        
+        // 1. تجميع البيانات حسب الماركة/المنتج
+        const map = {};
+        
+        // دالة التجميع
+        const aggregateToMap = (rows, suffix) => {
+            rows.forEach(r => {
+                const name = (r.brand_name || 'غير معروف').trim();
+                if (!map[name]) {
+                    map[name] = {
+                        brand_name: name,
+                        product_type: r.product_type || 'غير محدد',
+                        a: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 },
+                        b: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 }
+                    };
+                }
+                map[name][suffix].qty += r.qty_sold || 0;
+                map[name][suffix].before_disc += r.sales_before_discount || 0;
+                map[name][suffix].discount += r.discount || 0;
+                map[name][suffix].cost += r.cost_of_sales || 0;
+                map[name][suffix].net += r.net_sales || 0;
+                map[name][suffix].tax += r.taxes || 0;
+                map[name][suffix].total += r.total_sales || 0;
+            });
+        };
+        
+        aggregateToMap(data.import1, 'a');
+        aggregateToMap(data.import2, 'b');
+        
+        // 2. احتساب الفروقات والنسب المئوية
+        const aggregated = Object.values(map).map(item => {
+            const calcDelta = (vA, vB) => {
+                const diff = vB - vA;
+                const pct = vA === 0 ? (vB > 0 ? 100 : 0) : (diff / vA) * 100;
+                return { diff, pct };
+            };
+            
+            return {
+                ...item,
+                qty_delta: calcDelta(item.a.qty, item.b.qty),
+                total_delta: calcDelta(item.a.total, item.b.total),
+                net_delta: calcDelta(item.a.net, item.b.net),
+                cost_delta: calcDelta(item.a.cost, item.b.cost),
+                discount_delta: calcDelta(item.a.discount, item.b.discount)
+            };
+        });
+        
+        // فرز: مبيعات تقرير B الأعلى أولاً
+        aggregated.sort((x, y) => y.b.total - x.b.total);
+        currentComparisonState.aggregated = aggregated;
+        
+        // 3. حساب المجاميع العامة للمقارنة
+        const totals = {
+            a: { qty: 0, total: 0, net: 0, cost: 0, discount: 0 },
+            b: { qty: 0, total: 0, net: 0, cost: 0, discount: 0 }
+        };
+        
+        aggregated.forEach(item => {
+            ['qty', 'total', 'net', 'cost', 'discount'].forEach(metric => {
+                totals.a[metric] += item.a[metric];
+                totals.b[metric] += item.b[metric];
+            });
+        });
+        
+        const calcDeltaGlobal = (vA, vB) => {
+            const diff = vB - vA;
+            const pct = vA === 0 ? (vB > 0 ? 100 : 0) : (diff / vA) * 100;
+            return { diff, pct };
+        };
+        
+        currentComparisonState.totals = {
+            qty_a: totals.a.qty,
+            qty_b: totals.b.qty,
+            qty_delta: calcDeltaGlobal(totals.a.qty, totals.b.qty),
+            
+            total_a: totals.a.total,
+            total_b: totals.b.total,
+            total_delta: calcDeltaGlobal(totals.a.total, totals.b.total),
+            
+            net_a: totals.a.net,
+            net_b: totals.b.net,
+            net_delta: calcDeltaGlobal(totals.a.net, totals.b.net),
+            
+            cost_a: totals.a.cost,
+            cost_b: totals.b.cost,
+            cost_delta: calcDeltaGlobal(totals.a.cost, totals.b.cost),
+            
+            discount_a: totals.a.discount,
+            discount_b: totals.b.discount,
+            discount_delta: calcDeltaGlobal(totals.a.discount, totals.b.discount)
+        };
+        
+        // 4. تحديث مؤشرات الأداء والبطاقات (KPIs)
+        renderCompareKPIs();
+        
+        // 5. عرض وتعبئة الجدول
+        renderCompareTable();
+        
+        // 6. رسم المنحنى البياني
+        renderCmpChart();
+        
+        // إظهار النتائج
+        document.getElementById('cmpKPIs').style.display = 'grid';
+        document.getElementById('cmpResultContainer').style.display = 'block';
+        document.getElementById('cmpResultTitle').innerHTML = `نتائج مقارنة: <span style="color:var(--accent);font-weight:700">${titleA}</span> ضد <span style="color:var(--accent);font-weight:700">${titleB}</span>`;
+        
+        toast('تم إجراء المقارنة وحساب الفروقات بنجاح', 'ok');
+        
+    } catch (e) {
+        console.error(e);
+        toast(e.message, 'error');
+    }
+}
+
+function renderCompareKPIs() {
+    const kpisDiv = document.getElementById('cmpKPIs');
+    if (!kpisDiv) return;
+    
+    const t = currentComparisonState.totals;
+    
+    kpisDiv.innerHTML = `
+        <div class="kpi k-green">
+            <i class="ti ti-shopping-cart kpi-ico"></i>
+            <div class="kpi-label">مبيعات التقرير المقارن (B)</div>
+            <div class="kpi-val green">${fmt(t.total_b)}</div>
+            <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
+                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${fmt(t.total_a)}</span>
+                ${renderDeltaBadge(t.total_delta.diff, t.total_delta.pct)}
+            </div>
+        </div>
+        
+        <div class="kpi k-accent">
+            <i class="ti ti-wallet kpi-ico"></i>
+            <div class="kpi-label">صافي مبيعات التقرير المقارن (B)</div>
+            <div class="kpi-val accent">${fmt(t.net_b)}</div>
+            <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
+                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${fmt(t.net_a)}</span>
+                ${renderDeltaBadge(t.net_delta.diff, t.net_delta.pct)}
+            </div>
+        </div>
+        
+        <div class="kpi k-blue">
+            <i class="ti ti-box kpi-ico"></i>
+            <div class="kpi-label">إجمالي القطع المباعة (B)</div>
+            <div class="kpi-val blue">${t.qty_b.toLocaleString('ar-SA')} قطعة</div>
+            <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
+                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${t.qty_a.toLocaleString('ar-SA')}</span>
+                ${renderDeltaBadge(t.qty_delta.diff, t.qty_delta.pct)}
+            </div>
+        </div>
+        
+        <div class="kpi k-red">
+            <i class="ti ti-receipt kpi-ico"></i>
+            <div class="kpi-label">كلفة مبيعات التقرير المقارن (B)</div>
+            <div class="kpi-val red">${fmt(t.cost_b)}</div>
+            <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
+                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${fmt(t.cost_a)}</span>
+                ${renderDeltaBadge(t.cost_delta.diff, t.cost_delta.pct, true)}
+            </div>
+        </div>
+    `;
+}
+
+function renderCompareTable() {
+    const body = document.getElementById('cmpTableBody');
+    if (!body) return;
+    
+    const aggregated = currentComparisonState.aggregated;
+    if (aggregated.length === 0) {
+        body.innerHTML = '<tr><td colspan="12" style="text-align:center">لا تتوفر تفاصيل للمقارنة</td></tr>';
+        return;
+    }
+    
+    body.innerHTML = aggregated.map((item, i) => {
+        // إشارة التغير لفرق المبيعات
+        const diffTotal = item.total_delta.diff;
+        const colorTotal = diffTotal > 0 ? 'green' : (diffTotal < 0 ? 'red' : 'text2');
+        const signTotal = diffTotal > 0 ? '+' : '';
+        
+        return `<tr>
+            <td style="color:var(--text3);font-size:10px">${i + 1}</td>
+            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${escapeHtml(item.brand_name)}">${item.brand_name}</td>
+            <td style="font-size:11px;color:var(--text3)">${item.product_type}</td>
+            
+            <td style="font-family:var(--mono)">${item.a.qty.toLocaleString('ar-SA')}</td>
+            <td style="font-family:var(--mono)">${item.b.qty.toLocaleString('ar-SA')}</td>
+            <td>${renderDeltaBadge(item.qty_delta.diff, item.qty_delta.pct)}</td>
+            
+            <td><span class="mono">${fmt(item.a.total)}</span></td>
+            <td><span class="mono">${fmt(item.b.total)}</span></td>
+            <td style="font-family:var(--mono)"><span class="${colorTotal}" style="font-weight:600">${signTotal}${fmt(diffTotal)}</span> ${renderDeltaBadge(item.total_delta.diff, item.total_delta.pct)}</td>
+            
+            <td><span class="mono">${fmt(item.a.net)}</span></td>
+            <td><span class="mono">${fmt(item.b.net)}</span></td>
+            <td style="font-family:var(--mono)"><span class="${item.net_delta.diff >= 0 ? 'green' : 'red'}" style="font-weight:600">${item.net_delta.diff > 0 ? '+' : ''}${fmt(item.net_delta.diff)}</span> ${renderDeltaBadge(item.net_delta.diff, item.net_delta.pct)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderCmpChart() {
+    const ctx = document.getElementById('compareLineChart');
+    if (!ctx) return;
+    
+    const metric = document.getElementById('cmpChartMetric')?.value || 'total_sales';
+    const topItems = currentComparisonState.aggregated.slice(0, 10);
+    
+    if (compareC) compareC.destroy();
+    
+    if (topItems.length === 0) return;
+    
+    let labelMetric = 'إجمالي المبيعات (ر.س)';
+    if (metric === 'qty_sold') labelMetric = 'الكمية المباعة';
+    if (metric === 'net_sales') labelMetric = 'صافي المبيعات (ر.س)';
+    if (metric === 'cost_of_sales') labelMetric = 'كلفة المبيعات (ر.س)';
+    
+    const getVal = (item, select, field) => {
+        if (field === 'qty_sold') return item[select].qty;
+        if (field === 'net_sales') return item[select].net;
+        if (field === 'cost_of_sales') return item[select].cost;
+        return item[select].total;
+    };
+    
+    compareC = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: topItems.map(item => item.brand_name.substring(0, 14)),
+            datasets: [
+                {
+                    label: `${currentComparisonState.import1Title} (A)`,
+                    data: topItems.map(item => getVal(item, 'a', metric)),
+                    borderColor: '#a3a8cc',
+                    backgroundColor: 'rgba(163,168,204,0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: `${currentComparisonState.import2Title} (B)`,
+                    data: topItems.map(item => getVal(item, 'b', metric)),
+                    borderColor: '#00e1d9',
+                    backgroundColor: 'rgba(0,225,217,0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#dde1f0', font: { size: 10, family: 'Outfit' } }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#7a80a0', font: { size: 9, family: 'Outfit' } },
+                    grid: { color: 'rgba(255,255,255,0.03)' }
+                },
+                y: {
+                    ticks: { color: '#dde1f0', font: { size: 9 } },
+                    grid: { color: 'rgba(255,255,255,0.03)' }
+                }
+            }
+        }
+    });
+}
+
+function toggleCompareView() {
+    const wrapper = document.getElementById('cmpChartWrapper');
+    const btn = document.getElementById('btnToggleCmpView');
+    
+    if (!wrapper || !btn) return;
+    
+    if (wrapper.style.display === 'none') {
+        wrapper.style.display = 'block';
+        btn.innerHTML = '<i class="ti ti-table"></i> عرض جدول الفروقات';
+        setTimeout(() => {
+            if (compareC) compareC.resize();
+        }, 100);
+    } else {
+        wrapper.style.display = 'none';
+        btn.innerHTML = '<i class="ti ti-chart-line"></i> عرض المنحنى البياني';
+    }
+}
+
+async function saveCurrentComparison() {
+    if (currentComparisonState.aggregated.length === 0) {
+        toast('لا توجد بيانات مقارنة نشطة لحفظها حالياً', 'error');
+        return;
+    }
+    
+    const defaultTitle = `مقارنة ${currentComparisonState.import1Title} ضد ${currentComparisonState.import2Title}`;
+    const title = prompt('أدخل اسماً لحفظ تقرير المقارنة والفروقات:', defaultTitle);
+    
+    if (!title || !title.trim()) {
+        toast('تم إلغاء حفظ المقارنة أو الاسم غير صالح', 'info');
+        return;
+    }
+    
+    try {
+        const bodyData = {
+            title: title.trim(),
+            compare_type: 'imports',
+            param1: document.getElementById('cmpReportA').value,
+            param2: document.getElementById('cmpReportB').value,
+            summary_json: currentComparisonState.totals
+        };
+        
+        const res = await fetch('/api/sales/saved-comparisons', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyData)
+        });
+        
+        if (!res.ok) throw new Error('فشل الحفظ في قاعدة البيانات');
+        
+        toast('تم حفظ المقارنة بنجاح في سجلاتك السحابية', 'ok');
+        await loadSavedComparisons();
+        
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function loadSavedComparisons() {
+    try {
+        const res = await fetch('/api/sales/saved-comparisons');
+        if (!res.ok) throw new Error('فشل تحميل المقارنات');
+        
+        const comps = await res.json();
+        const body = document.getElementById('savedCmpBody');
+        
+        if (!body) return;
+        
+        if (comps.length === 0) {
+            body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3);font-size:11px;padding:12px">لا توجد مقارنات محفوظة بعد</td></tr>';
+            return;
+        }
+        
+        body.innerHTML = comps.map(c => {
+            const dateStr = c.created_at ? new Date(c.created_at.replace(/-/g, '/')).toLocaleDateString('ar-SA') : '';
+            return `<tr>
+                <td style="font-size:11px;font-weight:700">${escapeHtml(c.title)}</td>
+                <td style="font-size:11px;color:var(--text3)">مقارنة ملفات</td>
+                <td style="font-size:10px;font-family:var(--mono);color:var(--text3)">${dateStr}</td>
+                <td>
+                    <div style="display:flex;gap:4px">
+                        <button class="btn btn-xs btn-primary" onclick="loadSavedComparisonDetails('${c.param1}', '${c.param2}')" style="padding:2px 6px;font-size:10px">
+                            <i class="ti ti-eye"></i> فتح
+                        </button>
+                        <button class="btn btn-xs btn-primary" onclick="deleteSavedComparison(${c.id})" style="background:var(--red);border-color:var(--red);padding:2px 4px;font-size:9px">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        console.error(e);
+        toast('فشل تحميل المقارنات المحفوظة', 'error');
+    }
+}
+
+async function loadSavedComparisonDetails(param1, param2) {
+    const selectA = document.getElementById('cmpReportA');
+    const selectB = document.getElementById('cmpReportB');
+    
+    if (selectA && selectB) {
+        selectA.value = param1;
+        selectB.value = param2;
+        toast('جاري تحميل وتحديث بيانات المقارنة المحفوظة...', 'info');
+        await runComparison();
+    }
+}
+
+async function deleteSavedComparison(id) {
+    if (!confirm('هل أنت متأكد من حذف هذه المقارنة المحفوظة؟')) return;
+    
+    try {
+        const res = await fetch(`/api/sales/saved-comparisons/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('فشل الحذف');
+        toast('تم حذف تقرير المقارنة بنجاح', 'ok');
+        await loadSavedComparisons();
     } catch (e) {
         toast(e.message, 'error');
     }

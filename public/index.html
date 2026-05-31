@@ -385,6 +385,7 @@
       <div class="nav-item" onclick="nav('salla-carts')"><i class="ti ti-basket-off"></i> السلات المتروكة <span class="badge-count" id="cartBadge">...</span></div>
       <div class="nav-item" onclick="nav('salla-wallet')"><i class="ti ti-wallet"></i> كشف المحفظة</div>
       <div class="nav-item" onclick="nav('salla-products')"><i class="ti ti-box"></i> المخزون والمنتجات</div>
+      <div class="nav-item" onclick="nav('salla-compare')"><i class="ti ti-chart-arrows-vertical"></i> مقارنة المبيعات</div>
 
       <div class="s-sep"></div>
       <div class="s-label">الأرشيف الشهري</div>
@@ -669,6 +670,7 @@
 
       <!-- PAGE: TOP PRODUCTS -->
       <div class="page pad" id="page-salla-products">
+        <div class="kpi-grid" id="prodKPIs" style="margin-bottom:14px"></div>
         <div class="tbl-wrap">
           <div class="tbl-header">
             <div class="tbl-title">إدارة ومتابعة مخزون المنتجات <span style="font-size:10px;color:var(--text3)">(محتسب تلقائياً بناءً على المشتريات والمبيعات)</span></div>
@@ -725,6 +727,162 @@
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- PAGE: SALES COMPARISON -->
+      <div class="page pad" id="page-salla-compare">
+        <!-- 1. لوحة استيراد تقرير مبيعات إكسل المخصص -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:14px; margin-bottom:14px;">
+          
+          <div class="import-panel" style="margin-bottom:0">
+            <div class="import-panel-title"><i class="ti ti-file-import" style="color:var(--accent)"></i> 1. استيراد ملف إكسل مبيعات مخصص للمقارنة</div>
+            <div class="import-panel-sub">قم برفع تقرير المبيعات المخصص بالمدخلات: النوع، الماركة، الكميات، المبيعات قبل التخفيض، التخفيض، كلفة المبيعات، الضرائب...</div>
+            
+            <div style="display:flex; gap:8px; margin-bottom:8px; margin-top:10px">
+              <input type="text" id="cmpImportTitle" placeholder="اسم التقرير (مثال: مبيعات مايو 2026)" style="flex:1; height:30px; font-size:11px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none">
+              <input type="date" id="cmpImportDate" style="width:120px; height:30px; font-size:11px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none">
+            </div>
+
+            <div class="import-zone" id="iz-compare" style="padding:20px; border: 2px dashed var(--border); border-radius: var(--r); background: rgba(255,255,255,0.01); text-align: center; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;">
+              <input type="file" accept=".xlsx,.xls" onchange="handleCompareExcelImport(event)" id="if-compare" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:2">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px">
+                <div style="font-size:28px; color:var(--accent)"><i class="ti ti-file-spreadsheet"></i></div>
+                <div>
+                  <div style="font-size:11px; font-weight:600">اسحب ملف إكسل مبيعات هنا أو اضغط للاختيار</div>
+                  <div style="font-size:9px; color:var(--text3)">xlsx / xls (أعمدة مخصصة)</div>
+                </div>
+              </div>
+            </div>
+            <div id="ir-compare" style="font-size:11px; margin-top:8px; color:var(--green)"></div>
+          </div>
+
+          <!-- 2. محدد المقارنات التفاعلية -->
+          <div class="import-panel" style="margin-bottom:0; display:flex; flex-direction:column; justify-content:space-between">
+            <div>
+              <div class="import-panel-title"><i class="ti ti-arrows-left-right" style="color:var(--accent)"></i> 2. إعداد المقارنة والفروقات</div>
+              <div class="import-panel-sub">اختر التقارير أو الفترات لمقارنتها فوراً وحساب الفروقات والنسب المئوية للتغير.</div>
+              
+              <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px">
+                <div style="display:flex; gap:8px; align-items:center">
+                  <span style="font-size:11px; color:var(--text3); width:85px">التقرير الأول (A):</span>
+                  <select id="cmpReportA" style="flex:1; height:32px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); outline:none; font-size:11px; padding:0 8px; cursor:pointer;">
+                    <option value="">-- اختر التقرير الأساسي (A) --</option>
+                  </select>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center">
+                  <span style="font-size:11px; color:var(--text3); width:85px">التقرير الثاني (B):</span>
+                  <select id="cmpReportB" style="flex:1; height:32px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); outline:none; font-size:11px; padding:0 8px; cursor:pointer;">
+                    <option value="">-- اختر التقرير المقارن (B) --</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div style="display:flex; gap:8px; margin-top:12px">
+              <button class="btn btn-sm btn-primary" onclick="runComparison()" style="flex:1; height:32px"><i class="ti ti-refresh"></i> تشغيل المقارنة الفورية</button>
+              <button class="btn btn-sm" onclick="saveCurrentComparison()" style="height:32px; border-color:var(--border2); color:var(--text2)"><i class="ti ti-device-floppy"></i> حفظ النتائج</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 3. لوحة عرض ملخص الفروقات (Summary cards with deltas) -->
+        <div class="kpi-grid" id="cmpKPIs" style="margin-bottom:14px; display:none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))">
+          <!-- ستولد هنا بطاقات المجاميع والفروق مع شارات الألوان -->
+        </div>
+
+        <!-- 4. محتوى التحليل المقارن والرسوم البيانية -->
+        <div class="tbl-wrap" id="cmpResultContainer" style="display:none; margin-bottom:14px">
+          <div class="tbl-header" style="border-bottom: 1px solid var(--border2); padding-bottom:10px">
+            <div class="tbl-title" id="cmpResultTitle">نتائج مقارنة المبيعات والفروقات بين التقارير المحددة</div>
+            <div style="display:flex; gap:8px; align-items:center">
+              <select id="cmpChartMetric" onchange="renderCmpChart()" style="background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:4px 8px; font-size:11px; outline:none; cursor:pointer; height:30px;">
+                <option value="total_sales">إجمالي المبيعات (ر.س)</option>
+                <option value="qty_sold">الكمية المباعة</option>
+                <option value="net_sales">صافي المبيعات (ر.س)</option>
+                <option value="cost_of_sales">كلفة المبيعات (ر.س)</option>
+              </select>
+              <button class="btn btn-sm" onclick="toggleCompareView()" id="btnToggleCmpView"><i class="ti ti-chart-line"></i> عرض المنحنى البياني</button>
+            </div>
+          </div>
+
+          <!-- الرسم البياني للمقارنة -->
+          <div class="chart-card-full" id="cmpChartWrapper" style="display:none; margin:14px 0">
+            <div style="position:relative; height:240px"><canvas id="compareLineChart">الرسم المقارن</canvas></div>
+          </div>
+
+          <!-- جدول مقارنة المنتجات والفروقات -->
+          <div class="tbl-scroll" id="cmpTableWrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>الماركة / المنتج</th>
+                  <th>النوع</th>
+                  <th>الكمية المباعة (A)</th>
+                  <th>الكمية المباعة (B)</th>
+                  <th>فرق الكمية</th>
+                  <th>إجمالي مبيعات (A)</th>
+                  <th>إجمالي مبيعات (B)</th>
+                  <th>فرق المبيعات (ر.س)</th>
+                  <th>صافي مبيعات (A)</th>
+                  <th>صافي مبيعات (B)</th>
+                  <th>فرق الصافي (ر.س)</th>
+                </tr>
+              </thead>
+              <tbody id="cmpTableBody">
+                <!-- تعبئة الأسطر والمؤشرات البرمجية للمقارنة -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 5. لوحة سجل المقارنات المحفوظة ومستندات الاستيراد -->
+        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:14px; align-items: start;" id="cmpHistorySection">
+          <!-- جدول المقارنات المحفوظة -->
+          <div class="tbl-wrap">
+            <div class="tbl-header">
+              <div class="tbl-title"><i class="ti ti-folder" style="color:var(--accent)"></i> تقارير المقارنة المحفوظة مسبقاً</div>
+            </div>
+            <div class="tbl-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>اسم المقارنة</th>
+                    <th>النوع</th>
+                    <th>تاريخ الحفظ</th>
+                    <th>العمليات</th>
+                  </tr>
+                </thead>
+                <tbody id="savedCmpBody">
+                  <!-- تعبئة السجلات المحفوظة -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- لوحة إدارة ملفات الاستيراد المتوفرة -->
+          <div class="tbl-wrap">
+            <div class="tbl-header">
+              <div class="tbl-title"><i class="ti ti-file" style="color:var(--accent)"></i> ملفات الاستيراد المتوفرة</div>
+            </div>
+            <div class="tbl-scroll">
+              <table style="width:100%">
+                <thead>
+                  <tr>
+                    <th>اسم التقرير</th>
+                    <th>الصفوف</th>
+                    <th>العمليات</th>
+                  </tr>
+                </thead>
+                <tbody id="availableImportsBody">
+                  <!-- تعبئة الملفات المستوردة -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- PAGE: IMPORT -->
