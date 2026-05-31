@@ -597,13 +597,28 @@ async function loadCarts(force = false) {
 }
 
 async function syncSalla() {
-    document.getElementById('syncBtn').disabled = true;
+    const btn = document.getElementById('syncBtn');
+    if (btn) btn.disabled = true;
     toast('جاري تحديث البيانات من متجر سلة...', 'info');
+    try {
+        // نطلب من الخادم عمل مزامنة حية مع سلة وحفظها في قاعدة البيانات أولاً
+        const syncRes = await fetch('/api/salla/sync-now', { method: 'POST' });
+        const syncData = await syncRes.json();
+        if (syncData.success) {
+            toast(`تمت المزامنة بنجاح: تم جلب ومزامنة ${syncData.count} عناصر من سلة`, 'ok');
+        } else {
+            console.warn('تنبيه المزامنة:', syncData.error || 'فشلت المزامنة المباشرة، سيتم تحميل البيانات المخزنة مسبقاً');
+        }
+    } catch (e) {
+        console.error('خطأ في طلب المزامنة المباشرة:', e);
+        toast('تحذير: فشل الاتصال بمزود سلة للتحديث الحي، سيتم تحميل الكاش', 'warn');
+    }
+    
     await Promise.all([
         loadOrders(true),
         loadCarts(true)
     ]);
-    document.getElementById('syncBtn').disabled = false;
+    if (btn) btn.disabled = false;
     toast('تم تحديث البيانات بنجاح', 'ok');
 }
 
@@ -2517,6 +2532,8 @@ async function deleteUser(id) {
 //  SALES COMPARISON PAGE LOGIC (EXCEL IMPORTS & DELTAS)
 // ══════════════════════════════════════════════
 
+let currentComparisonMode = 'reports';
+
 let currentComparisonState = {
     import1Data: [],
     import2Data: [],
@@ -2526,12 +2543,33 @@ let currentComparisonState = {
     totals: {}
 };
 
+function toggleCompareMode(mode) {
+    currentComparisonMode = mode;
+    const reportsDiv = document.getElementById('compareReportsInputs');
+    const daysDiv = document.getElementById('compareDaysInputs');
+    if (reportsDiv && daysDiv) {
+        if (mode === 'reports') {
+            reportsDiv.style.display = 'flex';
+            daysDiv.style.display = 'none';
+        } else {
+            reportsDiv.style.display = 'none';
+            daysDiv.style.display = 'flex';
+        }
+    }
+}
+
 async function initComparePage() {
     // 1. إعادة تعيين الحقول الافتراضية
     const dateInput = document.getElementById('cmpImportDate');
     if (dateInput && !dateInput.value) {
         dateInput.value = TODAY;
     }
+    
+    // تواريخ المقارنة اليومية
+    const dateA = document.getElementById('cmpDateA');
+    const dateB = document.getElementById('cmpDateB');
+    if (dateA && !dateA.value) dateA.value = TODAY;
+    if (dateB && !dateB.value) dateB.value = TODAY;
     
     // 2. تحميل التقارير المستوردة المتاحة
     await loadAvailableImports();
@@ -2595,7 +2633,6 @@ async function handleCompareExcelImport(event) {
     const resEl = document.getElementById('ir-compare');
     
     if (!titleInput.value.trim()) {
-        // اقتراح اسم ذكي بناءً على اسم الملف
         const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
         titleInput.value = baseName;
     }
@@ -2608,7 +2645,6 @@ async function handleCompareExcelImport(event) {
     try {
         const rows = await readXLSX(file);
         
-        // 1. دالة البحث المرن عن الأعمدة
         const getValueFuzzy = (row, keys) => {
             for (let k of keys) {
                 if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
@@ -2623,13 +2659,11 @@ async function handleCompareExcelImport(event) {
             return '';
         };
         
-        // 2. تصفية وتحويل الأسطر لدعم الأعمدة المطلوبة بدقة
         const mappedRows = [];
         for (let r of rows) {
             const type = String(getValueFuzzy(r, ['النوع', 'الفئة', 'Type', 'Category']) || '').trim();
             const brand = String(getValueFuzzy(r, ['الماركة', 'اسم الماركة', 'المنتج', 'اسم المنتج', 'Brand', 'Product']) || '').trim();
             
-            // تخطي السطور الفارغة تماماً
             if (!brand) continue;
             
             const qtySold = parseInt(getValueFuzzy(r, ['الكمية المباعة', 'الكمية', 'العدد', 'Qty Sold', 'Quantity Sold', 'Quantity'])) || 0;
@@ -2657,7 +2691,6 @@ async function handleCompareExcelImport(event) {
             throw new Error('لم يتم العثور على أي أسطر صالحة في ملف الإكسل. تأكد من تطابق الماركة أو اسم المنتج.');
         }
         
-        // 3. إرسال البيانات للخلفية للحفظ في SQLite
         const response = await fetch('/api/sales/import-excel', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2677,11 +2710,9 @@ async function handleCompareExcelImport(event) {
         
         toast(`تم استيراد ${resData.count} منتج بنجاح`, 'ok');
         
-        // إعادة تعيين مدخلات الواجهة
         titleInput.value = '';
         event.target.value = '';
         
-        // إعادة تحميل القوائم والملفات المتوفرة
         await initComparePage();
         
     } catch (err) {
@@ -2705,147 +2736,218 @@ async function deleteImport(importId) {
 }
 
 async function runComparison() {
-    const reportAId = document.getElementById('cmpReportA').value;
-    const reportBId = document.getElementById('cmpReportB').value;
-    
-    if (!reportAId || !reportBId) {
-        toast('يرجى اختيار التقريرين (A) و (B) لبدء المقارنة الفورية', 'error');
-        return;
-    }
-    
-    if (reportAId === reportBId) {
-        toast('الرجاء اختيار تقريرين مختلفين لمقارنتهما وإظهار الفروقات بينهما', 'error');
-        return;
-    }
-    
-    try {
-        const res = await fetch(`/api/sales/compare-reports?import1=${reportAId}&import2=${reportBId}`);
-        if (!res.ok) throw new Error('فشل جلب تفاصيل التقارير للمقارنة');
+    if (currentComparisonMode === 'reports') {
+        const reportAId = document.getElementById('cmpReportA').value;
+        const reportBId = document.getElementById('cmpReportB').value;
         
-        const data = await res.json();
+        if (!reportAId || !reportBId) {
+            toast('يرجى اختيار التقريرين (A) و (B) لبدء المقارنة الفورية', 'error');
+            return;
+        }
         
-        // حفظ العناوين
-        const selectA = document.getElementById('cmpReportA');
-        const selectB = document.getElementById('cmpReportB');
-        const titleA = selectA.options[selectA.selectedIndex].text.split('(')[0].trim();
-        const titleB = selectB.options[selectB.selectedIndex].text.split('(')[0].trim();
+        if (reportAId === reportBId) {
+            toast('الرجاء اختيار تقريرين مختلفين لمقارنتهما وإظهار الفروقات بينهما', 'error');
+            return;
+        }
         
-        currentComparisonState.import1Title = titleA;
-        currentComparisonState.import2Title = titleB;
-        currentComparisonState.import1Data = data.import1;
-        currentComparisonState.import2Data = data.import2;
-        
-        // 1. تجميع البيانات حسب الماركة/المنتج
-        const map = {};
-        
-        // دالة التجميع
-        const aggregateToMap = (rows, suffix) => {
-            rows.forEach(r => {
-                const name = (r.brand_name || 'غير معروف').trim();
-                if (!map[name]) {
-                    map[name] = {
-                        brand_name: name,
-                        product_type: r.product_type || 'غير محدد',
-                        a: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 },
-                        b: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 }
-                    };
-                }
-                map[name][suffix].qty += r.qty_sold || 0;
-                map[name][suffix].before_disc += r.sales_before_discount || 0;
-                map[name][suffix].discount += r.discount || 0;
-                map[name][suffix].cost += r.cost_of_sales || 0;
-                map[name][suffix].net += r.net_sales || 0;
-                map[name][suffix].tax += r.taxes || 0;
-                map[name][suffix].total += r.total_sales || 0;
-            });
-        };
-        
-        aggregateToMap(data.import1, 'a');
-        aggregateToMap(data.import2, 'b');
-        
-        // 2. احتساب الفروقات والنسب المئوية
-        const aggregated = Object.values(map).map(item => {
-            const calcDelta = (vA, vB) => {
-                const diff = vB - vA;
-                const pct = vA === 0 ? (vB > 0 ? 100 : 0) : (diff / vA) * 100;
-                return { diff, pct };
+        try {
+            const res = await fetch(`/api/sales/compare-reports?import1=${reportAId}&import2=${reportBId}`);
+            if (!res.ok) throw new Error('فشل جلب تفاصيل التقارير للمقارنة');
+            
+            const data = await res.json();
+            
+            const selectA = document.getElementById('cmpReportA');
+            const selectB = document.getElementById('cmpReportB');
+            const titleA = selectA.options[selectA.selectedIndex].text.split('(')[0].trim();
+            const titleB = selectB.options[selectB.selectedIndex].text.split('(')[0].trim();
+            
+            currentComparisonState.import1Title = titleA;
+            currentComparisonState.import2Title = titleB;
+            currentComparisonState.import1Data = data.import1;
+            currentComparisonState.import2Data = data.import2;
+            
+            const map = {};
+            
+            const aggregateToMap = (rows, suffix) => {
+                rows.forEach(r => {
+                    const name = (r.brand_name || 'غير معروف').trim();
+                    if (!map[name]) {
+                        map[name] = {
+                            brand_name: name,
+                            product_type: r.product_type || 'غير محدد',
+                            a: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 },
+                            b: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 }
+                        };
+                    }
+                    map[name][suffix].qty += r.qty_sold || 0;
+                    map[name][suffix].before_disc += r.sales_before_discount || 0;
+                    map[name][suffix].discount += r.discount || 0;
+                    map[name][suffix].cost += r.cost_of_sales || 0;
+                    map[name][suffix].net += r.net_sales || 0;
+                    map[name][suffix].tax += r.taxes || 0;
+                    map[name][suffix].total += r.total_sales || 0;
+                });
             };
             
-            return {
-                ...item,
-                qty_delta: calcDelta(item.a.qty, item.b.qty),
-                total_delta: calcDelta(item.a.total, item.b.total),
-                net_delta: calcDelta(item.a.net, item.b.net),
-                cost_delta: calcDelta(item.a.cost, item.b.cost),
-                discount_delta: calcDelta(item.a.discount, item.b.discount)
+            aggregateToMap(data.import1, 'a');
+            aggregateToMap(data.import2, 'b');
+            
+            finalizeCompareState(map, titleA, titleB);
+            
+        } catch (e) {
+            console.error(e);
+            toast(e.message, 'error');
+        }
+    } else {
+        const dateA = document.getElementById('cmpDateA').value;
+        const dateB = document.getElementById('cmpDateB').value;
+        
+        if (!dateA || !dateB) {
+            toast('يرجى تحديد التواريخ لليوم الأول (A) واليوم الثاني (B)', 'error');
+            return;
+        }
+        
+        if (dateA === dateB) {
+            toast('الرجاء اختيار تاريخين مختلفين للمقارنة وحساب الفروقات اليومية', 'error');
+            return;
+        }
+        
+        toast('جاري جلب مبيعات التواريخ المحددة من سلة...', 'info');
+        
+        try {
+            const [resA, resB] = await Promise.all([
+                fetch(`/api/salla/orders?from=${dateA}&to=${dateA}&per_page=300`),
+                fetch(`/api/salla/orders?from=${dateB}&to=${dateB}&per_page=300`)
+            ]);
+            
+            if (!resA.ok || !resB.ok) throw new Error('فشل جلب المبيعات اليومية من السيرفر');
+            
+            const dataA = await resA.json();
+            const dataB = await resB.json();
+            
+            const ordersA = dataA.data || [];
+            const ordersB = dataB.data || [];
+            
+            const titleA = `مبيعات يوم ${new Date(dateA).toLocaleDateString('ar-SA')}`;
+            const titleB = `مبيعات يوم ${new Date(dateB).toLocaleDateString('ar-SA')}`;
+            
+            currentComparisonState.import1Title = titleA;
+            currentComparisonState.import2Title = titleB;
+            
+            const map = {};
+            
+            const aggregateOrders = (orders, suffix) => {
+                orders.forEach(o => {
+                    const amt = o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || 0;
+                    const items = o.items || [];
+                    items.forEach(item => {
+                        const name = (item.name || 'غير معروف').trim();
+                        if (!map[name]) {
+                            map[name] = {
+                                brand_name: name,
+                                product_type: 'طلب سلة مباشر',
+                                a: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 },
+                                b: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 }
+                            };
+                        }
+                        const qty = item.quantity || 1;
+                        map[name][suffix].qty += qty;
+                        map[name][suffix].total += amt / items.length;
+                        map[name][suffix].net += amt / items.length;
+                    });
+                });
             };
-        });
-        
-        // فرز: مبيعات تقرير B الأعلى أولاً
-        aggregated.sort((x, y) => y.b.total - x.b.total);
-        currentComparisonState.aggregated = aggregated;
-        
-        // 3. حساب المجاميع العامة للمقارنة
-        const totals = {
-            a: { qty: 0, total: 0, net: 0, cost: 0, discount: 0 },
-            b: { qty: 0, total: 0, net: 0, cost: 0, discount: 0 }
-        };
-        
-        aggregated.forEach(item => {
-            ['qty', 'total', 'net', 'cost', 'discount'].forEach(metric => {
-                totals.a[metric] += item.a[metric];
-                totals.b[metric] += item.b[metric];
-            });
-        });
-        
-        const calcDeltaGlobal = (vA, vB) => {
-            const diff = vB - vA;
-            const pct = vA === 0 ? (vB > 0 ? 100 : 0) : (diff / vA) * 100;
-            return { diff, pct };
-        };
-        
-        currentComparisonState.totals = {
-            qty_a: totals.a.qty,
-            qty_b: totals.b.qty,
-            qty_delta: calcDeltaGlobal(totals.a.qty, totals.b.qty),
             
-            total_a: totals.a.total,
-            total_b: totals.b.total,
-            total_delta: calcDeltaGlobal(totals.a.total, totals.b.total),
+            aggregateOrders(ordersA, 'a');
+            aggregateOrders(ordersB, 'b');
             
-            net_a: totals.a.net,
-            net_b: totals.b.net,
-            net_delta: calcDeltaGlobal(totals.a.net, totals.b.net),
+            finalizeCompareState(map, titleA, titleB);
             
-            cost_a: totals.a.cost,
-            cost_b: totals.b.cost,
-            cost_delta: calcDeltaGlobal(totals.a.cost, totals.b.cost),
-            
-            discount_a: totals.a.discount,
-            discount_b: totals.b.discount,
-            discount_delta: calcDeltaGlobal(totals.a.discount, totals.b.discount)
-        };
-        
-        // 4. تحديث مؤشرات الأداء والبطاقات (KPIs)
-        renderCompareKPIs();
-        
-        // 5. عرض وتعبئة الجدول
-        renderCompareTable();
-        
-        // 6. رسم المنحنى البياني
-        renderCmpChart();
-        
-        // إظهار النتائج
-        document.getElementById('cmpKPIs').style.display = 'grid';
-        document.getElementById('cmpResultContainer').style.display = 'block';
-        document.getElementById('cmpResultTitle').innerHTML = `نتائج مقارنة: <span style="color:var(--accent);font-weight:700">${titleA}</span> ضد <span style="color:var(--accent);font-weight:700">${titleB}</span>`;
-        
-        toast('تم إجراء المقارنة وحساب الفروقات بنجاح', 'ok');
-        
-    } catch (e) {
-        console.error(e);
-        toast(e.message, 'error');
+        } catch (e) {
+            console.error(e);
+            toast(e.message, 'error');
+        }
     }
+}
+
+function finalizeCompareState(map, titleA, titleB) {
+    const calcDelta = (vA, vB) => {
+        const diff = vB - vA;
+        const pct = vA === 0 ? (vB > 0 ? 100 : 0) : (diff / vA) * 100;
+        return { diff, pct };
+    };
+
+    const aggregated = Object.values(map).map(item => {
+        return {
+            ...item,
+            qty_delta: calcDelta(item.a.qty, item.b.qty),
+            total_delta: calcDelta(item.a.total, item.b.total),
+            net_delta: calcDelta(item.a.net, item.b.net),
+            cost_delta: calcDelta(item.a.cost, item.b.cost),
+            discount_delta: calcDelta(item.a.discount, item.b.discount)
+        };
+    });
+    
+    aggregated.sort((x, y) => y.b.total - x.b.total);
+    currentComparisonState.aggregated = aggregated;
+    
+    const totals = {
+        a: { qty: 0, total: 0, net: 0, cost: 0, discount: 0 },
+        b: { qty: 0, total: 0, net: 0, cost: 0, discount: 0 }
+    };
+    
+    aggregated.forEach(item => {
+        ['qty', 'total', 'net', 'cost', 'discount'].forEach(metric => {
+            totals.a[metric] += item.a[metric];
+            totals.b[metric] += item.b[metric];
+        });
+    });
+    
+    currentComparisonState.totals = {
+        qty_a: totals.a.qty,
+        qty_b: totals.b.qty,
+        qty_delta: calcDelta(totals.a.qty, totals.b.qty),
+        
+        total_a: totals.a.total,
+        total_b: totals.b.total,
+        total_delta: calcDelta(totals.a.total, totals.b.total),
+        
+        net_a: totals.a.net,
+        net_b: totals.b.net,
+        net_delta: calcDelta(totals.a.net, totals.b.net),
+        
+        cost_a: totals.a.cost,
+        cost_b: totals.b.cost,
+        cost_delta: calcDelta(totals.a.cost, totals.b.cost),
+        
+        discount_a: totals.a.discount,
+        discount_b: totals.b.discount,
+        discount_delta: calcDelta(totals.a.discount, totals.b.discount)
+    };
+    
+    renderCompareKPIs();
+    renderCompareTable();
+    renderCmpChart();
+    
+    document.getElementById('cmpKPIs').style.display = 'grid';
+    document.getElementById('cmpResultContainer').style.display = 'block';
+    document.getElementById('cmpResultTitle').innerHTML = `نتائج مقارنة: <span style="color:var(--accent);font-weight:700">${titleA}</span> ضد <span style="color:var(--accent);font-weight:700">${titleB}</span>`;
+    
+    toast('تم إجراء المقارنة وحساب الفروقات بنجاح', 'ok');
+}
+
+function renderDeltaBadge(deltaVal, deltaPct, isCostOrDiscount = false) {
+    if (deltaVal === 0) {
+        return `<span class="pill pill-grey" style="font-size:10px;font-weight:600">0%</span>`;
+    }
+    const isFavorable = isCostOrDiscount ? deltaVal < 0 : deltaVal > 0;
+    const sign = deltaVal > 0 ? '+' : '';
+    const colorClass = isFavorable ? 'pill-green' : 'pill-red';
+    const arrow = deltaVal > 0 ? '▲' : '▼';
+    
+    return `<span class="pill ${colorClass}" style="font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:3.5px;padding:3px 6px;border-radius:4px" title="${arrow} ${sign}${deltaVal.toLocaleString('ar-SA')}">
+        ${arrow} ${sign}${deltaPct.toFixed(1)}%
+    </span>`;
 }
 
 function renderCompareKPIs() {
@@ -2908,7 +3010,6 @@ function renderCompareTable() {
     }
     
     body.innerHTML = aggregated.map((item, i) => {
-        // إشارة التغير لفرق المبيعات
         const diffTotal = item.total_delta.diff;
         const colorTotal = diffTotal > 0 ? 'green' : (diffTotal < 0 ? 'red' : 'text2');
         const signTotal = diffTotal > 0 ? '+' : '';
@@ -3038,9 +3139,9 @@ async function saveCurrentComparison() {
     try {
         const bodyData = {
             title: title.trim(),
-            compare_type: 'imports',
-            param1: document.getElementById('cmpReportA').value,
-            param2: document.getElementById('cmpReportB').value,
+            compare_type: currentComparisonMode,
+            param1: currentComparisonMode === 'reports' ? document.getElementById('cmpReportA').value : document.getElementById('cmpDateA').value,
+            param2: currentComparisonMode === 'reports' ? document.getElementById('cmpReportB').value : document.getElementById('cmpDateB').value,
             summary_json: currentComparisonState.totals
         };
         
@@ -3077,13 +3178,14 @@ async function loadSavedComparisons() {
         
         body.innerHTML = comps.map(c => {
             const dateStr = c.created_at ? new Date(c.created_at.replace(/-/g, '/')).toLocaleDateString('ar-SA') : '';
+            const typeLabel = c.compare_type === 'days' ? 'مقارنة تواريخ' : 'مقارنة ملفات';
             return `<tr>
                 <td style="font-size:11px;font-weight:700">${escapeHtml(c.title)}</td>
-                <td style="font-size:11px;color:var(--text3)">مقارنة ملفات</td>
+                <td style="font-size:11px;color:var(--text3)">${typeLabel}</td>
                 <td style="font-size:10px;font-family:var(--mono);color:var(--text3)">${dateStr}</td>
                 <td>
                     <div style="display:flex;gap:4px">
-                        <button class="btn btn-xs btn-primary" onclick="loadSavedComparisonDetails('${c.param1}', '${c.param2}')" style="padding:2px 6px;font-size:10px">
+                        <button class="btn btn-xs btn-primary" onclick="loadSavedComparisonDetails('${c.compare_type}', '${c.param1}', '${c.param2}')" style="padding:2px 6px;font-size:10px">
                             <i class="ti ti-eye"></i> فتح
                         </button>
                         <button class="btn btn-xs btn-primary" onclick="deleteSavedComparison(${c.id})" style="background:var(--red);border-color:var(--red);padding:2px 4px;font-size:9px">
@@ -3099,16 +3201,32 @@ async function loadSavedComparisons() {
     }
 }
 
-async function loadSavedComparisonDetails(param1, param2) {
-    const selectA = document.getElementById('cmpReportA');
-    const selectB = document.getElementById('cmpReportB');
+async function loadSavedComparisonDetails(compare_type, param1, param2) {
+    toggleCompareMode(compare_type);
     
-    if (selectA && selectB) {
-        selectA.value = param1;
-        selectB.value = param2;
-        toast('جاري تحميل وتحديث بيانات المقارنة المحفوظة...', 'info');
-        await runComparison();
+    const radioReports = document.querySelector('input[value="reports"]');
+    const radioDays = document.querySelector('input[value="days"]');
+    
+    if (compare_type === 'reports') {
+        if (radioReports) radioReports.checked = true;
+        const selectA = document.getElementById('cmpReportA');
+        const selectB = document.getElementById('cmpReportB');
+        if (selectA && selectB) {
+            selectA.value = param1;
+            selectB.value = param2;
+        }
+    } else {
+        if (radioDays) radioDays.checked = true;
+        const dateA = document.getElementById('cmpDateA');
+        const dateB = document.getElementById('cmpDateB');
+        if (dateA && dateB) {
+            dateA.value = param1;
+            dateB.value = param2;
+        }
     }
+    
+    toast('جاري تحميل وتحديث بيانات المقارنة المحفوظة...', 'info');
+    await runComparison();
 }
 
 async function deleteSavedComparison(id) {
@@ -3123,6 +3241,10 @@ async function deleteSavedComparison(id) {
         toast(e.message, 'error');
     }
 }
+
+// ══════════════════════════════════════════════
+//  DOCUMENT INITIALIZATION
+// ══════════════════════════════════════════════
 
 // ══════════════════════════════════════════════
 //  DOCUMENT INITIALIZATION

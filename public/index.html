@@ -762,7 +762,20 @@
               <div class="import-panel-title"><i class="ti ti-arrows-left-right" style="color:var(--accent)"></i> 2. إعداد المقارنة والفروقات</div>
               <div class="import-panel-sub">اختر التقارير أو الفترات لمقارنتها فوراً وحساب الفروقات والنسب المئوية للتغير.</div>
               
-              <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px">
+              <!-- اختيار نمط المقارنة -->
+              <div style="display:flex; gap:14px; margin:10px 0; border-bottom:1px solid var(--border2); padding-bottom:8px">
+                <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text2); cursor:pointer">
+                  <input type="radio" name="compareType" value="reports" checked onchange="toggleCompareMode('reports')" style="accent-color:var(--accent)">
+                  <span>مقارنة ملفات الاستيراد</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text2); cursor:pointer">
+                  <input type="radio" name="compareType" value="days" onchange="toggleCompareMode('days')" style="accent-color:var(--accent)">
+                  <span>مقارنة مبيعات الأيام (سلة)</span>
+                </label>
+              </div>
+
+              <!-- جزء مقارنة ملفات الاستيراد -->
+              <div id="compareReportsInputs" style="display:flex; flex-direction:column; gap:8px">
                 <div style="display:flex; gap:8px; align-items:center">
                   <span style="font-size:11px; color:var(--text3); width:85px">التقرير الأول (A):</span>
                   <select id="cmpReportA" style="flex:1; height:32px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); outline:none; font-size:11px; padding:0 8px; cursor:pointer;">
@@ -776,6 +789,19 @@
                   </select>
                 </div>
               </div>
+
+              <!-- جزء مقارنة التواريخ اليومية -->
+              <div id="compareDaysInputs" style="display:none; flex-direction:column; gap:8px">
+                <div style="display:flex; gap:8px; align-items:center">
+                  <span style="font-size:11px; color:var(--text3); width:85px">اليوم الأول (A):</span>
+                  <input type="date" id="cmpDateA" style="flex:1; height:32px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none; font-size:11px">
+                </div>
+                <div style="display:flex; gap:8px; align-items:center">
+                  <span style="font-size:11px; color:var(--text3); width:85px">اليوم الثاني (B):</span>
+                  <input type="date" id="cmpDateB" style="flex:1; height:32px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none; font-size:11px">
+                </div>
+              </div>
+
             </div>
             
             <div style="display:flex; gap:8px; margin-top:12px">

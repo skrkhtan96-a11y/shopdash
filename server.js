@@ -698,6 +698,209 @@ app.post('/api/salla/imported-orders', (req, res) => {
 });
 
 // ══════════════════════════════════════════════
+//  آلية المزامنة التلقائية واليدوية لسلة ومسارات الذكاء الاصطناعي
+// ══════════════════════════════════════════════
+
+// دالة المزامنة التلقائية للطلبات من سلة إلى قاعدة البيانات المحلية
+async function syncSallaOrdersToLocal() {
+    try {
+        const token = await getOrRefreshToken();
+        if (!token) {
+            console.log('[Auto-Sync] سلة غير متصلة (OAuth). تخطي المزامنة.');
+            return 0;
+        }
+        
+        console.log('[Auto-Sync] جاري سحب أحدث الطلبات من منصة سلة...');
+        const response = await axios.get('https://api.salla.dev/admin/v2/orders?per_page=30', {
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Accept-Language': 'ar'
+            }
+        });
+        
+        const orders = response.data?.data || [];
+        if (orders.length === 0) return 0;
+        
+        let newCount = 0;
+        
+        const stmt = db.prepare(`
+            INSERT OR REPLACE INTO salla_imported_orders 
+            (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        orders.forEach(o => {
+            const refId = String(o.reference_id);
+            const dateStr = o.created_at ? o.created_at.split(' ')[0] : new Date().toISOString().split('T')[0];
+            const statusSlug = o.status?.slug || 'completed';
+            const statusName = o.status?.name || 'تم التنفيذ';
+            const paymentMethod = o.payment_method || 'mada';
+            const amount = parseFloat(o.total?.amount || o.payment_actions?.refund_action?.paid_amount?.amount || 0);
+            const customerName = o.customer ? `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim() : 'عميل خارجي';
+            
+            const items = o.items || [];
+            if (items.length > 0) {
+                items.forEach(item => {
+                    const prodName = item.name || 'منتج مستورد';
+                    const thumbnail = item.thumbnail || '';
+                    const qty = parseInt(item.quantity) || 1;
+                    
+                    stmt.run([
+                        refId + '_' + item.id, // لمنع تصادم السجلات عند تكرار الأصناف بنفس الطلب
+                        dateStr,
+                        statusSlug,
+                        statusName,
+                        paymentMethod,
+                        amount / items.length,
+                        customerName,
+                        prodName,
+                        thumbnail,
+                        qty
+                    ]);
+                    newCount++;
+                });
+            } else {
+                stmt.run([
+                    refId,
+                    dateStr,
+                    statusSlug,
+                    statusName,
+                    paymentMethod,
+                    amount,
+                    customerName,
+                    'طلب بدون عناصر',
+                    '',
+                    1
+                ]);
+                newCount++;
+            }
+        });
+        
+        await new Promise((resolve, reject) => {
+            stmt.finalize((err) => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+        
+        console.log(`[Auto-Sync] تم الانتهاء بنجاح! جلب ومزامنة ${newCount} بند مبيعات من سلة.`);
+        return newCount;
+    } catch (error) {
+        console.error('[Auto-Sync] خطأ أثناء مزامنة سلة تلقائياً:', error.message);
+        return 0;
+    }
+}
+
+// 1. تشغيل المزامنة التلقائية كل 5 ساعات
+setInterval(syncSallaOrdersToLocal, 5 * 60 * 60 * 1000);
+// 2. تشغيل المزامنة لمرة واحدة أولية بعد 10 ثوانٍ من تشغيل الخادم
+setTimeout(syncSallaOrdersToLocal, 10000);
+
+// مسار المزامنة الفورية عند طلب التحديث من الواجهة
+app.post('/api/salla/sync-now', async (req, res) => {
+    try {
+        const count = await syncSallaOrdersToLocal();
+        res.json({ success: true, count });
+    } catch (e) {
+        res.status(500).json({ error: 'فشلت المزامنة المباشرة من سلة حالياً', details: e.message });
+    }
+});
+
+// مسار جلب البيانات الحية المخصصة لقراءة ذكاء Claude AI
+app.get('/api/ai/live-data', async (req, res) => {
+    const token = req.query.token;
+    const expectedToken = 'claude_ai_secret_123'; // رمز الأمان المخصص
+    if (token !== expectedToken) {
+        return res.status(401).json({ error: 'غير مصرح بالدخول. رمز الأمان خاطئ.' });
+    }
+    
+    try {
+        db.all("SELECT * FROM expenses", [], (errExp, expenses) => {
+            if (errExp) return res.status(500).json({ error: errExp.message });
+            
+            db.all("SELECT * FROM salla_imported_orders", [], (errSales, sales) => {
+                if (errSales) return res.status(500).json({ error: errSales.message });
+                
+                db.all("SELECT * FROM product_adjustments", [], (errAdj, adjustments) => {
+                    if (errAdj) return res.status(500).json({ error: errAdj.message });
+                    
+                    db.all("SELECT * FROM salla_imported_wallet", [], (errWallet, wallet) => {
+                        if (errWallet) return res.status(500).json({ error: errWallet.message });
+                        
+                        const totalExpenses = expenses.reduce((s, e) => s + (e.amt || 0), 0);
+                        const totalRevenue = sales.reduce((s, o) => s + (o.amount || 0), 0);
+                        const netProfit = totalRevenue - totalExpenses;
+                        
+                        const map = {};
+                        sales.forEach(o => {
+                            const name = (o.product_name || 'غير معروف').trim();
+                            if (!map[name]) {
+                                map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
+                            }
+                            map[name].sold += o.quantity || 1;
+                            map[name].revenue += o.amount || 0;
+                        });
+                        
+                        expenses.forEach(e => {
+                            if (e.cat === 'شراء منتجات' && e.product_name) {
+                                const name = e.product_name.trim();
+                                if (!map[name]) {
+                                    map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
+                                }
+                                map[name].purchased += e.quantity || 0;
+                                if (e.purchase_price) map[name].cost = e.purchase_price;
+                            }
+                        });
+                        
+                        adjustments.forEach(a => {
+                            const name = (a.product_name || '').trim();
+                            if (!map[name]) {
+                                map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
+                            }
+                            if (a.cost > 0) map[name].cost = a.cost;
+                        });
+                        
+                        const inventory = Object.values(map).map(p => {
+                            const adj = adjustments.find(a => a.product_name === p.name) || { stock_offset: 0 };
+                            const stock = p.purchased - p.sold + adj.stock_offset;
+                            return {
+                                product_name: p.name,
+                                quantity_purchased: p.purchased,
+                                quantity_sold: p.sold,
+                                remaining_stock: stock,
+                                unit_cost_sar: p.cost,
+                                total_revenue_sar: p.revenue
+                            };
+                        });
+                        
+                        res.json({
+                            store_name: "شوب ستور - لوحة تحكم المحاسبة الذكية",
+                            financial_summary: {
+                                total_revenue_sar: totalRevenue,
+                                total_expenses_sar: totalExpenses,
+                                net_profit_sar: netProfit,
+                                wallet_total_operations: wallet.length
+                            },
+                            recent_orders_count: sales.length,
+                            inventory_status: inventory,
+                            expenses_breakdown: expenses.map(e => ({
+                                description: e.desc,
+                                category: e.cat,
+                                amount_sar: e.amt,
+                                date: e.date,
+                                notes: e.note
+                              }))
+                        });
+                    });
+                });
+            });
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'فشل تجميع البيانات للذكاء الاصطناعي', details: err.message });
+    }
+});
+
+// ══════════════════════════════════════════════
 //  مسارات مقارنة المبيعات المستوردة (إكسل المخصص)
 // ══════════════════════════════════════════════
 
