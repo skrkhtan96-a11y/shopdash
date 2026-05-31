@@ -118,6 +118,12 @@ function applyRoleBasedPermissions() {
     if (clearAllBtn) {
         clearAllBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
     }
+
+    // زر حذف المصروفات متاح للمحاسبين والمدراء فقط (مخفي للموظفين)
+    const clearExpensesBtn = document.getElementById('btnClearExpenses');
+    if (clearExpensesBtn) {
+        clearExpensesBtn.style.display = role === 'employee' ? 'none' : 'inline-block';
+    }
 }
 
 async function handleLogout() {
@@ -2107,6 +2113,34 @@ async function clearWalletImportedData() {
     } catch (e) {
         console.error(e);
         toast('خطأ في الاتصال بالسيرفر لتصفير المحفظة', 'err');
+    }
+}
+
+async function clearExpensesData() {
+    if (currentUserRole === 'employee') {
+        toast('عذراً، لا تملك الصلاحية لحذف المصروفات.', 'warn');
+        return;
+    }
+    
+    if (!confirm('هل أنت متأكد من رغبتك في حذف وتصفير جميع المصروفات؟ لا يمكن التراجع عن هذه الخطوة.')) return;
+    
+    try {
+        const response = await fetch('/api/expenses/clear', {
+            method: 'POST'
+        });
+        const resData = await response.json();
+        if (resData.success) {
+            toast('تم حذف وتصفير المصروفات بالكامل!', 'info');
+            await updateDBStatus();
+            await loadLocalData();
+            if (typeof renderExp === 'function') renderExp();
+            renderOverview();
+        } else {
+            toast(resData.error || 'فشل مسح المصروفات', 'err');
+        }
+    } catch (e) {
+        console.error(e);
+        toast('خطأ في الاتصال بالسيرفر لتصفير المصروفات', 'err');
     }
 }
 

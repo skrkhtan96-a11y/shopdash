@@ -846,6 +846,19 @@ app.delete('/api/expenses/:id', (req, res) => {
     });
 });
 
+// مسار حذف وتصفير جميع المصروفات
+app.post('/api/expenses/clear', (req, res) => {
+    if (req.user && req.user.role === 'employee') {
+        return res.status(403).json({ error: 'غير مصرح لك بهذه الصلاحية.' });
+    }
+    db.run("DELETE FROM expenses", [], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ success: true, changes: this.changes });
+    });
+});
+
 // ── 3.1. مسارات تسوية وجرد المخزون يدوياً ──
 app.get('/api/products/adjustments', (req, res) => {
     db.all("SELECT * FROM product_adjustments", [], (err, rows) => {
