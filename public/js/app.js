@@ -2028,10 +2028,10 @@ async function handleImport(ev, type) {
             };
 
             for (let r of rows) {
-                const prodName = String(getValue(r, ['اسم المنتج', 'المنتج', 'Product Name', 'Product', 'name'])).trim();
-                const stockOffset = parseInt(getValue(r, ['الكمية الافتتاحية', 'المخزون الافتتاحي', 'الكمية', 'المخزون', 'Quantity', 'Stock', 'Initial Stock', 'qty'])) || 0;
-                const cost = parseFloat(getValue(r, ['سعر التكلفة', 'سعر الشراء', 'التكلفة', 'Cost', 'Purchase Cost', 'purchase_price'])) || 0;
-                const price = parseFloat(getValue(r, ['سعر البيع', 'سعر البيع المقدر', 'البيع', 'Price', 'Selling Price', 'selling_price'])) || 0;
+                const prodName = String(getValue(r, ['اسم المنتج', 'المنتج', 'الاسم', 'اسم', 'Product Name', 'Product', 'name', 'Name'])).trim();
+                const stockOffset = parseInt(getValue(r, ['الكمية الافتتاحية', 'المخزون الافتتاحي', 'الكمية', 'المخزون', 'العدد', 'الرصيد', 'Quantity', 'Stock', 'Initial Stock', 'qty', 'count'])) || 0;
+                const cost = parseFloat(getValue(r, ['سعر التكلفة', 'سعر الشراء', 'التكلفة', 'سعر التكلفه', 'شراء', 'Cost', 'Purchase Cost', 'purchase_price'])) || 0;
+                const price = parseFloat(getValue(r, ['سعر البيع', 'سعر البيع المقدر', 'البيع', 'بيع', 'Price', 'Selling Price', 'selling_price'])) || 0;
 
                 if (prodName) {
                     parsedProducts.push({
