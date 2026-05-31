@@ -95,6 +95,28 @@ db.serialize(() => {
         )
     `);
 
+    // 7. جدول المستخدمين (المصادقة والصلاحيات)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'موظف',
+            created_at TEXT NOT NULL
+        )
+    `);
+
+    // 8. جدول جلسات العمل (Sessions)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {
@@ -140,8 +162,24 @@ db.serialize(() => {
     });
 });
 
+const crypto = require('crypto');
+
+function hashPassword(password) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedPassword) {
+    const [salt, hash] = storedPassword.split(':');
+    const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    return hash === verifyHash;
+}
+
 module.exports = {
     db,
+    hashPassword,
+    verifyPassword,
     // دوال مساعدة لجدول التهيئات (salla_config)
     getConfig: (key) => {
         return new Promise((resolve, reject) => {

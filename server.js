@@ -4,7 +4,7 @@ const axios = require('axios');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const { db, getConfig, setConfig, deleteConfig } = require('./database');
+const { db, getConfig, setConfig, deleteConfig, hashPassword, verifyPassword } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,6 +13,279 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors());
+
+// --- AUTHENTICATION & USER MANAGEMENT MIDDLEWARES ---
+const crypto = require('crypto');
+
+// Middleware to protect API endpoints
+const authenticateUser = (req, res, next) => {
+    const token = req.cookies.session_token;
+    if (!token) {
+        return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.' });
+    }
+    db.get(
+        `SELECT u.id, u.username, u.email, u.role FROM sessions s 
+         JOIN users u ON s.user_id = u.id 
+         WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
+        [token],
+        (err, row) => {
+            if (err || !row) {
+                res.clearCookie('session_token');
+                return res.status(401).json({ error: 'انتهت الجلسة. يرجى تسجيل الدخول مجدداً.' });
+            }
+            req.user = row;
+            next();
+        }
+    );
+};
+
+// Middleware to restrict API by role
+const requireRole = (roles) => {
+    return (req, res, next) => {
+        if (!req.user || !roles.includes(req.user.role)) {
+            return res.status(403).json({ error: 'غير مصرح لك بالوصول لهذه الصلاحية.' });
+        }
+        next();
+    };
+};
+
+// Middleware to check authentication for static pages
+app.use((req, res, next) => {
+    const publicPages = ['/login.html', '/register.html'];
+    const isHtmlOrRoot = req.path === '/' || req.path.endsWith('.html');
+    
+    if (isHtmlOrRoot && !publicPages.includes(req.path)) {
+        const token = req.cookies.session_token;
+        if (!token) {
+            return res.redirect('/login.html');
+        }
+        db.get(
+            `SELECT u.id, u.username, u.email, u.role FROM sessions s 
+             JOIN users u ON s.user_id = u.id 
+             WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
+            [token],
+            (err, row) => {
+                if (err || !row) {
+                    res.clearCookie('session_token');
+                    return res.redirect('/login.html');
+                }
+                req.user = row;
+                next();
+            }
+        );
+    } else {
+        next();
+    }
+});
+
+// Protect all API routes starting with /api (excluding /api/auth/)
+app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/auth/') || req.originalUrl.startsWith('/api/auth/')) {
+        return next();
+    }
+    authenticateUser(req, res, next);
+});
+
+// --- AUTH & USER API ENDPOINTS ---
+
+// 1. Check if system is initialized (has at least one user)
+app.get('/api/auth/check-init', (req, res) => {
+    db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ initialized: (row ? row.count > 0 : false) });
+    });
+});
+
+// 2. User registration (Sign-up)
+app.post('/api/auth/register', (req, res) => {
+    const { username, email, password } = req.body;
+    if (!username || !email || !password) {
+        return res.status(400).json({ error: 'يرجى ملء جميع الحقول المطلوبة.' });
+    }
+    
+    // Check if it's the first user
+    db.get("SELECT COUNT(*) as count FROM users", [], (errCount, rowCount) => {
+        if (errCount) return res.status(500).json({ error: errCount.message });
+        
+        const isFirstUser = !rowCount || rowCount.count === 0;
+        const role = isFirstUser ? 'admin' : 'employee'; // First user is Admin, others are Employee
+        const hashedPassword = hashPassword(password);
+        const createdAt = new Date().toISOString().split('T')[0];
+        
+        db.run(
+            "INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)",
+            [username.trim(), email.trim().toLowerCase(), hashedPassword, role, createdAt],
+            function(errInsert) {
+                if (errInsert) {
+                    if (errInsert.message.includes('UNIQUE')) {
+                        return res.status(400).json({ error: 'اسم المستخدم أو البريد الإلكتروني مسجل مسبقاً.' });
+                    }
+                    return res.status(500).json({ error: errInsert.message });
+                }
+                
+                const userId = this.lastID;
+                const sessionToken = crypto.randomBytes(32).toString('hex');
+                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days expiration
+                
+                db.run(
+                    "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+                    [sessionToken, userId, expiresAt],
+                    (errSession) => {
+                        if (errSession) return res.status(500).json({ error: errSession.message });
+                        
+                        res.cookie('session_token', sessionToken, {
+                            httpOnly: true,
+                            expires: new Date(expiresAt),
+                            secure: process.env.NODE_ENV === 'production'
+                        });
+                        
+                        res.json({
+                            success: true,
+                            user: { id: userId, username, email, role }
+                        });
+                    }
+                );
+            }
+        );
+    });
+});
+
+// 3. User login
+app.post('/api/auth/login', (req, res) => {
+    const { login, password } = req.body; // login can be username or email
+    if (!login || !password) {
+        return res.status(400).json({ error: 'يرجى إدخال اسم المستخدم/البريد وكلمة المرور.' });
+    }
+    
+    db.get(
+        "SELECT * FROM users WHERE username = ? OR email = ?",
+        [login.trim(), login.trim().toLowerCase()],
+        (err, user) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!user) return res.status(400).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
+            
+            const isMatch = verifyPassword(password, user.password);
+            if (!isMatch) return res.status(400).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة.' });
+            
+            const sessionToken = crypto.randomBytes(32).toString('hex');
+            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            
+            db.run(
+                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+                [sessionToken, user.id, expiresAt],
+                (errSession) => {
+                    if (errSession) return res.status(500).json({ error: errSession.message });
+                    
+                    res.cookie('session_token', sessionToken, {
+                        httpOnly: true,
+                        expires: new Date(expiresAt),
+                        secure: process.env.NODE_ENV === 'production'
+                    });
+                    
+                    res.json({
+                        success: true,
+                        user: { id: user.id, username: user.username, email: user.email, role: user.role }
+                    });
+                }
+            );
+        }
+    );
+});
+
+// 4. User logout
+app.post('/api/auth/logout', (req, res) => {
+    const token = req.cookies.session_token;
+    if (token) {
+        db.run("DELETE FROM sessions WHERE token = ?", [token], () => {
+            res.clearCookie('session_token');
+            res.json({ success: true });
+        });
+    } else {
+        res.json({ success: true });
+    }
+});
+
+// 5. Get current user profile
+app.get('/api/auth/me', authenticateUser, (req, res) => {
+    res.json(req.user);
+});
+
+// 6. Manage users: Get all users (Admin only)
+app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
+    db.all("SELECT id, username, email, role, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// 7. Manage users: Add user manually (Admin only)
+app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
+    const { username, email, password, role } = req.body;
+    if (!username || !email || !password || !role) {
+        return res.status(400).json({ error: 'يرجى تقديم كافة حقول البيانات للمستخدم الجديد.' });
+    }
+    
+    const hashedPassword = hashPassword(password);
+    const createdAt = new Date().toISOString().split('T')[0];
+    
+    db.run(
+        "INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)",
+        [username.trim(), email.trim().toLowerCase(), hashedPassword, role, createdAt],
+        function(err) {
+            if (err) {
+                if (err.message.includes('UNIQUE')) {
+                    return res.status(400).json({ error: 'اسم المستخدم أو البريد الإلكتروني مسجل مسبقاً.' });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ success: true, id: this.lastID });
+        }
+    );
+});
+
+// 8. Manage users: Edit user role (Admin only)
+app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) => {
+    const { id } = req.params;
+    const { role, username, email, password } = req.body;
+    
+    if (!role) {
+        return res.status(400).json({ error: 'يرجى تحديد دور المستخدم.' });
+    }
+    
+    if (password) {
+        const hashedPassword = hashPassword(password);
+        db.run(
+            "UPDATE users SET role = ?, username = ?, email = ?, password = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), hashedPassword, id],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ success: true });
+            }
+        );
+    } else {
+        db.run(
+            "UPDATE users SET role = ?, username = ?, email = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), id],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ success: true });
+            }
+        );
+    }
+});
+
+// 9. Manage users: Delete user (Admin only, cannot delete self!)
+app.delete('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) => {
+    const { id } = req.params;
+    if (parseInt(id) === req.user.id) {
+        return res.status(400).json({ error: 'لا يمكنك حذف حسابك الشخصي النشط حالياً.' });
+    }
+    
+    db.run("DELETE FROM users WHERE id = ?", [id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
 
 // تقديم الملفات العامة للواجهة الأمامية
 app.use(express.static(path.join(__dirname, 'public')));

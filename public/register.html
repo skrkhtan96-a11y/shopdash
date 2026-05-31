@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>شوب ستور — إنشاء حساب</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 10% 20%, rgba(20, 24, 38, 1) 0%, rgba(11, 13, 21, 1) 90%);
+      font-family: 'IBM Plex Sans Arabic', sans-serif;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+      animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    .login-card {
+      background: rgba(17, 21, 32, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 30px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--blue) 100%);
+    }
+
+    .login-icon-box {
+      width: 64px;
+      height: 64px;
+      background: rgba(24, 178, 176, 0.1);
+      border: 1px solid rgba(24, 178, 176, 0.2);
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: var(--accent);
+      margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(24, 178, 176, 0.15);
+      animation: pulse 2s infinite;
+    }
+
+    .login-header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 8px 0;
+    }
+
+    .login-header p {
+      font-size: 13px;
+      color: var(--text3);
+      margin: 0 0 24px 0;
+      line-height: 1.6;
+    }
+
+    .form-group {
+      text-align: right;
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      margin-bottom: 6px;
+      padding-right: 4px;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(24, 29, 46, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--text);
+      box-sizing: border-box;
+      transition: all 0.25s;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(24, 29, 46, 0.9);
+      box-shadow: 0 0 10px rgba(24, 178, 176, 0.15);
+    }
+
+    .login-btn {
+      width: 100%;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--blue) 100%);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      padding: 13px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.25s;
+      box-shadow: 0 4px 15px rgba(24, 178, 176, 0.3);
+      margin-top: 24px;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(24, 178, 176, 0.45);
+      filter: brightness(1.1);
+    }
+
+    .login-btn:active {
+      transform: translateY(0);
+    }
+
+    .login-footer {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 24px;
+    }
+
+    .login-footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .login-footer a:hover {
+      color: var(--blue);
+      text-decoration: underline;
+    }
+
+    .alert {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      text-align: right;
+      margin-bottom: 18px;
+      display: none;
+      line-height: 1.5;
+    }
+
+    .alert-error {
+      background: rgba(224, 85, 85, 0.1);
+      border: 1px solid rgba(224, 85, 85, 0.2);
+      color: var(--red);
+    }
+
+    .alert-success {
+      background: rgba(61, 186, 126, 0.1);
+      border: 1px solid rgba(61, 186, 126, 0.2);
+      color: var(--green);
+    }
+
+    .alert-info {
+      background: rgba(24, 178, 176, 0.05);
+      border: 1px solid rgba(24, 178, 176, 0.15);
+      color: var(--accent);
+      display: block;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(24, 178, 176, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(24, 178, 176, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(24, 178, 176, 0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-icon-box">
+        <i class="ti ti-user-plus"></i>
+      </div>
+      
+      <div class="login-header">
+        <h1>إنشاء حساب جديد</h1>
+        <p id="headerDesc">قم بتأسيس حسابك الخاص للدخول للوحة التحكم شوب ستور المحاسبية</p>
+      </div>
+
+      <div class="alert alert-info" id="infoAlert" style="display:none"></div>
+      <div class="alert alert-error" id="errorAlert"></div>
+      <div class="alert alert-success" id="successAlert"></div>
+
+      <form id="registerForm" onsubmit="handleRegister(event)">
+        <div class="form-group">
+          <label class="form-label" for="usernameInput">اسم المستخدم</label>
+          <input type="text" id="usernameInput" class="form-control" placeholder="أدخل اسم مستخدم فريد (بالأحرف الإنجليزية)..." required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="emailInput">البريد الإلكتروني</label>
+          <input type="email" id="emailInput" class="form-control" placeholder="أدخل بريدك الإلكتروني الشخصي..." required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="passwordInput">كلمة المرور</label>
+          <input type="password" id="passwordInput" class="form-control" placeholder="أدخل كلمة مرور قوية..." required autocomplete="new-password">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="confirmPasswordInput">تأكيد كلمة المرور</label>
+          <input type="password" id="confirmPasswordInput" class="form-control" placeholder="أعد إدخال كلمة المرور للتأكيد..." required autocomplete="new-password">
+        </div>
+
+        <button type="submit" class="login-btn" id="submitBtn">
+          <i class="ti ti-user-plus" style="font-size: 16px;"></i>
+          إنشاء حساب وتدشين النظام
+        </button>
+      </form>
+
+      <div class="login-footer" id="footerText">
+        لديك حساب بالفعل؟ <a href="login.html">تسجيل الدخول</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // عند تحميل الصفحة، نتحقق من حالة تهيئة النظام لعرض تلميح خاص بالمدير الأول
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const res = await fetch('/api/auth/check-init');
+        const data = await res.json();
+        
+        if (data.initialized === false) {
+          const infoAlert = document.getElementById('infoAlert');
+          infoAlert.innerHTML = '<strong>🚀 التأسيس الأولي للنظام:</strong><br>لم يتم إنشاء أي حساب بعد. الحساب الأول الذي ستقوم بإنشائه الآن سيتم تعيينه تلقائياً كـ <strong>"مدير عام"</strong> وبكامل الصلاحيات لإدارة متجر شوب ستور.';
+          infoAlert.style.display = 'block';
+          
+          document.getElementById('headerDesc').textContent = 'قم بتأسيس حساب المدير العام للتحكم باللوحة المحاسبية وإدارة الموظفين';
+          document.getElementById('submitBtn').innerHTML = '<i class="ti ti-device-laptop" style="font-size: 16px;"></i> تأسيس وتدشين نظام المدير';
+          document.getElementById('footerText').style.display = 'none'; // إخفاء رابط تسجيل الدخول لأنه لا توجد حسابات بعد
+        }
+      } catch (e) {
+        console.error('فشل فحص تهيئة النظام:', e);
+      }
+    });
+
+    // معالجة تسجيل الحساب
+    async function handleRegister(e) {
+      e.preventDefault();
+      
+      const username = document.getElementById('usernameInput').value;
+      const email = document.getElementById('emailInput').value;
+      const password = document.getElementById('passwordInput').value;
+      const confirmPassword = document.getElementById('confirmPasswordInput').value;
+      
+      const errorAlert = document.getElementById('errorAlert');
+      const successAlert = document.getElementById('successAlert');
+      const submitBtn = document.getElementById('submitBtn');
+      
+      errorAlert.style.display = 'none';
+      successAlert.style.display = 'none';
+      
+      if (password !== confirmPassword) {
+        errorAlert.textContent = '⚠️ كلمة المرور وتأكيدها غير متطابقتين.';
+        errorAlert.style.display = 'block';
+        return;
+      }
+      
+      submitBtn.disabled = true;
+      const origText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<i class="ti ti-loader spinner" style="font-size: 16px;"></i> جاري التأسيس وحفظ الحساب...';
+
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, password })
+        });
+        
+        const resData = await response.json();
+        
+        if (response.ok && resData.success) {
+          successAlert.textContent = 'تهانينا! تم إنشاء حسابك بنجاح وجاري تدشين النظام وتحويلك للوحة الرئيسية...';
+          successAlert.style.display = 'block';
+          
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1500);
+        } else {
+          errorAlert.textContent = resData.error || 'فشل إنشاء الحساب، يرجى التحقق من صحة البيانات.';
+          errorAlert.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origText;
+        }
+      } catch (err) {
+        console.error(err);
+        errorAlert.textContent = 'فشل الاتصال بالخادم، يرجى المحاولة لاحقاً.';
+        errorAlert.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origText;
+      }
+    }
+  </script>
+</body>
+</html>

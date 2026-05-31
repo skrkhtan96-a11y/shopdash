@@ -24,8 +24,13 @@ let state = {
     adjustments: [], // تسويات الجرد اليدوية
     viewingArc: null, // null = live
     editingId: null,
-    editingType: null
+    editingType: null,
+    user: null, // الحساب النشط حالياً
+    users: [] // حسابات كافة موظفي اللوحة
 };
+
+let currentUsername = '';
+let currentUserRole = '';
 
 // ── SALLA LIVE DATA ──
 let sallaOrders = [];
@@ -41,16 +46,47 @@ let pieC, cmpC, walC, prodC;
 // ══════════════════════════════════════════════
 async function init() {
     try {
-        // تحديث حالة الاتصال وقاعدة البيانات
+        // 1. التحقق من جلسة المستخدم وتسجيل الدخول
+        const meRes = await fetch('/api/auth/me');
+        if (!meRes.ok) {
+            window.location.href = 'login.html';
+            return;
+        }
+        state.user = await meRes.json();
+        
+        // تحديث واجهة المستخدم بالملف التعريفي للحساب النشط
+        const uAvatar = document.getElementById('userAvatar');
+        const uName = document.getElementById('userName');
+        const uRole = document.getElementById('userRole');
+        if (uAvatar && uName && uRole) {
+            uAvatar.textContent = state.user.username.substring(0, 1).toUpperCase();
+            currentUsername = state.user.username;
+            currentUserRole = state.user.role;
+            const roleLabel = currentUserRole === 'admin' ? 'مدير' : currentUserRole === 'accountant' ? 'محاسب' : 'موظف';
+            
+            uName.textContent = currentUsername;
+            uRole.textContent = roleLabel;
+        }
+        
+        // إظهار رابط إدارة المستخدمين حصرياً للمدير
+        const navUsers = document.getElementById('nav-users');
+        if (navUsers) {
+            navUsers.style.display = state.user.role === 'admin' ? 'flex' : 'none';
+        }
+
+        // تطبيق الصلاحيات والقيود بناء على الدور المحاسبي
+        applyRoleBasedPermissions();
+
+        // 2. تحديث حالة الاتصال وقاعدة البيانات لسلة
         await updateDBStatus();
 
-        // 2. تحميل المصروفات والأرشيف والتسويات
+        // 3. تحميل المصروفات والأرشيف والتسويات
         await loadLocalData();
         await loadAdjustments();
         buildArcList();
         updateArcUI();
 
-        // 3. جلب طلبات سلة والسلات المتروكة
+        // 4. جلب طلبات سلة والسلات المتروكة
         await Promise.all([
             loadOrders(true),
             loadCarts(true)
@@ -60,6 +96,34 @@ async function init() {
     } catch (e) {
         console.error('خطأ أثناء تشغيل التطبيق:', e);
         toast('خطأ أثناء الاتصال بالخادم الرئيسي', 'err');
+    }
+}
+
+function applyRoleBasedPermissions() {
+    if (!state.user) return;
+    const role = state.user.role;
+    
+    // الموظف لا يملك صلاحية إضافة مصروف، جرد المخزون، أو بدء أرشفة الأشهر
+    if (role === 'employee') {
+        const addBtn = document.getElementById('addBtn');
+        const addExpBtn = document.getElementById('addExpBtn');
+        const newMonthBtn = document.getElementById('newMonthBtn');
+        if (addBtn) addBtn.style.display = 'none';
+        if (addExpBtn) addExpBtn.style.display = 'none';
+        if (newMonthBtn) newMonthBtn.style.display = 'none';
+    }
+}
+
+async function handleLogout() {
+    if (!confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) return;
+    try {
+        const res = await fetch('/api/auth/logout', { method: 'POST' });
+        if (res.ok) {
+            window.location.href = 'login.html';
+        }
+    } catch (e) {
+        console.error(e);
+        toast('فشل تسجيل الخروج من السيرفر', 'err');
     }
 }
 
@@ -163,7 +227,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'import'];
+const PAGES = ['overview', 'expenses', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'import', 'users'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -171,7 +235,8 @@ const PAGE_TITLES = {
     'salla-carts': 'السلات المتروكة',
     'salla-wallet': 'محفظة سلة',
     'salla-products': 'المخزون والمنتجات',
-    import: 'استيراد Excel'
+    import: 'استيراد Excel',
+    users: 'إدارة المستخدمين'
 };
 
 // دالة التحكم في القائمة الجانبية للشاشات الصغيرة (الجوال)
@@ -210,9 +275,10 @@ function nav(name) {
 
     document.getElementById('pageTitle').textContent = PAGE_TITLES[name] || name;
 
-    // إخفاء زر الإضافة في الصفحات غير المحاسبية
+    // إخفاء زر الإضافة في الصفحات غير المحاسبية وبناء على صلاحية الموظف
     const isLocal = ['overview', 'expenses'].includes(name);
-    document.getElementById('addBtn').style.display = (isLocal && !state.viewingArc) ? '' : 'none';
+    const hasWritePermission = state.user && state.user.role !== 'employee';
+    document.getElementById('addBtn').style.display = (isLocal && !state.viewingArc && hasWritePermission) ? '' : 'none';
 
     if (name === 'overview') renderOverview();
     if (name === 'expenses') renderExp();
@@ -220,6 +286,7 @@ function nav(name) {
     if (name === 'salla-carts') renderCarts();
     if (name === 'salla-wallet') renderWallet();
     if (name === 'salla-products') renderProducts();
+    if (name === 'users') loadUsers();
 }
 
 // ══════════════════════════════════════════════
@@ -1124,7 +1191,7 @@ function renderExp() {
         .then(data => {
             const total = data.reduce((s, e) => s + (e.amt || 0), 0);
             document.getElementById('expCount').textContent = `${data.length} بند — ${fmt(total)} ر.س`;
-            const ro = !!state.viewingArc;
+            const ro = !!state.viewingArc || (state.user && state.user.role === 'موظف');
 
             body.innerHTML = data.map((r, i) => `<tr onclick="showExpenseDetails(${r.id})" style="cursor:pointer;">
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
@@ -1211,6 +1278,10 @@ function closeDetailsModal() {
 let currentJardProduct = '';
 function openJardModal(productName) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (currentUserRole === 'employee') {
+        toast('عذراً، ليس لديك صلاحية للقيام بالجرد وتسوية المخزون.', 'error');
+        return;
+    }
     
     currentJardProduct = productName;
     const nameEl = document.getElementById('jProductName');
@@ -1479,6 +1550,7 @@ async function saveRow() {
 
 async function delRow(id, type) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (state.user && state.user.role === 'موظف') { toast('عذراً، لا تملك الصلاحية لحذف المصروفات.', 'warn'); return; }
     if (!confirm('هل أنت متأكد من رغبتك في حذف هذا البند نهائياً؟')) return;
 
     try {
@@ -1499,6 +1571,7 @@ async function delRow(id, type) {
 
 function editRow(id, type) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (state.user && state.user.role === 'موظف') { toast('عذراً، لا تملك الصلاحية لتعديل المصروفات.', 'warn'); return; }
     state.editingId = id;
     state.editingType = 'expense';
 
@@ -2004,6 +2077,136 @@ function setupDragAndDrop() {
 }
 
 // ══════════════════════════════════════════════
+//  إدارة المستخدمين
+// ══════════════════════════════════════════════
+
+let currentEditUserId = '';
+
+async function loadUsers() {
+    if (currentUserRole === 'employee') return; // Employees cannot view users
+
+    try {
+        const res = await fetch('/api/users');
+        if (!res.ok) throw new Error('فشل جلب المستخدمين');
+        const users = await res.json();
+        renderUsers(users);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderUsers(users) {
+    const tbody = document.getElementById('usersTbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    users.forEach(user => {
+        const tr = document.createElement('tr');
+        const isSelf = user.username === currentUsername;
+        const roleLabel = user.role === 'admin' ? 'مدير' : user.role === 'accountant' ? 'محاسب' : 'موظف';
+        const roleColor = user.role === 'admin' ? 'var(--blue)' : user.role === 'accountant' ? 'var(--amber)' : 'var(--accent)';
+        
+        tr.innerHTML = `
+            <td>${user.id}</td>
+            <td>${user.username}</td>
+            <td>${user.email || '-'}</td>
+            <td><span style="color: ${roleColor}; border: 1px solid ${roleColor}33; background: ${roleColor}11; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${roleLabel}</span></td>
+            <td>${user.created_at || '-'}</td>
+            <td>
+                <button class="btn btn-sm" onclick="openUserModal('${user.id}', '${user.username}', '${user.role}', '${user.email || ''}')"><i class="ti ti-edit"></i> تعديل</button>
+                <button class="btn btn-sm" style="color: var(--red); border-color: rgba(224,85,85,0.2); background: transparent" onclick="deleteUser('${user.id}')" ${isSelf ? 'disabled' : ''}><i class="ti ti-trash"></i> حذف</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openUserModal(id = '', username = '', role = 'employee', email = '') {
+    currentEditUserId = id;
+    document.getElementById('uUsername').value = username;
+    document.getElementById('uEmail').value = email;
+    document.getElementById('uPassword').value = ''; // empty means do not change if editing
+    document.getElementById('uRole').value = role;
+    
+    const title = document.querySelector('#userModal .modal-title');
+    if (id) {
+        title.innerHTML = '<i class="ti ti-user-edit" style="color:var(--accent)"></i> تعديل مستخدم';
+        document.getElementById('uPassword').placeholder = "اتركه فارغاً للاحتفاظ بكلمة المرور الحالية";
+    } else {
+        title.innerHTML = '<i class="ti ti-user-plus" style="color:var(--accent)"></i> إضافة مستخدم جديد';
+        document.getElementById('uPassword').placeholder = "كلمة المرور";
+    }
+    
+    document.getElementById('userModal').classList.add('open');
+}
+
+function closeUserModal() {
+    document.getElementById('userModal').classList.remove('open');
+}
+
+async function saveUser() {
+    const username = document.getElementById('uUsername').value.trim();
+    const email = document.getElementById('uEmail').value.trim();
+    const password = document.getElementById('uPassword').value;
+    const role = document.getElementById('uRole').value;
+    
+    if (!username) {
+        toast('الرجاء إدخال اسم المستخدم', 'error');
+        return;
+    }
+    
+    if (!email) {
+        toast('الرجاء إدخال البريد الإلكتروني', 'error');
+        return;
+    }
+    
+    if (!currentEditUserId && !password) {
+        toast('الرجاء إدخال كلمة المرور للمستخدم الجديد', 'error');
+        return;
+    }
+    
+    const url = currentEditUserId ? `/api/users/${currentEditUserId}` : '/api/users';
+    const method = currentEditUserId ? 'PUT' : 'POST';
+    
+    const body = { username, email, role };
+    if (password) body.password = password;
+    
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'فشل حفظ المستخدم');
+        }
+        
+        toast('تم الحفظ بنجاح', 'success');
+        closeUserModal();
+        loadUsers();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function deleteUser(id) {
+    if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
+    
+    try {
+        const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('فشل الحذف');
+        
+        toast('تم حذف المستخدم', 'success');
+        loadUsers();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+// ══════════════════════════════════════════════
 //  DOCUMENT INITIALIZATION
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -2016,7 +2219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDragAndDrop();
 
     // إغلاق النوافذ عند الضغط خارجها
-    ['addModal', 'archModal', 'detailsModal', 'jardModal'].forEach(id => {
+    ['addModal', 'archModal', 'detailsModal', 'jardModal', 'userModal'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('click', e => {

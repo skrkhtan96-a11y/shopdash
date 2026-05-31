@@ -7,8 +7,192 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 10% 20%, rgba(20, 24, 38, 1) 0%, rgba(11, 13, 21, 1) 90%);
+      font-family: 'IBM Plex Sans Arabic', sans-serif;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+      animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    .login-card {
+      background: rgba(17, 21, 32, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 30px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--blue) 100%);
+    }
+
+    .login-icon-box {
+      width: 64px;
+      height: 64px;
+      background: rgba(24, 178, 176, 0.1);
+      border: 1px solid rgba(24, 178, 176, 0.2);
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: var(--accent);
+      margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(24, 178, 176, 0.15);
+      animation: pulse 2s infinite;
+    }
+
+    .login-header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 8px 0;
+    }
+
+    .login-header p {
+      font-size: 13px;
+      color: var(--text3);
+      margin: 0 0 24px 0;
+      line-height: 1.6;
+    }
+
+    .form-group {
+      text-align: right;
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      margin-bottom: 6px;
+      padding-right: 4px;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(24, 29, 46, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--text);
+      box-sizing: border-box;
+      transition: all 0.25s;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(24, 29, 46, 0.9);
+      box-shadow: 0 0 10px rgba(24, 178, 176, 0.15);
+    }
+
+    .login-btn {
+      width: 100%;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--blue) 100%);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      padding: 13px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.25s;
+      box-shadow: 0 4px 15px rgba(24, 178, 176, 0.3);
+      margin-top: 24px;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(24, 178, 176, 0.45);
+      filter: brightness(1.1);
+    }
+
+    .login-btn:active {
+      transform: translateY(0);
+    }
+
+    .login-footer {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 24px;
+    }
+
+    .login-footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .login-footer a:hover {
+      color: var(--blue);
+      text-decoration: underline;
+    }
+
+    .alert {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      text-align: right;
+      margin-bottom: 18px;
+      display: none;
+      line-height: 1.5;
+    }
+
+    .alert-error {
+      background: rgba(224, 85, 85, 0.1);
+      border: 1px solid rgba(224, 85, 85, 0.2);
+      color: var(--red);
+    }
+
+    .alert-success {
+      background: rgba(61, 186, 126, 0.1);
+      border: 1px solid rgba(61, 186, 126, 0.2);
+      color: var(--green);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(24, 178, 176, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(24, 178, 176, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(24, 178, 176, 0); }
+    }
+  </style>
 </head>
-<body style="min-height: 100vh; overflow: hidden;">
+<body>
 
   <div class="login-container">
     <div class="login-card">
@@ -17,50 +201,96 @@
       </div>
       
       <div class="login-header">
-        <h1>محاسبة شوب ستور</h1>
-        <p>نظام ذكي متكامل لربط متجرك وإدارة أموالك تلقائياً</p>
+        <h1>تسجيل الدخول</h1>
+        <p>محاسبة شوب ستور — النظام الذكي لربط متجرك وإدارة حساباتك</p>
       </div>
 
-      <div style="margin-top: 10px; margin-bottom: 24px; padding: 12px; border-radius: var(--r); background: rgba(24, 178, 176, 0.05); border: 1px solid rgba(24, 178, 176, 0.15); text-align: right; font-size: 12px; line-height: 1.8;">
-        <span style="color: var(--accent); font-weight: 600;"><i class="ti ti-info-circle" style="vertical-align: -1px;"></i> ميزات الربط المباشر:</span>
-        <ul style="margin-right: 18px; margin-top: 5px; color: var(--text2);">
-          <li>جلب ومزامنة كافة طلبات سلة مباشرة.</li>
-          <li>تتبع السلات المتروكة واستخلاص قيمتها.</li>
-          <li>كشف فوري لعمليات محفظة المتجر والعمولات.</li>
-          <li>إدارة المصروفات ومقارنتها تلقائياً بالدخل الفعلي.</li>
-        </ul>
-      </div>
+      <div class="alert alert-error" id="errorAlert"></div>
+      <div class="alert alert-success" id="successAlert"></div>
 
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <a href="/auth" class="login-btn-salla" id="sallaLoginBtn">
-          <i class="ti ti-brand-chrome" style="font-size: 18px;"></i>
-          تسجيل الدخول وربط متجر سلة
-        </a>
-        
-        <button onclick="loginSimulated()" class="login-btn-simulated">
-          <i class="ti ti-eye" style="font-size: 16px;"></i>
-          استعراض لوحة التحكم بنظام المحاكاة
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label" for="loginInput">اسم المستخدم أو البريد الإلكتروني</label>
+          <input type="text" id="loginInput" class="form-control" placeholder="أدخل اسم المستخدم أو البريد..." required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="passwordInput">كلمة المرور</label>
+          <input type="password" id="passwordInput" class="form-control" placeholder="أدخل كلمة المرور الخاصة بك..." required autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="login-btn" id="submitBtn">
+          <i class="ti ti-login" style="font-size: 16px;"></i>
+          تسجيل الدخول للنظام
         </button>
-      </div>
+      </form>
 
-      <div class="login-footer">
-        بضغطك على ربط المتجر، توافق على شروط وأحكام <a href="#">تطبيق شوب ستور</a> وربطه مع <a href="https://mcp.salla.dev/mcp" target="_blank">Salla MCP</a>.
+      <div class="login-footer" id="footerText">
+        ليس لديك حساب بعد؟ <a href="register.html">إنشاء حساب جديد</a>
       </div>
     </div>
   </div>
 
   <script>
-    // إذا كان هناك خطأ بالرابط، نعرضه للمستخدم
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('error') === 'auth_denied') {
-      alert('⚠️ تم إلغاء ربط المتجر من قبل التاجر.');
-    } else if (params.get('error') === 'token_exchange_failed') {
-      alert('⚠️ فشل تبديل التوكين مع خوادم سلة، يرجى المحاولة لاحقاً أو التحقق من ملف .env الخاص بك.');
-    }
+    // عند تحميل الصفحة، نتحقق من تهيئة النظام
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const res = await fetch('/api/auth/check-init');
+        const data = await res.json();
+        
+        // إذا كان النظام غير مهيأ (لا يوجد أي مستخدم)، نوجهه فوراً لإنشاء حساب المدير
+        if (data.initialized === false) {
+          window.location.href = 'register.html';
+        }
+      } catch (e) {
+        console.error('فشل فحص تهيئة النظام:', e);
+      }
+    });
 
-    function loginSimulated() {
-      // الدخول لنمط المحاكاة محلياً
-      window.location.href = '/?simulated=true';
+    // معالجة تسجيل الدخول
+    async function handleLogin(e) {
+      e.preventDefault();
+      
+      const login = document.getElementById('loginInput').value;
+      const password = document.getElementById('passwordInput').value;
+      const errorAlert = document.getElementById('errorAlert');
+      const successAlert = document.getElementById('successAlert');
+      const submitBtn = document.getElementById('submitBtn');
+      
+      errorAlert.style.display = 'none';
+      successAlert.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="ti ti-loader spinner" style="font-size: 16px;"></i> جاري التحقق...';
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login, password })
+        });
+        
+        const resData = await response.json();
+        
+        if (response.ok && resData.success) {
+          successAlert.textContent = 'تم تسجيل الدخول بنجاح! جاري تحويلك...';
+          successAlert.style.display = 'block';
+          
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1000);
+        } else {
+          errorAlert.textContent = resData.error || 'خطأ في تسجيل الدخول، يرجى التحقق من المدخلات.';
+          errorAlert.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="ti ti-login" style="font-size: 16px;"></i> تسجيل الدخول للنظام';
+        }
+      } catch (err) {
+        console.error(err);
+        errorAlert.textContent = 'فشل الاتصال بالخادم، يرجى المحاولة لاحقاً.';
+        errorAlert.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="ti ti-login" style="font-size: 16px;"></i> تسجيل الدخول للنظام';
+      }
     }
   </script>
 </body>

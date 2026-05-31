@@ -276,6 +276,50 @@
     </div>
   </div>
 
+  <!-- MODAL: إضافة/تعديل مستخدم -->
+  <div class="modal-bg" id="userModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-title" id="userModalTitle"><i class="ti ti-user-plus" style="color:var(--accent)"></i> إضافة حساب مستخدم جديد</div>
+      
+      <input type="hidden" id="uId">
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">اسم المستخدم (بالأحرف الإنجليزية)</label>
+          <input type="text" id="uUsername" placeholder="مثال: eissa11">
+        </div>
+        <div class="form-group">
+          <label class="form-label">دور الصلاحيات</label>
+          <select id="uRole">
+            <option value="employee">موظف (مشاهدة وإضافة مصروفات)</option>
+            <option value="accountant">محاسب (إدارة الحسابات والجرد والرفع)</option>
+            <option value="admin">مدير (تحكم وصلاحيات كاملة)</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">البريد الإلكتروني</label>
+          <input type="email" id="uEmail" placeholder="مثال: user@example.com">
+        </div>
+      </div>
+
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label" id="uPasswordLabel">كلمة المرور</label>
+          <input type="password" id="uPassword" placeholder="أدخل كلمة مرور قوية...">
+          <div style="font-size: 10px; color: var(--text3); margin-top: 4px;" id="uPasswordHint"></div>
+        </div>
+      </div>
+      
+      <div class="modal-foot">
+        <button class="btn" onclick="closeUserModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveUser()"><i class="ti ti-check"></i> حفظ المستخدم</button>
+      </div>
+    </div>
+  </div>
+
   <!-- APP SHELL -->
   <div class="shell">
 
@@ -331,6 +375,19 @@
       <div class="nav-item" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد ملفات Excel</div>
       <div class="nav-item" onclick="openArchModal()"><i class="ti ti-calendar-plus"></i> بدء شهر جديد (أرشفة)</div>
       <div class="nav-item" onclick="exportAll()"><i class="ti ti-download"></i> تصدير البيانات (CSV)</div>
+      <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><i class="ti ti-users"></i> إدارة المستخدمين</div>
+      
+      <!-- Active User Profile at Sidebar Bottom -->
+      <div style="margin-top:auto; padding:12px; border-top:1px solid var(--border); background:rgba(24,29,46,0.3); display:flex; align-items:center; gap:8px;">
+        <div style="width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;" id="userAvatar">U</div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:12px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="userName">المستخدم</div>
+          <div style="font-size:10px; color:var(--text3);" id="userRole">الدور</div>
+        </div>
+        <button onclick="handleLogout()" title="تسجيل الخروج" style="background:transparent; border:none; color:var(--red); cursor:pointer; font-size:15px; padding:4px; display:flex; align-items:center;">
+          <i class="ti ti-power"></i>
+        </button>
+      </div>
     </aside>
 
     <!-- MAIN CONTENT -->
@@ -723,6 +780,35 @@
           </div>
         </div>
 
+      </div> <!-- /page-import -->
+
+      <!-- PAGE: USER MANAGEMENT -->
+      <div class="page pad" id="page-users">
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">إدارة حسابات المستخدمين وصلاحيات الموظفين <span style="font-size:10px;color:var(--text3)" id="usersTotal"></span></div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="usersQ" placeholder="بحث باسم المستخدم..." oninput="renderUsers()" style="width:180px">
+              <button class="btn btn-sm btn-primary" onclick="openUserModal('')"><i class="ti ti-user-plus"></i> إضافة مستخدم جديد</button>
+            </div>
+          </div>
+          
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم المستخدم</th>
+                  <th>البريد الإلكتروني</th>
+                  <th>الدور البرمجي</th>
+                  <th>تاريخ الإنشاء</th>
+                  <th style="width:140px">العمليات</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
     </div><!-- /content -->
