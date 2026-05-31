@@ -78,9 +78,16 @@ app.use((req, res, next) => {
     }
 });
 
-// Protect all API routes starting with /api (excluding /api/auth/)
+// Protect all API routes starting with /api (excluding /api/auth/, /api/ai/, and /api/mcp)
 app.use('/api', (req, res, next) => {
-    if (req.path.startsWith('/auth/') || req.originalUrl.startsWith('/api/auth/')) {
+    if (
+        req.path.startsWith('/auth/') || 
+        req.originalUrl.startsWith('/api/auth/') ||
+        req.path.startsWith('/ai/') ||
+        req.originalUrl.startsWith('/api/ai/') ||
+        req.path.startsWith('/mcp') ||
+        req.originalUrl.startsWith('/api/mcp')
+    ) {
         return next();
     }
     authenticateUser(req, res, next);
