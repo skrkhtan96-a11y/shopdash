@@ -381,7 +381,10 @@ app.get('/callback', async (req, res) => {
 
         // جلب معلومات المتجر الحقيقية لتسجيلها
         const profileRes = await axios.get('https://api.salla.dev/admin/v2/store/profile', {
-            headers: { 'Authorization': `Bearer ${access_token}` }
+            headers: { 
+                'Authorization': `Bearer ${access_token}`,
+                'Accept-Language': 'ar'
+            }
         });
 
         const storeInfo = {
@@ -642,7 +645,10 @@ app.get('/api/salla/orders', async (req, res) => {
         if (to) url += `&created_at_to=${to}`;
 
         const response = await axios.get(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Accept-Language': 'ar'
+            }
         });
 
         res.json(response.data);
@@ -734,7 +740,10 @@ app.get('/api/salla/abandoned-carts', async (req, res) => {
 
     try {
         const response = await axios.get('https://api.salla.dev/admin/v2/abandoned-carts', {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Accept-Language': 'ar'
+            }
         });
         res.json(response.data);
     } catch (error) {
