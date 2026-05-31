@@ -1450,6 +1450,7 @@ app.get('/mcp', (req, res) => {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no', // يمنع Nginx من تخزين الأحداث مؤقتاً لتمرير المزامنة فورياً
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': '*',
         'Access-Control-Allow-Methods': '*'
@@ -1461,8 +1462,8 @@ app.get('/mcp', (req, res) => {
     // حفظ الجلسة
     mcpSessions.set(sessionId, res);
     
-    // إرسال حدث endpoint لتعريف العميل بمسار الـ POST
-    res.write(`event: endpoint\ndata: /api/mcp?sessionId=${sessionId}\n\n`);
+    // إرسال حدث endpoint لتعريف العميل بمسار الـ POST كامل ومطلق لتجنب مشاكل التوجيه
+    res.write(`event: endpoint\ndata: https://shop.nuzum.sbs/api/mcp?sessionId=${sessionId}\n\n`);
     
     req.on('close', () => {
         console.log(`[MCP] Claude session closed: ${sessionId}`);
