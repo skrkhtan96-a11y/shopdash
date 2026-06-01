@@ -847,69 +847,82 @@ app.get('/api/ai/live-data', async (req, res) => {
                     db.all("SELECT * FROM salla_imported_wallet", [], (errWallet, wallet) => {
                         if (errWallet) return res.status(500).json({ error: errWallet.message });
                         
-                        const totalExpenses = expenses.reduce((s, e) => s + (e.amt || 0), 0);
-                        const totalRevenue = sales.reduce((s, o) => s + (o.amount || 0), 0);
-                        const netProfit = totalRevenue - totalExpenses;
-                        
-                        const map = {};
-                        sales.forEach(o => {
-                            const name = (o.product_name || 'غير معروف').trim();
-                            if (!map[name]) {
-                                map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
-                            }
-                            map[name].sold += o.quantity || 1;
-                            map[name].revenue += o.amount || 0;
-                        });
-                        
-                        expenses.forEach(e => {
-                            if (e.cat === 'شراء منتجات' && e.product_name) {
-                                const name = e.product_name.trim();
+                        db.all("SELECT * FROM ads_campaign_metrics", [], (errAds, ads) => {
+                            if (errAds) return res.status(500).json({ error: errAds.message });
+                            
+                            const totalExpenses = expenses.reduce((s, e) => s + (e.amt || 0), 0);
+                            const totalRevenue = sales.reduce((s, o) => s + (o.amount || 0), 0);
+                            const netProfit = totalRevenue - totalExpenses;
+                            
+                            const map = {};
+                            sales.forEach(o => {
+                                const name = (o.product_name || 'غير معروف').trim();
                                 if (!map[name]) {
                                     map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
                                 }
-                                map[name].purchased += e.quantity || 0;
-                                if (e.purchase_price) map[name].cost = e.purchase_price;
-                            }
-                        });
-                        
-                        adjustments.forEach(a => {
-                            const name = (a.product_name || '').trim();
-                            if (!map[name]) {
-                                map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
-                            }
-                            if (a.cost > 0) map[name].cost = a.cost;
-                        });
-                        
-                        const inventory = Object.values(map).map(p => {
-                            const adj = adjustments.find(a => a.product_name === p.name) || { stock_offset: 0 };
-                            const stock = p.purchased - p.sold + adj.stock_offset;
-                            return {
-                                product_name: p.name,
-                                quantity_purchased: p.purchased,
-                                quantity_sold: p.sold,
-                                remaining_stock: stock,
-                                unit_cost_sar: p.cost,
-                                total_revenue_sar: p.revenue
-                            };
-                        });
-                        
-                        res.json({
-                            store_name: "شوب ستور - لوحة تحكم المحاسبة الذكية",
-                            financial_summary: {
-                                total_revenue_sar: totalRevenue,
-                                total_expenses_sar: totalExpenses,
-                                net_profit_sar: netProfit,
-                                wallet_total_operations: wallet.length
-                            },
-                            recent_orders_count: sales.length,
-                            inventory_status: inventory,
-                            expenses_breakdown: expenses.map(e => ({
-                                description: e.desc,
-                                category: e.cat,
-                                amount_sar: e.amt,
-                                date: e.date,
-                                notes: e.note
-                              }))
+                                map[name].sold += o.quantity || 1;
+                                map[name].revenue += o.amount || 0;
+                            });
+                            
+                            expenses.forEach(e => {
+                                if (e.cat === 'شراء منتجات' && e.product_name) {
+                                    const name = e.product_name.trim();
+                                    if (!map[name]) {
+                                        map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
+                                    }
+                                    map[name].purchased += e.quantity || 0;
+                                    if (e.purchase_price) map[name].cost = e.purchase_price;
+                                }
+                            });
+                            
+                            adjustments.forEach(a => {
+                                const name = (a.product_name || '').trim();
+                                if (!map[name]) {
+                                    map[name] = { name, sold: 0, revenue: 0, purchased: 0, cost: 0, stock: 0 };
+                                }
+                                if (a.cost > 0) map[name].cost = a.cost;
+                            });
+                            
+                            const inventory = Object.values(map).map(p => {
+                                const adj = adjustments.find(a => a.product_name === p.name) || { stock_offset: 0 };
+                                const stock = p.purchased - p.sold + adj.stock_offset;
+                                return {
+                                    product_name: p.name,
+                                    quantity_purchased: p.purchased,
+                                    quantity_sold: p.sold,
+                                    remaining_stock: stock,
+                                    unit_cost_sar: p.cost,
+                                    total_revenue_sar: p.revenue
+                                };
+                            });
+
+                            const totalAdSpend = ads.reduce((s, a) => s + (a.spend || 0), 0);
+                            const totalAdConversions = ads.reduce((s, a) => s + (a.conversions || 0), 0);
+                            
+                            res.json({
+                                store_name: "شوب ستور - لوحة تحكم المحاسبة الذكية",
+                                financial_summary: {
+                                    total_revenue_sar: totalRevenue,
+                                    total_expenses_sar: totalExpenses,
+                                    total_ad_spend_sar: totalAdSpend,
+                                    net_profit_sar: netProfit,
+                                    wallet_total_operations: wallet.length
+                                },
+                                recent_orders_count: sales.length,
+                                inventory_status: inventory,
+                                ads_summary: {
+                                    total_ad_spend_sar: totalAdSpend,
+                                    total_conversions: totalAdConversions,
+                                    campaigns_count: ads.length
+                                },
+                                expenses_breakdown: expenses.map(e => ({
+                                    description: e.desc,
+                                    category: e.cat,
+                                    amount_sar: e.amt,
+                                    date: e.date,
+                                    notes: e.note
+                                  }))
+                            });
                         });
                     });
                 });
@@ -1071,7 +1084,7 @@ app.post('/api/salla/clear-imports', (req, res) => {
 
 // مسار حذف وتصفير بيانات اللوحة بالكامل للمدير
 app.post('/api/system/clear-all', requireRole(['admin']), (req, res) => {
-    const tables = ['expenses', 'archives', 'salla_imported_orders', 'salla_imported_wallet', 'product_adjustments'];
+    const tables = ['expenses', 'archives', 'salla_imported_orders', 'salla_imported_wallet', 'product_adjustments', 'ads_campaign_metrics', 'ads_connections'];
     let errorOccurred = false;
     let completed = 0;
     
@@ -1090,6 +1103,197 @@ app.post('/api/system/clear-all', requireRole(['admin']), (req, res) => {
         });
     });
 });
+
+
+// ── 4. مسارات وإدارة الحملات الإعلانية الموحدة (Facebook, Snapchat, TikTok) ──
+
+// جلب حالات الاتصال بالمنصات الإعلانية
+app.get('/api/ads/connections', (req, res) => {
+    db.all("SELECT * FROM ads_connections", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const connMap = {
+            facebook: { status: 'disconnected', account_id: '' },
+            snapchat: { status: 'disconnected', account_id: '' },
+            tiktok: { status: 'disconnected', account_id: '' }
+        };
+        rows.forEach(r => {
+            connMap[r.platform] = { status: r.status, account_id: r.account_id || '' };
+        });
+        res.json(connMap);
+    });
+});
+
+// ربط منصة إعلانية (محاكاة أو حقيقي)
+app.post('/api/ads/connections/connect', (req, res) => {
+    const { platform, account_id } = req.body;
+    if (!['facebook', 'snapchat', 'tiktok'].includes(platform)) {
+        return res.status(400).json({ error: 'منصة غير صالحة' });
+    }
+    const accId = account_id || `acc_${Math.floor(100000 + Math.random() * 900000)}`;
+    db.run(
+        `INSERT INTO ads_connections (platform, account_id, status) VALUES (?, ?, 'connected') 
+         ON CONFLICT(platform) DO UPDATE SET account_id = ?, status = 'connected'`,
+        [platform, accId, accId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true, platform, account_id: accId });
+        }
+    );
+});
+
+// قطع ربط منصة إعلانية
+app.post('/api/ads/connections/disconnect', (req, res) => {
+    const { platform } = req.body;
+    db.run("DELETE FROM ads_connections WHERE platform = ?", [platform], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
+// جلب إحصائيات الحملات الإعلانية مع الفلترة التاريخية ومحاكاة البيانات الذكية
+app.get('/api/ads/campaigns', (req, res) => {
+    const from = req.query.from || '';
+    const to = req.query.to || '';
+    const platform = req.query.platform || ''; // facebook, snapchat, tiktok or empty for all
+
+    // جلب المنصات المتصلة فعلياً
+    db.all("SELECT platform, status FROM ads_connections WHERE status = 'connected'", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const activePlatforms = rows.map(r => r.platform);
+
+        // إذا لم يكن هناك منصات متصلة، يمكننا افتراض تفعيل وضع المحاكاة لجميع المنصات تسهيلاً للاستعراض الأولي
+        const platformsToQuery = activePlatforms.length > 0 ? activePlatforms : ['facebook', 'snapchat', 'tiktok'];
+
+        // فلترة المنصة المحددة بالطلب إن وجدت
+        const targetPlatforms = platform ? platformsToQuery.filter(p => p === platform) : platformsToQuery;
+
+        if (targetPlatforms.length === 0) {
+            return res.json([]);
+        }
+
+        // بناء استعلام لجلب البيانات من جدول ads_campaign_metrics
+        let query = "SELECT * FROM ads_campaign_metrics WHERE 1=1";
+        const params = [];
+
+        if (platform) {
+            query += " AND platform = ?";
+            params.push(platform);
+        } else {
+            query += ` AND platform IN (${targetPlatforms.map(() => '?').join(',')})`;
+            targetPlatforms.forEach(p => params.push(p));
+        }
+
+        if (from) {
+            query += " AND date >= ?";
+            params.push(from);
+        }
+        if (to) {
+            query += " AND date <= ?";
+            params.push(to);
+        }
+
+        db.all(query, params, async (err, campaignRows) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // إذا كانت قاعدة البيانات فارغة أو نطاق التواريخ يفتقر لبيانات، نقوم بتوليد وحفظ بيانات محاكاة فورية للنطاق المختار
+            if (campaignRows.length === 0) {
+                const generated = await generateMockCampaignsForPeriod(targetPlatforms, from, to);
+                return res.json(generated);
+            }
+
+            res.json(campaignRows);
+        });
+    });
+});
+
+// دالة توليد بيانات محاكاة وتخزينها في قاعدة البيانات لضمان الثبات للتواريخ
+async function generateMockCampaignsForPeriod(platforms, fromDate, toDate) {
+    const start = new Date(fromDate || '2026-05-01');
+    const end = new Date(toDate || '2026-06-01');
+    
+    // أسماء الحملات المحاكية لكل منصة
+    const campaignsConfig = {
+        facebook: [
+            { id: 'fb_c1', name: 'حملة الأعياد الكبرى - FB' },
+            { id: 'fb_c2', name: 'إعادة استهداف زوار المتجر - FB' }
+        ],
+        snapchat: [
+            { id: 'snap_c1', name: 'حملة فلاتر ومشاهير العيد - Snap' },
+            { id: 'snap_c2', name: 'عروض خصومات الشحن - Snap' }
+        ],
+        tiktok: [
+            { id: 'tt_c1', name: 'تحدي تريند الموضة - TikTok' },
+            { id: 'tt_c2', name: 'عروض حصرية للصيف - TikTok' }
+        ]
+    };
+
+    const insertedData = [];
+    const dates = [];
+    let curr = new Date(start);
+    
+    // تحديد الأيام في الفترة
+    while (curr <= end) {
+        dates.push(curr.toISOString().split('T')[0]);
+        curr.setDate(curr.getDate() + 1);
+    }
+
+    // لتبسيط التخزين السريع، نقوم بعمل معاملات متتالية
+    return new Promise((resolve) => {
+        db.serialize(() => {
+            const stmt = db.prepare(`
+                INSERT OR REPLACE INTO ads_campaign_metrics 
+                (campaign_id, campaign_name, platform, status, spend, clicks, impressions, conversions, date) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+
+            dates.forEach(d => {
+                platforms.forEach(p => {
+                    const configs = campaignsConfig[p] || [];
+                    configs.forEach(c => {
+                        // توليد أرقام عشوائية متسقة
+                        const spend = Math.round(40 + Math.random() * 180); // 40 to 220 SAR spend per day
+                        const clicks = Math.round(spend * (0.8 + Math.random() * 0.7)); // clicks based on spend
+                        const impressions = clicks * Math.round(12 + Math.random() * 15); // CTR around 4-8%
+                        const convRate = 0.02 + Math.random() * 0.04; // Conv rate 2% to 6%
+                        const conversions = Math.max(0, Math.round(clicks * convRate));
+                        const status = Math.random() > 0.15 ? 'active' : 'paused';
+
+                        const uniqueCampId = `${c.id}_${d}`;
+
+                        stmt.run([
+                            uniqueCampId,
+                            c.name,
+                            p,
+                            status,
+                            spend,
+                            clicks,
+                            impressions,
+                            conversions,
+                            d
+                        ]);
+
+                        insertedData.push({
+                            campaign_id: uniqueCampId,
+                            campaign_name: c.name,
+                            platform: p,
+                            status,
+                            spend,
+                            clicks,
+                            impressions,
+                            conversions,
+                            date: d
+                        });
+                    });
+                });
+            });
+
+            stmt.finalize(() => {
+                resolve(insertedData);
+            });
+        });
+    });
+}
+
 
 
 // مسار جلب السلات المتروكة

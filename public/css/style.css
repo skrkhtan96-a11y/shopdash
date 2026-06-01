@@ -1174,6 +1174,10 @@ textarea {
     grid-template-columns: 1fr;
   }
   
+  .ads-charts-container {
+    grid-template-columns: 1fr !important;
+  }
+  
   .import-grid {
     grid-template-columns: 1fr;
   }

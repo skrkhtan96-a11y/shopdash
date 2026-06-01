@@ -150,6 +150,35 @@ db.serialize(() => {
         )
     `);
 
+    // 11. جدول الاتصال بالحسابات الإعلانية
+    db.run(`
+        CREATE TABLE IF NOT EXISTS ads_connections (
+            platform TEXT PRIMARY KEY,
+            account_id TEXT,
+            access_token TEXT,
+            refresh_token TEXT,
+            expires_at TEXT,
+            status TEXT DEFAULT 'disconnected'
+        )
+    `);
+
+    // 12. جدول إحصائيات تحليلات الحملات الإعلانية
+    db.run(`
+        CREATE TABLE IF NOT EXISTS ads_campaign_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id TEXT UNIQUE,
+            campaign_name TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            status TEXT DEFAULT 'active',
+            spend REAL DEFAULT 0,
+            clicks INTEGER DEFAULT 0,
+            impressions INTEGER DEFAULT 0,
+            conversions INTEGER DEFAULT 0,
+            date TEXT NOT NULL,
+            archived_in TEXT DEFAULT NULL
+        )
+    `);
+
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {
