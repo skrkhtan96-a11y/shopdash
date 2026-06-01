@@ -1270,6 +1270,30 @@ function updateOverviewWithSalla() {
 // ══════════════════════════════════════════════
 //  EXPENSES CRUD (SQLITE BACKEND)
 // ══════════════════════════════════════════════
+function renderExpRows(data) {
+    const body = document.getElementById('expBody');
+    if (!body) return;
+
+    const total = data.reduce((s, e) => s + (e.amt || 0), 0);
+    document.getElementById('expCount').textContent = `${data.length} بند — ${fmt(total)} ر.س`;
+    const ro = !!state.viewingArc || (state.user && state.user.role === 'موظف');
+
+    body.innerHTML = data.map((r, i) => `<tr onclick="showExpenseDetails(${r.id})" style="cursor:pointer;">
+    <td style="color:var(--text3);font-size:10px">${i + 1}</td>
+    <td style="font-weight:600;">${r.desc}</td>
+    <td><span class="pill ${CAT_BADGE[r.cat] || 'pill-gray'}">${r.cat}</span></td>
+    <td><span class="mono red">${fmt(r.amt)}</span></td>
+    <td style="font-size:11px;color:var(--text2)">${fmtDate(r.date)}</td>
+    <td style="font-size:10px;color:var(--text3);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note || ''}</td>
+    <td onclick="event.stopPropagation();">${ro ? '' : `<div style="display:flex;gap:4px">
+      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="editRow(${r.id},'expense')"><i class="ti ti-edit"></i></button>
+      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="delRow(${r.id},'expense')"><i class="ti ti-trash"></i></button>
+    </div>`}</td>
+  </tr>`).join('') || '<tr><td colspan="7"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد بنود مصروفات حالياً</p></div></td></tr>';
+
+    document.getElementById('expFoot').innerHTML = data.length ? `<tr class="tbl-foot"><td colspan="3">الإجمالي (${data.length})</td><td><span class="mono red">${fmt(total)}</span></td><td colspan="3"></td></tr>` : '';
+}
+
 function renderExp() {
     const body = document.getElementById('expBody');
     if (!body) return;
@@ -1277,30 +1301,44 @@ function renderExp() {
     const cat = document.getElementById('expCat').value;
     const q = (document.getElementById('expQ').value || '').toLowerCase();
     const sort = document.getElementById('expSort').value;
+    const from = document.getElementById('expFrom')?.value || '';
+    const to = document.getElementById('expTo')?.value || '';
 
-    let url = `/api/expenses?cat=${cat}&q=${encodeURIComponent(q)}&sort=${sort}`;
+    if (state.viewingArc) {
+        let data = [...state.expenses];
+        if (cat) {
+            data = data.filter(e => e.cat === cat);
+        }
+        if (q) {
+            data = data.filter(e => (e.desc && e.desc.toLowerCase().includes(q)) || (e.note && e.note.toLowerCase().includes(q)));
+        }
+        if (from) {
+            data = data.filter(e => e.date >= from);
+        }
+        if (to) {
+            data = data.filter(e => e.date <= to);
+        }
+        
+        if (sort === 'asc') {
+            data.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+        } else if (sort === 'amt-desc') {
+            data.sort((a, b) => b.amt - a.amt);
+        } else if (sort === 'amt-asc') {
+            data.sort((a, b) => a.amt - b.amt);
+        } else {
+            data.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+        }
+        
+        renderExpRows(data);
+        return;
+    }
+
+    let url = `/api/expenses?cat=${cat}&q=${encodeURIComponent(q)}&sort=${sort}&from=${from}&to=${to}`;
     
     fetch(url)
         .then(res => res.json())
         .then(data => {
-            const total = data.reduce((s, e) => s + (e.amt || 0), 0);
-            document.getElementById('expCount').textContent = `${data.length} بند — ${fmt(total)} ر.س`;
-            const ro = !!state.viewingArc || (state.user && state.user.role === 'موظف');
-
-            body.innerHTML = data.map((r, i) => `<tr onclick="showExpenseDetails(${r.id})" style="cursor:pointer;">
-            <td style="color:var(--text3);font-size:10px">${i + 1}</td>
-            <td style="font-weight:600;">${r.desc}</td>
-            <td><span class="pill ${CAT_BADGE[r.cat] || 'pill-gray'}">${r.cat}</span></td>
-            <td><span class="mono red">${fmt(r.amt)}</span></td>
-            <td style="font-size:11px;color:var(--text2)">${fmtDate(r.date)}</td>
-            <td style="font-size:10px;color:var(--text3);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note || ''}</td>
-            <td onclick="event.stopPropagation();">${ro ? '' : `<div style="display:flex;gap:4px">
-              <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="editRow(${r.id},'expense')"><i class="ti ti-edit"></i></button>
-              <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="delRow(${r.id},'expense')"><i class="ti ti-trash"></i></button>
-            </div>`}</td>
-          </tr>`).join('') || '<tr><td colspan="7"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد بنود مصروفات حالياً</p></div></td></tr>';
-
-            document.getElementById('expFoot').innerHTML = data.length ? `<tr class="tbl-foot"><td colspan="3">الإجمالي (${data.length})</td><td><span class="mono red">${fmt(total)}</span></td><td colspan="3"></td></tr>` : '';
+            renderExpRows(data);
         });
 }
 
@@ -3262,13 +3300,17 @@ async function deleteSavedComparison(id) {
 document.addEventListener('DOMContentLoaded', () => {
     const ordFrom = document.getElementById('ordFrom');
     const walFrom = document.getElementById('walFrom');
+    const expFrom = document.getElementById('expFrom');
     if (ordFrom) ordFrom.value = CURRENT_MONTH + '-01';
     if (walFrom) walFrom.value = CURRENT_MONTH + '-01';
+    if (expFrom) expFrom.value = CURRENT_MONTH + '-01';
 
     const ordTo = document.getElementById('ordTo');
     const walTo = document.getElementById('walTo');
+    const expTo = document.getElementById('expTo');
     if (ordTo) ordTo.value = TODAY;
     if (walTo) walTo.value = TODAY;
+    if (expTo) expTo.value = TODAY;
 
     init();
     setupDragAndDrop();

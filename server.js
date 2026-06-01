@@ -1121,6 +1121,8 @@ app.get('/api/expenses', (req, res) => {
     const cat = req.query.cat || '';
     const q = req.query.q || '';
     const sort = req.query.sort || 'desc'; // desc, asc, amt-desc, amt-asc
+    const from = req.query.from || '';
+    const to = req.query.to || '';
 
     let query = "SELECT * FROM expenses WHERE archived_in IS NULL";
     const params = [];
@@ -1130,8 +1132,16 @@ app.get('/api/expenses', (req, res) => {
         params.push(cat);
     }
     if (q) {
-        query += " AND desc LIKE ?";
-        params.push(`%${q}%`);
+        query += " AND (desc LIKE ? OR note LIKE ?)";
+        params.push(`%${q}%`, `%${q}%`);
+    }
+    if (from) {
+        query += " AND date >= ?";
+        params.push(from);
+    }
+    if (to) {
+        query += " AND date <= ?";
+        params.push(to);
     }
 
     if (sort === 'asc') query += " ORDER BY date ASC, id ASC";

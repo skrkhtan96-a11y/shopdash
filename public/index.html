@@ -499,6 +499,10 @@
               <option>أرباح</option>
               <option>أخرى</option>
             </select>
+            <label style="margin-right:4px">من:</label>
+            <input type="date" id="expFrom" onchange="renderExp()" style="width:125px">
+            <label>إلى:</label>
+            <input type="date" id="expTo" onchange="renderExp()" style="width:125px">
             <input type="text" id="expQ" placeholder="بحث في البيان..." oninput="renderExp()" style="width:160px">
             <select id="expSort" onchange="renderExp()">
               <option value="desc">تاريخ: الأحدث أولاً</option>
