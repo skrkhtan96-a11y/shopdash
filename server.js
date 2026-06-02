@@ -1150,6 +1150,86 @@ app.post('/api/ads/connections/disconnect', (req, res) => {
     });
 });
 
+// مسار استقبال الـ callback من تيك توك وتوليد توكين الوصول الفعلي
+app.get('/api/auth/tiktok/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) {
+        return res.status(400).send('كود التفويض غير موجود');
+    }
+
+    try {
+        const appId = "7646601182546231297";
+        const secret = "abc042e1d2f83d6ac0898bb4990cd903dd1c4460";
+        
+        const response = await axios.post("https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/", {
+            app_id: appId,
+            secret: secret,
+            auth_code: code
+        });
+
+        if (response.data && response.data.code === 0) {
+            const accessToken = response.data.data.access_token;
+            // حفظ التوكين في قاعدة البيانات مع معرف الحساب الافتراضي
+            db.run(
+                `INSERT OR REPLACE INTO ads_connections (platform, account_id, access_token, status) VALUES (?, ?, ?, ?)`,
+                ['tiktok', '7492167669576351745', accessToken, 'connected'],
+                (err) => {
+                    if (err) {
+                        return res.status(500).send('خطأ أثناء حفظ التوكين في قاعدة البيانات: ' + err.message);
+                    }
+                    res.send(`
+                        <div style="font-family:sans-serif;text-align:center;padding:50px;background:#0d1117;color:#c9d1d9;height:100vh;box-sizing:border-box;">
+                            <h2 style="color:#10B981;margin-top:100px;">تم ربط حساب تيك توك إعلانات بنجاح!</h2>
+                            <p>تم استلام التوكين وتحديث الحساب الإعلاني لمتجر نُظم (هويتك0411) بنجاح.</p>
+                            <p style="color:#8b949e;font-size:12px;">تلقائياً، ستبدأ اللوحة بعرض إحصاءات الإعلانات الحقيقية.</p>
+                            <button onclick="window.close()" style="margin-top:20px;padding:10px 20px;background:#10B981;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">إغلاق النافذة</button>
+                        </div>
+                    `);
+                }
+            );
+        } else {
+            res.status(400).send('فشل توليد التوكين من تيك توك: ' + (response.data ? response.data.message : 'خطأ غير معروف'));
+        }
+    } catch (error) {
+        res.status(500).send('خطأ أثناء استبدال توكين تيك توك: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
+    }
+});
+
+// دالة لجلب إحصاءات تيك توك الحية من خوادمهم
+async function fetchLiveTikTokCampaigns(token, advertiserId) {
+    try {
+        const response = await axios.get("https://business-api.tiktok.com/open_api/v1.3/campaign/get/", {
+            headers: { 
+                'Access-Token': token,
+                'Content-Type': 'application/json'
+            },
+            params: {
+                advertiser_id: advertiserId
+            }
+        });
+        if (response.data && response.data.code === 0) {
+            const campaigns = response.data.data.list || [];
+            return campaigns.map(c => ({
+                campaign_id: c.campaign_id,
+                campaign_name: c.campaign_name,
+                platform: 'tiktok',
+                status: c.operation_status === 'ENABLE' ? 'active' : 'paused',
+                spend: c.spend || 0,
+                clicks: c.clicks || 0,
+                impressions: c.impressions || 0,
+                conversions: c.conversions || 0,
+                date: new Date().toISOString().split('T')[0]
+            }));
+        } else {
+            console.error("TikTok API response error:", response.data ? response.data.message : 'Unknown');
+            return null;
+        }
+    } catch (e) {
+        console.error("Failed to fetch live TikTok campaigns:", e.message);
+        return null;
+    }
+}
+
 // جلب إحصائيات الحملات الإعلانية مع الفلترة التاريخية ومحاكاة البيانات الذكية
 app.get('/api/ads/campaigns', (req, res) => {
     const from = req.query.from || '';
@@ -1157,9 +1237,30 @@ app.get('/api/ads/campaigns', (req, res) => {
     const platform = req.query.platform || ''; // facebook, snapchat, tiktok or empty for all
 
     // جلب المنصات المتصلة فعلياً
-    db.all("SELECT platform, status FROM ads_connections WHERE status = 'connected'", [], (err, rows) => {
+    db.all("SELECT * FROM ads_connections WHERE status = 'connected'", [], async (err, connRows) => {
         if (err) return res.status(500).json({ error: err.message });
-        const activePlatforms = rows.map(r => r.platform);
+        
+        const activePlatforms = connRows.map(r => r.platform);
+        const tiktokConn = connRows.find(r => r.platform === 'tiktok');
+
+        // إذا كان تيك توك متصلاً، نحاول تحديث البيانات حياً من السيرفر
+        if (tiktokConn && tiktokConn.access_token && tiktokConn.account_id) {
+            const liveData = await fetchLiveTikTokCampaigns(tiktokConn.access_token, tiktokConn.account_id);
+            if (liveData && liveData.length > 0) {
+                // نجح الجلب! نقوم بتحديث قاعدة البيانات
+                db.serialize(() => {
+                    const stmt = db.prepare(`
+                        INSERT OR REPLACE INTO ads_campaign_metrics 
+                        (campaign_id, campaign_name, platform, status, spend, clicks, impressions, conversions, date) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `);
+                    liveData.forEach(c => {
+                        stmt.run([c.campaign_id, c.campaign_name, c.platform, c.status, c.spend, c.clicks, c.impressions, c.conversions, c.date]);
+                    });
+                    stmt.finalize();
+                });
+            }
+        }
 
         // إذا لم يكن هناك منصات متصلة، يمكننا افتراض تفعيل وضع المحاكاة لجميع المنصات تسهيلاً للاستعراض الأولي
         const platformsToQuery = activePlatforms.length > 0 ? activePlatforms : ['facebook', 'snapchat', 'tiktok'];

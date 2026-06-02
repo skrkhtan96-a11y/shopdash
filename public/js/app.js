@@ -3368,6 +3368,23 @@ function loadAdsConnections() {
 
 // ربط منصة تسويقية
 function connectAdPlatform(platform) {
+    if (platform === 'tiktok') {
+        const authUrl = "https://business-api.tiktok.com/portal/auth?app_id=7646601182546231297&state=nuzum_tiktok&redirect_uri=https%3A%2F%2Fshop.nuzum.sbs%2Fapi%2Fauth%2Ftiktok%2Fcallback";
+        const authWindow = window.open(authUrl, '_blank', 'width=800,height=600');
+        
+        toast('تم فتح شاشة تفويض تيك توك في نافذة منبثقة. يرجى تأكيد منح الصلاحية.', 'info');
+        
+        // فحص حالة الاتصال بصفة دورية لمعرفة انتهاء التفويض
+        const checkInterval = setInterval(() => {
+            if (authWindow.closed) {
+                clearInterval(checkInterval);
+                loadAdsConnections();
+                renderCampaigns();
+            }
+        }, 2000);
+        return;
+    }
+
     const mockAccountId = `acc_${platform.slice(0, 3)}_${Math.floor(100000 + Math.random() * 900000)}`;
     fetch('/api/ads/connections/connect', {
         method: 'POST',
