@@ -1228,3 +1228,12 @@ textarea {
     font-size: 9px;
   }
 }
+
+@media (max-width: 768px) {
+  .perf-detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .insights-detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

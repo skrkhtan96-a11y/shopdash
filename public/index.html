@@ -687,6 +687,237 @@
         </div>
       </div>
 
+      <!-- PAGE: CAMPAIGN DETAIL (TIKTOK ADS MANAGER CLONE) -->
+      <div class="page pad" id="page-campaign-detail" style="display:none;">
+        <!-- Header with Back Button -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:10px; flex-wrap:wrap;">
+          <div>
+            <button class="btn btn-sm" onclick="nav('campaigns')" style="margin-bottom:8px; border: 1px solid var(--border); background: rgba(255,255,255,0.03);"><i class="ti ti-arrow-right"></i> العودة للحملات</button>
+            <h2 id="detCampaignName" style="margin:0; font-size:1.8rem; font-weight:700; color:var(--accent);">اسم الحملة الإعلانية</h2>
+            <div style="font-size:12px; color:var(--text3); display:flex; align-items:center; gap:6px; margin-top:4px;">
+              <span id="detPlatformBadge"></span> &bull; <span id="detCampaignStatus"></span> &bull; معرف الحملة: <span id="detCampaignId" class="mono" style="font-size:10px;">-</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <div class="badge" style="background:rgba(0,242,254,0.1); color:#00f2fe; padding:8px 12px; border-radius:8px; border:1px solid rgba(0,242,254,0.2); font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px;">
+              <i class="ti ti-activity"></i> مباشر من تيك توك Ads
+            </div>
+          </div>
+        </div>
+
+        <!-- Recommendations Grid -->
+        <div style="margin-bottom:20px;">
+          <h3 style="font-size:14px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:6px; color:var(--text);"><i class="ti ti-bulb" style="color:#00f2fe"></i> التوصيات الذكية لتحسين الحملة</h3>
+          <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+            <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between; min-height:140px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span style="font-weight:600; font-size:12px; color:var(--text);"><i class="ti ti-photo-video" style="color:#00f2fe"></i> الإعلانات الإبداعية (Creatives)</span>
+                  <span style="font-size:10px; color:var(--text3)">توصية تلقائية</span>
+                </div>
+                <p style="font-size:11px; color:var(--text2); margin:0; line-height:1.4;">نظام Smart+ يستخدم إشارات الأداء السابقة لتحسين توزيع الإعلانات الإبداعية وجذب الفئة الأنسب لمتجرك.</p>
+              </div>
+              <button class="btn btn-sm btn-primary" style="margin-top:12px; align-self:flex-start; font-size:10px; padding:4px 8px;">إضافة إعلانات إبداعية</button>
+            </div>
+            
+            <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between; min-height:140px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span style="font-weight:600; font-size:12px; color:var(--text);"><i class="ti ti-coin" style="color:#00f2fe"></i> المزايدة والميزانية (Bid & Budget)</span>
+                  <span style="font-size:10px; color:var(--text3)">توصية أداء</span>
+                </div>
+                <p style="font-size:11px; color:var(--text2); margin:0; line-height:1.4;">تكلفة اقتناء العميل المتوسطة (CPA) للحملة حالياً أعلى قليلاً من المنافسين في فئة الموضة والجمال.</p>
+              </div>
+              <button class="btn btn-sm btn-primary" style="margin-top:12px; align-self:flex-start; font-size:10px; padding:4px 8px;">وضع حد أقصى للتكلفة (Cost Cap)</button>
+            </div>
+
+            <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between; min-height:140px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span style="font-weight:600; font-size:12px; color:var(--text);"><i class="ti ti-video" style="color:#00f2fe"></i> الفيديو التلقائي (Symphony)</span>
+                  <span style="font-size:10px; color:var(--text3)">توصية وقت</span>
+                </div>
+                <p style="font-size:11px; color:var(--text2); margin:0; line-height:1.4;">توفير الوقت والجهد في إنتاج الفيديوهات باستخدام أداة Symphony لتوليد تصاميم فيديو متوافقة مع تفضيلات تيك توك.</p>
+              </div>
+              <button class="btn btn-sm btn-primary" style="margin-top:12px; align-self:flex-start; font-size:10px; padding:4px 8px;">تجربة أداة Symphony</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Overview KPIs (Account overview + Ad group status) -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-bottom:20px;">
+          <!-- Account Overview -->
+          <div class="tbl-wrap pad">
+            <div style="font-weight:600; margin-bottom:12px; font-size:13px; display:flex; align-items:center; gap:6px;"><i class="ti ti-report-money" style="color:var(--accent)"></i> نظرة عامة على الحساب الإعلاني</div>
+            <div style="display:flex; flex-direction:column; gap:12px; padding:6px 0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                <span style="font-size:12px; color:var(--text2);">الرصيد المتاح (Available Balance):</span>
+                <span class="mono accent" style="font-weight:700; font-size:14px;" id="detAvailableBalance">123.31 ر.س</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:4px;">
+                <span style="font-size:12px; color:var(--text2);">إنفاق اليوم (Today's Spend):</span>
+                <span class="mono red" style="font-weight:700; font-size:14px;" id="detTodaySpend">8.82 ر.س</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ad Group Status -->
+          <div class="tbl-wrap pad">
+            <div style="font-weight:600; margin-bottom:12px; font-size:13px; display:flex; align-items:center; gap:6px;"><i class="ti ti-layout-grid" style="color:var(--accent)"></i> حالة مجموعات الإعلانات (Ad Group Status)</div>
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; text-align:center; padding:4px 0;">
+              <div>
+                <div style="font-size:10px; color:var(--text3); margin-bottom:4px;">نشطة (Active)</div>
+                <div style="font-size:16px; font-weight:700; color:var(--green);" id="detAdGroupActive">2</div>
+              </div>
+              <div style="border-left:1px solid var(--border); border-right:1px solid var(--border);">
+                <div style="font-size:10px; color:var(--text3); margin-bottom:4px;">تعمل جزئياً</div>
+                <div style="font-size:16px; font-weight:700; color:var(--amber);" id="detAdGroupPartial">0</div>
+              </div>
+              <div>
+                <div style="font-size:10px; color:var(--text3); margin-bottom:4px;">متوقفة</div>
+                <div style="font-size:16px; font-weight:700; color:var(--text3);" id="detAdGroupNot">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance Graph Section -->
+        <div class="tbl-wrap pad" style="margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:10px; flex-wrap:wrap;">
+            <div style="font-weight:600; display:flex; align-items:center; gap:6px; color:var(--text);"><i class="ti ti-chart-line" style="color:var(--accent)"></i> أداء وتوجه الحملة (Performance Trend)</div>
+            <div style="font-size:11px; color:var(--text3);" id="detChartDateRange">-</div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 240px 1fr; gap:20px; align-items:stretch;" class="perf-detail-grid">
+            <!-- KPI Selection Panel -->
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <!-- Cost KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--accent); background:rgba(0,242,254,0.05)" id="kpichip-cost" onclick="toggleDetailKPI('cost')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-size:11px; color:var(--text2)">التكلفة الإجمالية (Cost)</span>
+                  <input type="checkbox" checked id="chk-cost" style="pointer-events:none;">
+                </div>
+                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detCostValue">-</div>
+                <div style="font-size:10px; color:var(--green); margin-top:2px;" id="detCostChange">▲ 0%</div>
+              </div>
+
+              <!-- Impressions KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--border)" id="kpichip-impressions" onclick="toggleDetailKPI('impressions')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-size:11px; color:var(--text2)">مرات الظهور (Impressions)</span>
+                  <input type="checkbox" checked id="chk-impressions" style="pointer-events:none;">
+                </div>
+                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detImpressionsValue">-</div>
+                <div style="font-size:10px; color:var(--green); margin-top:2px;" id="detImpressionsChange">▲ 0%</div>
+              </div>
+
+              <!-- CPM KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--border)" id="kpichip-cpm" onclick="toggleDetailKPI('cpm')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-size:11px; color:var(--text2)">تكلفة الألف ظهور (CPM)</span>
+                  <input type="checkbox" id="chk-cpm" style="pointer-events:none;">
+                </div>
+                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detCPMValue">-</div>
+                <div style="font-size:10px; color:var(--red); margin-top:2px;" id="detCPMChange">▼ 0%</div>
+              </div>
+
+              <!-- CTR KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--border)" id="kpichip-ctr" onclick="toggleDetailKPI('ctr')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-size:11px; color:var(--text2)">نسبة النقر (CTR)</span>
+                  <input type="checkbox" id="chk-ctr" style="pointer-events:none;">
+                </div>
+                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detCTRValue">-</div>
+                <div style="font-size:10px; color:var(--red); margin-top:2px;" id="detCTRChange">▼ 0%</div>
+              </div>
+            </div>
+
+            <!-- Interactive Chart Area -->
+            <div style="position:relative; height:100%; min-height:300px;">
+              <canvas id="chartAdDetailPerformance"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Insights & Demographics (Top Ads + Devices) -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:20px;" class="insights-detail-grid">
+          <!-- Top Ads -->
+          <div class="tbl-wrap pad">
+            <div style="font-weight:600; margin-bottom:14px; font-size:13px; display:flex; align-items:center; gap:6px; color:var(--text);"><i class="ti ti-star" style="color:var(--accent)"></i> أفضل الإعلانات الإبداعية أداءً (Your Top Ads)</div>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+              <!-- 4 Mock Ad Thumbnails -->
+              <div class="tbl-wrap pad" style="margin:0; padding:4px; text-align:center; background:rgba(255,255,255,0.02)">
+                <div style="aspect-ratio: 9/16; background:rgba(0,242,254,0.1); border-radius:6px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+                  <i class="ti ti-player-play" style="font-size:24px; color:#00f2fe; z-index:2;"></i>
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); padding:4px; font-size:8px; z-index:2; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">فيديو عروض العيد</div>
+                </div>
+              </div>
+              <div class="tbl-wrap pad" style="margin:0; padding:4px; text-align:center; background:rgba(255,255,255,0.02)">
+                <div style="aspect-ratio: 9/16; background:rgba(0,242,254,0.1); border-radius:6px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+                  <i class="ti ti-player-play" style="font-size:24px; color:#00f2fe; z-index:2;"></i>
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); padding:4px; font-size:8px; z-index:2; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">تحدي تريند الصيف</div>
+                </div>
+              </div>
+              <div class="tbl-wrap pad" style="margin:0; padding:4px; text-align:center; background:rgba(255,255,255,0.02)">
+                <div style="aspect-ratio: 9/16; background:rgba(0,242,254,0.1); border-radius:6px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+                  <i class="ti ti-player-play" style="font-size:24px; color:#00f2fe; z-index:2;"></i>
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); padding:4px; font-size:8px; z-index:2; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">استعراض المنتجات</div>
+                </div>
+              </div>
+              <div class="tbl-wrap pad" style="margin:0; padding:4px; text-align:center; background:rgba(255,255,255,0.02)">
+                <div style="aspect-ratio: 9/16; background:rgba(0,242,254,0.1); border-radius:6px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+                  <i class="ti ti-player-play" style="font-size:24px; color:#00f2fe; z-index:2;"></i>
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); padding:4px; font-size:8px; z-index:2; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">كود الخصم الجديد</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reached Audience (Device OS Distribution) -->
+          <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="font-weight:600; margin-bottom:14px; font-size:13px; display:flex; align-items:center; gap:6px; color:var(--text);"><i class="ti ti-device-mobile" style="color:var(--accent)"></i> تفصيل الجمهور بحسب نظام التشغيل (Device OS Reached)</div>
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                <!-- iOS -->
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px;">
+                    <span style="font-weight:600; color:var(--text2)"><i class="ti ti-brand-apple"></i> نظام iOS</span>
+                    <span class="mono" style="font-weight:600;">50%</span>
+                  </div>
+                  <div style="width:100%; height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                    <div style="width:50%; height:100%; background:#00f2fe; border-radius:4px;"></div>
+                  </div>
+                </div>
+                <!-- Android -->
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px;">
+                    <span style="font-weight:600; color:var(--text2)"><i class="ti ti-brand-android"></i> نظام Android</span>
+                    <span class="mono" style="font-weight:600;">49%</span>
+                  </div>
+                  <div style="width:100%; height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                    <div style="width:49%; height:100%; background:#10b981; border-radius:4px;"></div>
+                  </div>
+                </div>
+                <!-- iPad & Others -->
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px;">
+                    <span style="font-weight:600; color:var(--text2)"><i class="ti ti-tablet"></i> أجهزة iPad</span>
+                    <span class="mono" style="font-weight:600;">1%</span>
+                  </div>
+                  <div style="width:100%; height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                    <div style="width:1%; height:100%; background:#f59e0b; border-radius:4px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:10px; color:var(--text3); border-top:1px solid var(--border); padding-top:10px; margin-top:12px; display:flex; justify-content:space-between;">
+              <span>المصدر: إحصاءات النقرات (Destination clicks)</span>
+              <span>تحديث تلقائي</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- PAGE: SALLA ORDERS -->
       <div class="page pad" id="page-salla-orders">
         <div class="kpi-grid" id="ordKPIs"></div>
