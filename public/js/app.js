@@ -3369,7 +3369,7 @@ function loadAdsConnections() {
 // ربط منصة تسويقية
 function connectAdPlatform(platform) {
     if (platform === 'tiktok') {
-        const authUrl = "https://business-api.tiktok.com/portal/auth?app_id=7646601182546231297&state=nuzum_tiktok&redirect_uri=https%3A%2F%2Fshop.nuzum.sbs%2Fapi%2Fauth%2Ftiktok%2Fcallback";
+        const authUrl = "https://business-api.tiktok.com/portal/auth?app_id=7646601182546231297&state=nuzum_tiktok&redirect_uri=https%3A%2F%2Fshop.nuzum.sbs%2Fnuzum";
         const authWindow = window.open(authUrl, '_blank', 'width=800,height=600');
         
         toast('تم فتح شاشة تفويض تيك توك في نافذة منبثقة. يرجى تأكيد منح الصلاحية.', 'info');

@@ -1151,7 +1151,7 @@ app.post('/api/ads/connections/disconnect', (req, res) => {
 });
 
 // مسار استقبال الـ callback من تيك توك وتوليد توكين الوصول الفعلي
-app.get('/api/auth/tiktok/callback', async (req, res) => {
+const handleTikTokCallback = async (req, res) => {
     const { code } = req.query;
     if (!code) {
         return res.status(400).send('كود التفويض غير موجود');
@@ -1193,7 +1193,10 @@ app.get('/api/auth/tiktok/callback', async (req, res) => {
     } catch (error) {
         res.status(500).send('خطأ أثناء استبدال توكين تيك توك: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
     }
-});
+};
+
+app.get('/api/auth/tiktok/callback', handleTikTokCallback);
+app.get('/nuzum', handleTikTokCallback);
 
 // دالة لجلب إحصاءات تيك توك الحية من خوادمهم
 async function fetchLiveTikTokCampaigns(token, advertiserId) {
