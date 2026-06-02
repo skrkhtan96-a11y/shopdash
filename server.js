@@ -1198,45 +1198,135 @@ const handleTikTokCallback = async (req, res) => {
 app.get('/api/auth/tiktok/callback', handleTikTokCallback);
 app.get('/nuzum', handleTikTokCallback);
 
-// دالة لجلب إحصاءات تيك توك الحية من خوادمهم
-async function fetchLiveTikTokCampaigns(token, advertiserId) {
+// دالة لجلب إحصاءات تيك توك الحية من خوادمهم (البيانات الإحصائية والبيانات الفوقية)
+async function fetchLiveTikTokCampaigns(token, advertiserId, fromDate, toDate) {
     try {
-        const response = await axios.get("https://business-api.tiktok.com/open_api/v1.3/campaign/get/", {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const start = fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = toDate || todayStr;
+
+        console.log(`[TikTok API] Fetching campaigns metadata for advertiser: ${advertiserId}...`);
+        
+        // 1. جلب معلومات الحملات الإعلانية الأساسية (الاسم، الحالة الفنية)
+        const campaignsRes = await axios.get("https://business-api.tiktok.com/open_api/v1.3/campaign/get/", {
             headers: { 
                 'Access-Token': token,
                 'Content-Type': 'application/json'
             },
             params: {
-                advertiser_id: advertiserId
+                advertiser_id: advertiserId,
+                page_size: 100
             }
         });
-        if (response.data && response.data.code === 0) {
-            const campaigns = response.data.data.list || [];
-            return campaigns.map(c => ({
-                campaign_id: c.campaign_id,
-                campaign_name: c.campaign_name,
-                platform: 'tiktok',
-                status: c.operation_status === 'ENABLE' ? 'active' : 'paused',
-                spend: c.spend || 0,
-                clicks: c.clicks || 0,
-                impressions: c.impressions || 0,
-                conversions: c.conversions || 0,
-                date: new Date().toISOString().split('T')[0]
-            }));
+
+        const campaignMeta = {};
+        if (campaignsRes.data && campaignsRes.data.code === 0) {
+            const list = campaignsRes.data.data.list || [];
+            list.forEach(c => {
+                campaignMeta[c.campaign_id] = {
+                    name: c.campaign_name,
+                    status: c.operation_status === 'ENABLE' ? 'active' : 'paused'
+                };
+            });
         } else {
-            console.error("TikTok API response error:", response.data ? response.data.message : 'Unknown');
+            console.error("TikTok Campaign Get API error:", campaignsRes.data ? campaignsRes.data.message : 'Unknown');
             return null;
         }
+
+        // 2. تقسيم النطاق الزمني لطلب التقارير إلى دفعات لا تزيد كل منها عن 30 يوماً لتجنب خطأ تيك توك (max time span is 30 days)
+        const chunks = [];
+        let curr = new Date(start);
+        const endLimit = new Date(end);
+        while (curr <= endLimit) {
+            const chunkEnd = new Date(curr);
+            chunkEnd.setDate(chunkEnd.getDate() + 29); // 30 يوماً كحد أقصى للدفعة الواحدة
+            const actualEnd = chunkEnd > endLimit ? endLimit : chunkEnd;
+            chunks.push({
+                start: curr.toISOString().split('T')[0],
+                end: actualEnd.toISOString().split('T')[0]
+            });
+            curr = new Date(actualEnd);
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        const results = [];
+        const campaignsInReport = new Set();
+
+        // 3. استدعاء واجهة التقارير الموحدة لجلب الإحصاءات اليومية الفعلية
+        for (const chunk of chunks) {
+            console.log(`[TikTok API] Fetching report metrics from ${chunk.start} to ${chunk.end}...`);
+            const reportRes = await axios.get("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
+                headers: { 
+                    'Access-Token': token,
+                    'Content-Type': 'application/json'
+                },
+                params: {
+                    advertiser_id: advertiserId,
+                    report_type: 'BASIC',
+                    data_level: 'AUCTION_CAMPAIGN',
+                    dimensions: JSON.stringify(["campaign_id", "stat_time_day"]),
+                    metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
+                    start_date: chunk.start,
+                    end_date: chunk.end,
+                    page_size: 100
+                }
+            });
+
+            if (reportRes.data && reportRes.data.code === 0) {
+                const list = reportRes.data.data.list || [];
+                list.forEach(r => {
+                    const campaignId = r.dimensions.campaign_id;
+                    const dateRaw = r.dimensions.stat_time_day;
+                    const date = dateRaw.split(' ')[0]; // استخلاص التاريخ بصيغة yyyy-MM-dd
+                    const meta = campaignMeta[campaignId] || { name: 'حملة غير معروفة - TikTok', status: 'paused' };
+                    
+                    campaignsInReport.add(campaignId);
+
+                    results.push({
+                        campaign_id: campaignId + '_' + date,
+                        campaign_name: meta.name,
+                        platform: 'tiktok',
+                        status: meta.status,
+                        spend: parseFloat(r.metrics.spend || 0),
+                        clicks: parseInt(r.metrics.clicks || 0),
+                        impressions: parseInt(r.metrics.impressions || 0),
+                        conversions: parseInt(r.metrics.conversion || 0),
+                        date: date
+                    });
+                });
+            } else {
+                console.error("TikTok Reporting API error for chunk:", chunk, reportRes.data ? reportRes.data.message : 'Unknown');
+            }
+        }
+
+        // 4. الحفاظ على الحملات التي لم تنفق أي ميزانية خلال الفترة، وإضافتها بقيم صفرية لضمان ظهورها بالجدول
+        Object.keys(campaignMeta).forEach(cid => {
+            if (!campaignsInReport.has(cid)) {
+                results.push({
+                    campaign_id: cid + '_' + end,
+                    campaign_name: campaignMeta[cid].name,
+                    platform: 'tiktok',
+                    status: campaignMeta[cid].status,
+                    spend: 0.00,
+                    clicks: 0,
+                    impressions: 0,
+                    conversions: 0,
+                    date: end
+                });
+            }
+        });
+
+        return results;
     } catch (e) {
-        console.error("Failed to fetch live TikTok campaigns:", e.message);
+        console.error("Failed to fetch live TikTok campaigns and reports:", e.message);
         return null;
     }
 }
 
 // جلب إحصائيات الحملات الإعلانية مع الفلترة التاريخية ومحاكاة البيانات الذكية
 app.get('/api/ads/campaigns', (req, res) => {
-    const from = req.query.from || '';
-    const to = req.query.to || '';
+    const from = req.query.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const to = req.query.to || new Date().toISOString().split('T')[0];
     const platform = req.query.platform || ''; // facebook, snapchat, tiktok or empty for all
 
     // جلب المنصات المتصلة فعلياً
@@ -1248,7 +1338,7 @@ app.get('/api/ads/campaigns', (req, res) => {
 
         // إذا كان تيك توك متصلاً، نحاول تحديث البيانات حياً من السيرفر
         if (tiktokConn && tiktokConn.access_token && tiktokConn.account_id) {
-            const liveData = await fetchLiveTikTokCampaigns(tiktokConn.access_token, tiktokConn.account_id);
+            const liveData = await fetchLiveTikTokCampaigns(tiktokConn.access_token, tiktokConn.account_id, from, to);
             if (liveData && liveData.length > 0) {
                 // نجح الجلب! نقوم بتحديث قاعدة البيانات
                 db.serialize(() => {
