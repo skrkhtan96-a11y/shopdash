@@ -913,7 +913,18 @@ app.get('/api/ai/live-data', async (req, res) => {
                                 ads_summary: {
                                     total_ad_spend_sar: totalAdSpend,
                                     total_conversions: totalAdConversions,
-                                    campaigns_count: ads.length
+                                    campaigns_count: ads.length,
+                                    campaigns_list: ads.map(a => ({
+                                        campaign_id: a.campaign_id,
+                                        campaign_name: a.campaign_name,
+                                        platform: a.platform,
+                                        status: a.status,
+                                        spend_sar: a.spend,
+                                        clicks: a.clicks,
+                                        impressions: a.impressions,
+                                        conversions: a.conversions,
+                                        date: a.date
+                                    }))
                                 },
                                 expenses_breakdown: expenses.map(e => ({
                                     description: e.desc,
@@ -1978,6 +1989,14 @@ app.post(['/api/mcp', '/mcp'], express.json(), async (req, res) => {
                         },
                         required: ['product_name']
                     }
+                },
+                {
+                    name: 'get_campaigns_metrics',
+                    description: 'جلب إحصاءات حملات التسويق الإعلانية النشطة والسابقة (فيس بوك، سناب شات، تيك توك) وتفاصيل أدائها مثل الإنفاق، الظهور، الضغطات، المبيعات المنسوبة، والـ ROAS لكل حملة على حدة',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {}
+                    }
                 }
             ]
         };
@@ -2050,25 +2069,31 @@ async function handleToolCall(name, args) {
                     if (errSales) return reject(errSales);
                     db.all("SELECT * FROM salla_imported_wallet", [], (errWallet, wallet) => {
                         if (errWallet) return reject(errWallet);
-                        
-                        const totalExpenses = expenses.reduce((s, e) => s + (e.amt || 0), 0);
-                        const totalRevenue = sales.reduce((s, o) => s + (o.amount || 0), 0);
-                        const netProfit = totalRevenue - totalExpenses;
-                        
-                        resolve({
-                            content: [
-                                {
-                                    type: 'text',
-                                    text: JSON.stringify({
-                                        store_name: "شوب ستور - لوحة تحكم المحاسبة الذكية",
-                                        total_revenue_sar: totalRevenue,
-                                        total_expenses_sar: totalExpenses,
-                                        net_profit_sar: netProfit,
-                                        wallet_total_operations: wallet.length,
-                                        orders_count: sales.length
-                                    }, null, 2)
-                                }
-                            ]
+                        db.all("SELECT * FROM ads_campaign_metrics", [], (errAds, ads) => {
+                            if (errAds) return reject(errAds);
+                            
+                            const totalExpenses = expenses.reduce((s, e) => s + (e.amt || 0), 0);
+                            const totalRevenue = sales.reduce((s, o) => s + (o.amount || 0), 0);
+                            const totalAdSpend = ads ? ads.reduce((s, a) => s + (a.spend || 0), 0) : 0;
+                            const netProfit = totalRevenue - totalExpenses;
+                            
+                            resolve({
+                                content: [
+                                    {
+                                        type: 'text',
+                                        text: JSON.stringify({
+                                            store_name: "شوب ستور - لوحة تحكم المحاسبة الذكية",
+                                            total_revenue_sar: totalRevenue,
+                                            total_expenses_sar: totalExpenses,
+                                            total_ad_spend_sar: totalAdSpend,
+                                            net_profit_sar: netProfit,
+                                            wallet_total_operations: wallet.length,
+                                            orders_count: sales.length,
+                                            campaigns_count: ads ? ads.length : 0
+                                        }, null, 2)
+                                    }
+                                ]
+                            });
                         });
                     });
                 });
@@ -2132,6 +2157,18 @@ async function handleToolCall(name, args) {
                             ]
                         });
                     });
+                });
+            });
+        } else if (name === 'get_campaigns_metrics') {
+            db.all("SELECT * FROM ads_campaign_metrics ORDER BY date DESC", [], (err, rows) => {
+                if (err) return reject(err);
+                resolve({
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify(rows, null, 2)
+                        }
+                    ]
                 });
             });
         } else if (name === 'get_expenses_list') {
