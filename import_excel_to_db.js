@@ -21,6 +21,31 @@ console.log("Excel Path:", excelPath);
 
 const db = new sqlite3.Database(dbPath);
 
+const cleanProductName = name => {
+    if (!name) return '';
+    let cleaned = name.trim();
+    if (cleaned.startsWith("'") && cleaned.endsWith("'")) {
+        cleaned = cleaned.slice(1, -1).trim();
+    } else {
+        if (cleaned.startsWith("'")) cleaned = cleaned.substring(1).trim();
+        if (cleaned.endsWith("'")) cleaned = cleaned.slice(0, -1).trim();
+    }
+    cleaned = cleaned.replace(/^\(?\'?SKU:\s*[^\)]*\'?\)?/gi, '');
+    cleaned = cleaned.replace(/^\(?\'?رمز المنتج:\s*[^\)]*\'?\)?/gi, '');
+    cleaned = cleaned.replace(/\(?\'?Qty:\s*\d+\'?\)?$/gi, '');
+    cleaned = cleaned.replace(/\(?\'?الكمية:\s*\d+\'?\)?$/gi, '');
+    cleaned = cleaned.replace(/\(Q$/gi, '');
+    cleaned = cleaned.replace(/\(Qty$/gi, '');
+    cleaned = cleaned.replace(/^['"\s\-\(]+/g, '');
+    cleaned = cleaned.replace(/['"\s\-\)]+$/g, '');
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    cleaned = cleaned.replace(/\(\s*شهر\s*\)/gi, '- شهر');
+    cleaned = cleaned.replace(/\(\s*أشهر\s*\)/gi, '- أشهر');
+    cleaned = cleaned.replace(/\(\s*شهرين\s*\)/gi, '- شهرين');
+    cleaned = cleaned.replace(/\(\s*سنة\s*\)/gi, '- سنة');
+    return cleaned;
+};
+
 try {
     const wb = XLSX.readFile(excelPath, { cellDates: true });
     const sheetName = wb.SheetNames[0];
@@ -81,7 +106,7 @@ try {
                     if (Array.isArray(parsed) && parsed.length > 0) {
                         items = parsed.map(item => {
                             return {
-                                name: item[0] || 'منتج مستورد',
+                                name: cleanProductName(item[0] || 'منتج مستورد'),
                                 qty: parseInt(item[1]) || 1,
                                 amount: parseFloat(item[4]) || 0
                             };
@@ -110,7 +135,7 @@ try {
                     newCount++;
                 });
             } else {
-                const prodName = String(r['اسماء المنتجات مع SKU'] || r['المنتج'] || 'منتج مستورد').trim();
+                const prodName = cleanProductName(String(r['اسماء المنتجات مع SKU'] || r['المنتج'] || 'منتج مستورد').trim());
                 stmt.run([
                     refId,
                     dateStr,

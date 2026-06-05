@@ -64,8 +64,24 @@
         <div class="form-row full">
           <div class="form-group">
             <label class="form-label">المنتج (اختر من قائمة منتجات سلة الموجودة)</label>
-            <select id="mProductSelect" style="width: 100%;" onchange="toggleCustomProductField()"></select>
+            <select id="mProductSelect" style="width: 100%;" onchange="toggleCustomProductField(); handleProductPricingChange();"></select>
             <input type="text" id="mProductCustom" placeholder="اكتب اسم المنتج المخصص هنا..." style="display:none; margin-top:6px; width: 100%;" oninput="checkProductPlusPeriod()">
+          </div>
+        </div>
+        <!-- حقل مدة الاشتراك التفاعلي للمنتجات بلس أو PS5 -->
+        <div class="form-row full" id="mPeriodBlock" style="display:none; margin-top:6px;">
+          <div class="form-group">
+            <label class="form-label" style="color:var(--amber); font-weight:600;"><i class="ti ti-calendar-time"></i> مدة الاشتراك / نوع الفترة</label>
+            <select id="mPeriod" style="width: 100%;" onchange="handleProductPricingChange();">
+              <option value="">-- اختر مدة الاشتراك --</option>
+              <option value="يومي">يومي (Daily)</option>
+              <option value="اسبوعي">اسبوعي (Weekly)</option>
+              <option value="شهري">شهري (Monthly)</option>
+              <option value="3 أشهر">3 أشهر (3 Months)</option>
+              <option value="6 أشهر">6 أشهر (6 Months)</option>
+              <option value="9 أشهر">9 أشهر (9 Months)</option>
+              <option value="سنة">سنة (1 Year)</option>
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -87,22 +103,6 @@
             <div style="font-size:11px; color:var(--text2);">
               * إجمالي المحسوب: <span id="mCalcTotal" class="mono accent" style="font-weight:600;">0.00</span> ر.س
             </div>
-          </div>
-        </div>
-        <!-- حقل مدة الاشتراك التفاعلي للمنتجات بلس أو PS5 -->
-        <div class="form-row full" id="mPeriodBlock" style="display:none; margin-top:6px;">
-          <div class="form-group">
-            <label class="form-label" style="color:var(--amber); font-weight:600;"><i class="ti ti-calendar-time"></i> مدة الاشتراك / نوع الفترة</label>
-            <select id="mPeriod" style="width: 100%;">
-              <option value="">-- اختر مدة الاشتراك --</option>
-              <option value="يومي">يومي (Daily)</option>
-              <option value="اسبوعي">اسبوعي (Weekly)</option>
-              <option value="شهري">شهري (Monthly)</option>
-              <option value="3 أشهر">3 أشهر (3 Months)</option>
-              <option value="6 أشهر">6 أشهر (6 Months)</option>
-              <option value="9 أشهر">9 أشهر (9 Months)</option>
-              <option value="سنة">سنة (1 Year)</option>
-            </select>
           </div>
         </div>
       </div>
@@ -544,6 +544,41 @@
       <!-- PAGE: EXPENSES -->
       <div class="page pad" id="page-expenses">
         <div id="expArcNote" class="arc-note" style="display:none"><i class="ti ti-lock"></i> عرض للقراءة فقط — البيانات مؤرشفة في قاعدة البيانات</div>
+        
+        <!-- KPIs Grid for Purchases & Expenses Dashboard -->
+        <div class="kpi-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-shopping-cart"></i></div>
+            <div class="kpi-val" id="kpiPurchaseTotal">0.00 ر.س</div>
+            <div class="kpi-label">قيمة مشتريات المنتجات</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-trending-up"></i></div>
+            <div class="kpi-val" id="kpiPurchaseProfit">0.00 ر.س</div>
+            <div class="kpi-label">أرباح المشتريات المتوقعة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon red"><i class="ti ti-speakerphone"></i></div>
+            <div class="kpi-val" id="kpiMarketingTotal">0.00 ر.س</div>
+            <div class="kpi-label">تكاليف التسويق والتمويل (-)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon red"><i class="ti ti-users"></i></div>
+            <div class="kpi-val" id="kpiSalariesTotal">0.00 ر.س</div>
+            <div class="kpi-label">الرواتب والأجور التشغيلية (-)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon red"><i class="ti ti-file-text"></i></div>
+            <div class="kpi-val" id="kpiLicenseRentTotal">0.00 ر.س</div>
+            <div class="kpi-label">إيجار الوثيقة (-)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon accent"><i class="ti ti-wallet"></i></div>
+            <div class="kpi-val" id="kpiNetProfitAfterDeductions" style="font-weight:700;">0.00 ر.س</div>
+            <div class="kpi-label" style="font-weight:700">صافي أرباح المشتريات الفعلي</div>
+          </div>
+        </div>
+
         <div class="tbl-wrap">
           <div class="tbl-header">
             <div class="tbl-title">جدول المصروفات والمشتريات التشغيلية <span class="tbl-count" id="expCount" style="font-size:10px;color:var(--text3)"></span></div>
@@ -612,6 +647,12 @@
               <option value="facebook">فيس بوك / إنستغرام</option>
               <option value="snapchat">سناب شات</option>
               <option value="tiktok">تيك توك</option>
+            </select>
+            <label style="margin-right:8px">حالة الحملة:</label>
+            <select id="adStatusFilter" onchange="renderCampaigns()">
+              <option value="active" selected>نشطة فقط</option>
+              <option value="all">كافة الحملات (الكل)</option>
+              <option value="paused">متوقفة فقط</option>
             </select>
             <label style="margin-right:8px">من:</label>
             <input type="date" id="adFrom" onchange="renderCampaigns()" style="width:125px">
@@ -697,7 +738,10 @@
               <span id="detPlatformBadge"></span> &bull; <span id="detCampaignStatus"></span> &bull; معرف الحملة: <span id="detCampaignId" class="mono" style="font-size:10px;">-</span>
             </div>
           </div>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="exportCampaignDetailToExcel()" style="background:rgba(16,185,129,0.1); color:#10B981; border:1px solid rgba(16,185,129,0.2); padding:8px 12px; border-radius:8px; font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
+              <i class="ti ti-file-spreadsheet" style="font-size:14px;"></i> تصدير البيانات إلى إكسل (Excel)
+            </button>
             <div class="badge" style="background:rgba(0,242,254,0.1); color:#00f2fe; padding:8px 12px; border-radius:8px; border:1px solid rgba(0,242,254,0.2); font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px;">
               <i class="ti ti-activity"></i> مباشر من تيك توك Ads
             </div>
@@ -707,7 +751,7 @@
         <!-- Recommendations Grid -->
         <div style="margin-bottom:20px;">
           <h3 style="font-size:14px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:6px; color:var(--text);"><i class="ti ti-bulb" style="color:#00f2fe"></i> التوصيات الذكية لتحسين الحملة</h3>
-          <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+          <div class="kpi-grid" id="detRecommendationsList" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
             <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between; min-height:140px;">
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -750,12 +794,16 @@
             <div style="font-weight:600; margin-bottom:12px; font-size:13px; display:flex; align-items:center; gap:6px;"><i class="ti ti-report-money" style="color:var(--accent)"></i> نظرة عامة على الحساب الإعلاني</div>
             <div style="display:flex; flex-direction:column; gap:12px; padding:6px 0;">
               <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px;">
-                <span style="font-size:12px; color:var(--text2);">الرصيد المتاح (Available Balance):</span>
-                <span class="mono accent" style="font-weight:700; font-size:14px;" id="detAvailableBalance">123.31 ر.س</span>
+                <span style="font-size:12px; color:var(--text2);">الرصيد المتاح بالحساب (Account Balance):</span>
+                <span class="mono accent" style="font-weight:700; font-size:14px;" id="detAvailableBalance">141.70 ر.س</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                <span style="font-size:12px; color:var(--text2);">ميزانية الحملة (Campaign Budget):</span>
+                <span class="mono accent" style="font-weight:700; font-size:14px;" id="detCampaignBudget">-</span>
               </div>
               <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:4px;">
                 <span style="font-size:12px; color:var(--text2);">إنفاق اليوم (Today's Spend):</span>
-                <span class="mono red" style="font-weight:700; font-size:14px;" id="detTodaySpend">8.82 ر.س</span>
+                <span class="mono red" style="font-weight:700; font-size:14px;" id="detTodaySpend">-</span>
               </div>
             </div>
           </div>
@@ -787,47 +835,77 @@
             <div style="font-size:11px; color:var(--text3);" id="detChartDateRange">-</div>
           </div>
 
-          <div style="display:grid; grid-template-columns: 240px 1fr; gap:20px; align-items:stretch;" class="perf-detail-grid">
+          <div style="display:grid; grid-template-columns: 280px 1fr; gap:20px; align-items:stretch;" class="perf-detail-grid">
             <!-- KPI Selection Panel -->
-            <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; flex-direction:column; gap:6px; max-height:480px; overflow-y:auto; padding-right:4px;">
               <!-- Cost KPI Card -->
-              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--accent); background:rgba(0,242,254,0.05)" id="kpichip-cost" onclick="toggleDetailKPI('cost')">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                  <span style="font-size:11px; color:var(--text2)">التكلفة الإجمالية (Cost)</span>
+              <div class="tbl-wrap pad" style="margin:0; padding:8px 12px; cursor:pointer; border:1px solid var(--accent); background:rgba(0,242,254,0.05)" id="kpichip-cost" onclick="toggleDetailKPI('cost')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <span style="font-size:10px; color:var(--text2)">التكلفة الإجمالية (Cost)</span>
                   <input type="checkbox" checked id="chk-cost" style="pointer-events:none;">
                 </div>
-                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detCostValue">-</div>
-                <div style="font-size:10px; color:var(--green); margin-top:2px;" id="detCostChange">▲ 0%</div>
+                <div style="font-size:14px; font-weight:700; color:var(--text);" id="detCostValue">-</div>
+                <div style="font-size:9px; color:var(--green);" id="detCostChange">▲ 0%</div>
               </div>
 
               <!-- Impressions KPI Card -->
-              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--border)" id="kpichip-impressions" onclick="toggleDetailKPI('impressions')">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                  <span style="font-size:11px; color:var(--text2)">مرات الظهور (Impressions)</span>
+              <div class="tbl-wrap pad" style="margin:0; padding:8px 12px; cursor:pointer; border:1px solid var(--border)" id="kpichip-impressions" onclick="toggleDetailKPI('impressions')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <span style="font-size:10px; color:var(--text2)">مرات الظهور (Impressions)</span>
                   <input type="checkbox" checked id="chk-impressions" style="pointer-events:none;">
                 </div>
-                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detImpressionsValue">-</div>
-                <div style="font-size:10px; color:var(--green); margin-top:2px;" id="detImpressionsChange">▲ 0%</div>
+                <div style="font-size:14px; font-weight:700; color:var(--text);" id="detImpressionsValue">-</div>
+                <div style="font-size:9px; color:var(--green);" id="detImpressionsChange">▲ 0%</div>
               </div>
 
-              <!-- CPM KPI Card -->
-              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--border)" id="kpichip-cpm" onclick="toggleDetailKPI('cpm')">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                  <span style="font-size:11px; color:var(--text2)">تكلفة الألف ظهور (CPM)</span>
-                  <input type="checkbox" id="chk-cpm" style="pointer-events:none;">
+              <!-- Clicks KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:8px 12px; cursor:pointer; border:1px solid var(--border)" id="kpichip-clicks" onclick="toggleDetailKPI('clicks')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <span style="font-size:10px; color:var(--text2)">النقرات (Clicks)</span>
+                  <input type="checkbox" id="chk-clicks" style="pointer-events:none;">
                 </div>
-                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detCPMValue">-</div>
-                <div style="font-size:10px; color:var(--red); margin-top:2px;" id="detCPMChange">▼ 0%</div>
+                <div style="font-size:14px; font-weight:700; color:var(--text);" id="detClicksValue">-</div>
+                <div style="font-size:9px; color:var(--green);" id="detClicksChange">▲ 0%</div>
               </div>
 
               <!-- CTR KPI Card -->
-              <div class="tbl-wrap pad" style="margin:0; padding:10px; cursor:pointer; border:1px solid var(--border)" id="kpichip-ctr" onclick="toggleDetailKPI('ctr')">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                  <span style="font-size:11px; color:var(--text2)">نسبة النقر (CTR)</span>
+              <div class="tbl-wrap pad" style="margin:0; padding:8px 12px; cursor:pointer; border:1px solid var(--border)" id="kpichip-ctr" onclick="toggleDetailKPI('ctr')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <span style="font-size:10px; color:var(--text2)">نسبة النقر (CTR)</span>
                   <input type="checkbox" id="chk-ctr" style="pointer-events:none;">
                 </div>
-                <div style="font-size:15px; font-weight:700; color:var(--text);" id="detCTRValue">-</div>
-                <div style="font-size:10px; color:var(--red); margin-top:2px;" id="detCTRChange">▼ 0%</div>
+                <div style="font-size:14px; font-weight:700; color:var(--text);" id="detCTRValue">-</div>
+                <div style="font-size:9px; color:var(--green);" id="detCTRChange">▲ 0%</div>
+              </div>
+
+              <!-- Conversions KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:8px 12px; cursor:pointer; border:1px solid var(--border)" id="kpichip-conversions" onclick="toggleDetailKPI('conversions')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <span style="font-size:10px; color:var(--text2)">التحويلات/المبيعات (Conversions)</span>
+                  <input type="checkbox" id="chk-conversions" style="pointer-events:none;">
+                </div>
+                <div style="font-size:14px; font-weight:700; color:var(--text);" id="detConversionsValue">-</div>
+                <div style="font-size:9px; color:var(--green);" id="detConversionsChange">▲ 0%</div>
+              </div>
+
+              <!-- CPA KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:8px 12px; cursor:pointer; border:1px solid var(--border)" id="kpichip-cpa" onclick="toggleDetailKPI('cpa')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <span style="font-size:10px; color:var(--text2)">تكلفة التحويل (CPA)</span>
+                  <input type="checkbox" id="chk-cpa" style="pointer-events:none;">
+                </div>
+                <div style="font-size:14px; font-weight:700; color:var(--text);" id="detCPAValue">-</div>
+                <div style="font-size:9px; color:var(--green);" id="detCPAChange">▼ 0%</div>
+              </div>
+
+              <!-- ROAS KPI Card -->
+              <div class="tbl-wrap pad" style="margin:0; padding:8px 12px; cursor:pointer; border:1px solid var(--border)" id="kpichip-roas" onclick="toggleDetailKPI('roas')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <span style="font-size:10px; color:var(--text2)">العائد على الإعلان (ROAS)</span>
+                  <input type="checkbox" id="chk-roas" style="pointer-events:none;">
+                </div>
+                <div style="font-size:14px; font-weight:700; color:var(--text);" id="detROASValue">-</div>
+                <div style="font-size:9px; color:var(--green);" id="detROASChange">▲ 0%</div>
               </div>
             </div>
 
@@ -843,7 +921,7 @@
           <!-- Top Ads -->
           <div class="tbl-wrap pad">
             <div style="font-weight:600; margin-bottom:14px; font-size:13px; display:flex; align-items:center; gap:6px; color:var(--text);"><i class="ti ti-star" style="color:var(--accent)"></i> أفضل الإعلانات الإبداعية أداءً (Your Top Ads)</div>
-            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+            <div id="detTopAdsList" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
               <!-- 4 Mock Ad Thumbnails -->
               <div class="tbl-wrap pad" style="margin:0; padding:4px; text-align:center; background:rgba(255,255,255,0.02)">
                 <div style="aspect-ratio: 9/16; background:rgba(0,242,254,0.1); border-radius:6px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
@@ -876,7 +954,7 @@
           <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between;">
             <div>
               <div style="font-weight:600; margin-bottom:14px; font-size:13px; display:flex; align-items:center; gap:6px; color:var(--text);"><i class="ti ti-device-mobile" style="color:var(--accent)"></i> تفصيل الجمهور بحسب نظام التشغيل (Device OS Reached)</div>
-              <div style="display:flex; flex-direction:column; gap:12px;">
+              <div id="detOSDistribution" style="display:flex; flex-direction:column; gap:12px;">
                 <!-- iOS -->
                 <div>
                   <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px;">
@@ -932,12 +1010,28 @@
             <label>من:</label><input type="date" id="ordFrom" value="2026-05-01">
             <label>إلى:</label><input type="date" id="ordTo">
             <input type="text" id="ordQ" placeholder="بحث باسم المنتج / العميل..." style="width:180px">
-            <select id="ordStatus">
-              <option value="">كافة الحالات</option>
-              <option value="completed">تم التنفيذ</option>
-              <option value="under_review">بانتظار المراجعة</option>
-              <option value="payment_pending">بانتظار الدفع</option>
-            </select>
+            <div class="custom-multiselect" style="position:relative;display:inline-block;z-index:98">
+              <button class="btn btn-sm" id="ordStatusBtn" onclick="toggleOrderStatusDropdown(event)" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);display:flex;align-items:center;gap:6px;font-size:11px;min-width:150px;justify-content:space-between;padding:5px 8px;height:30px;border-radius:var(--r1);">
+                <span>الحالة (الكل)</span>
+                <i class="ti ti-chevron-down" style="font-size:10px;opacity:0.7"></i>
+              </button>
+              <div class="multiselect-dropdown" id="ordStatusDropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r1);box-shadow:0 10px 25px rgba(0,0,0,0.3);width:200px;padding:8px;z-index:999;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none;">
+                    <input type="checkbox" class="status-chk" value="completed" checked onchange="onOrderStatusChange()" style="accent-color:var(--accent)">
+                    <span>تم التنفيذ</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none;">
+                    <input type="checkbox" class="status-chk" value="under_review" checked onchange="onOrderStatusChange()" style="accent-color:var(--accent)">
+                    <span>بانتظار المراجعة</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none;">
+                    <input type="checkbox" class="status-chk" value="payment_pending" checked onchange="onOrderStatusChange()" style="accent-color:var(--accent)">
+                    <span>بانتظار الدفع</span>
+                  </label>
+                </div>
+              </div>
+            </div>
             <button class="btn btn-sm btn-primary" onclick="loadOrders(true)"><i class="ti ti-search"></i> تصفية وتحديث</button>
           </div>
           
