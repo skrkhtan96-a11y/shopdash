@@ -4928,27 +4928,66 @@ async function loadPsPlusAccounts() {
 }
 
 function renderPsPlusAccounts(accounts) {
-    const tbody = document.getElementById('psPlusTbody');
-    if (!tbody) return;
-
-    if (accounts.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات بلس مسجلة حالياً</p></div></td></tr>';
-        updatePsPlusKPIs(0, 0, 0, 0);
-        return;
+    if (!accounts) {
+        accounts = state.psPlusAccounts || [];
     }
 
+    // Calculate total KPIs first (based on the full list)
     let totalAccounts = accounts.length;
     let availablePs5 = 0;
     let availablePs4 = 0;
     let completedAccounts = 0;
 
-    tbody.innerHTML = accounts.map((c, i) => {
+    accounts.forEach(c => {
         let deliveredCount = 0;
         if (c.ps5_1_status === 'available') availablePs5++; else deliveredCount++;
         if (c.ps5_2_status === 'available') availablePs5++; else deliveredCount++;
         if (c.ps4_status === 'available') availablePs4++; else deliveredCount++;
-
         if (deliveredCount === 3) completedAccounts++;
+    });
+
+    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts);
+
+    const tbody = document.getElementById('psPlusTbody');
+    if (!tbody) return;
+
+    if (accounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات بلس مسجلة حالياً</p></div></td></tr>';
+        return;
+    }
+
+    // Get filter elements from DOM
+    const filterType = document.getElementById('psFilterType')?.value || '';
+    const filterDuration = document.getElementById('psFilterDuration')?.value || '';
+    const filterStock = document.getElementById('psFilterStock')?.value || '';
+    const filterSearch = document.getElementById('psFilterSearch')?.value.trim().toLowerCase() || '';
+
+    // Apply filters
+    const filtered = accounts.filter(c => {
+        if (filterType && c.plus_type !== filterType) return false;
+        if (filterDuration && c.plus_duration !== filterDuration) return false;
+        if (filterStock) {
+            const remPs5 = (c.ps5_1_status === 'available' ? 1 : 0) + (c.ps5_2_status === 'available' ? 1 : 0);
+            const remPs4 = c.ps4_status === 'available' ? 1 : 0;
+            if (filterStock === 'has_any' && remPs5 === 0 && remPs4 === 0) return false;
+            if (filterStock === 'has_ps5' && remPs5 === 0) return false;
+            if (filterStock === 'has_ps4' && remPs4 === 0) return false;
+            if (filterStock === 'empty' && (remPs5 > 0 || remPs4 > 0)) return false;
+        }
+        if (filterSearch && !c.email.toLowerCase().includes(filterSearch)) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات تطابق خيارات التصفية الحالية</p></div></td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map((c, i) => {
+        let deliveredCount = 0;
+        if (c.ps5_1_status !== 'available') deliveredCount++;
+        if (c.ps5_2_status !== 'available') deliveredCount++;
+        if (c.ps4_status !== 'available') deliveredCount++;
 
         // حساب حالة الحساب الإجمالية
         let overallStatus = '';
@@ -5000,8 +5039,6 @@ function renderPsPlusAccounts(accounts) {
             </td>
         </tr>`;
     }).join('');
-
-    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts);
 }
 
 function updatePsPlusKPIs(total, ps5, ps4, completed) {

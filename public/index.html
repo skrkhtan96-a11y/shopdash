@@ -1729,6 +1729,42 @@
             </div>
           </div>
           
+          <div class="filter-bar" style="margin-bottom: 10px;">
+            <label><i class="ti ti-filter"></i> تصفية بحسب:</label>
+            
+            <label style="margin-right:4px">نوع الحساب:</label>
+            <select id="psFilterType" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">الكل (نوع الحساب)</option>
+              <option value="اساسي">اساسي (Essential)</option>
+              <option value="اضافي">اضافي (Extra)</option>
+              <option value="فاخر">فاخر (Deluxe)</option>
+            </select>
+
+            <label style="margin-right:8px">الفترة:</label>
+            <select id="psFilterDuration" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">الكل (الفترة)</option>
+              <option value="يومي">يومي</option>
+              <option value="اسبوعي">اسبوعي</option>
+              <option value="شهري">شهري</option>
+              <option value="3 أشهر">3 أشهر</option>
+              <option value="6 أشهر">6 أشهر</option>
+              <option value="9 أشهر">9 أشهر</option>
+              <option value="سنة">سنة</option>
+            </select>
+
+            <label style="margin-right:8px">المخزون المتبقي:</label>
+            <select id="psFilterStock" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">الكل (حالة المخزون)</option>
+              <option value="has_any">به نسخ متاحة (أي نسخة)</option>
+              <option value="has_ps5">به نسخ PS5 متاحة</option>
+              <option value="has_ps4">به نسخ PS4 متاحة</option>
+              <option value="empty">مكتمل التسليم (نفذت الكمية)</option>
+            </select>
+            
+            <label style="margin-right:auto">بحث:</label>
+            <input type="text" id="psFilterSearch" oninput="renderPsPlusAccounts()" placeholder="ابحث بالإيميل..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 160px;">
+          </div>
+          
           <div class="tbl-scroll">
             <table>
               <thead>
