@@ -5183,12 +5183,16 @@ async function confirmPsPlusDelivery() {
         const type = document.getElementById('deliverShowType').textContent;
         const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
 
-        // صياغة رسالة الواتساب المنسقة
-        const messageText = `الإيميل : ${email}\n\n` + 
+        // صياغة رسالة الواتساب المنسقة مع رسالة تسويقية فاخرة
+        const messageText = `مرحباً بك! تم تسليم طلبك بنجاح من متجر شوب ستور 🎮✨\n\n` +
+                            `الإيميل : ${email}\n` + 
                             `الباسورد   ${passwordPlaceholder(email)}\n\n` + 
                             `نوع البلس : ( بلس ${type} ${slotName} )\n\n` + 
                             `تم تسليم ${slotName}  ✅\n` + 
-                            `رقم الطلب : ${order_id}`;
+                            `رقم الطلب : ${order_id}\n\n` +
+                            `🌸 يسعدنا تقييمك للخدمة ومشاركتنا تجربتك المميزة!\n` +
+                            `كود خصم خاص بطلبك القادم: (PS10) 🎁\n` +
+                            `رابط المتجر: https://salla.sa/shopstore`;
         
         // إعادة تحميل القائمة لتحديث الحالات
         loadPsPlusAccounts();
