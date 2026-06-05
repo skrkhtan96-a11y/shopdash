@@ -711,9 +711,11 @@ select:focus, input:focus, textarea:focus {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, .7);
-  z-index: 200;
+  z-index: 1050;
   align-items: center;
   justify-content: center;
+  overflow-y: auto;
+  padding: 10px;
 }
 
 .modal-bg.open {
@@ -1226,6 +1228,13 @@ textarea {
   
   .kpi-label {
     font-size: 9px;
+  }
+  .modal-bg {
+    align-items: flex-start;
+    padding: 20px 10px;
+  }
+  .modal {
+    max-height: 90vh;
   }
 }
 
