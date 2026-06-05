@@ -1839,7 +1839,7 @@ app.delete('/api/expenses/:id', (req, res) => {
 
 // مسار حذف وتصفير جميع المصروفات
 app.post('/api/expenses/clear', (req, res) => {
-    if (req.user && req.user.role === 'employee') {
+    if (req.user && (req.user.role === 'employee' || req.user.role === 'games_employee')) {
         return res.status(403).json({ error: 'غير مصرح لك بهذه الصلاحية.' });
     }
     db.run("DELETE FROM expenses", [], function (err) {
