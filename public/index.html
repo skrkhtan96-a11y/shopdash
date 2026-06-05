@@ -608,6 +608,13 @@
               <option value="amt-desc">المبلغ: الأعلى أولاً</option>
               <option value="amt-asc">المبلغ: الأقل أولاً</option>
             </select>
+            <label style="margin-right:4px">الفترة:</label>
+            <select id="expPeriod" onchange="renderExp()">
+              <option value="">كافة الفترات</option>
+              <option value="شهري">شهري</option>
+              <option value="3 أشهر">3 أشهر</option>
+              <option value="سنة">سنة</option>
+            </select>
           </div>
           <div class="tbl-scroll">
             <table>
@@ -616,6 +623,7 @@
                   <th>#</th>
                   <th>البيان (الوصف)</th>
                   <th>التصنيف</th>
+                  <th>فترة الاشتراك</th>
                   <th>المبلغ (ر.س)</th>
                   <th>التاريخ</th>
                   <th>ملاحظات</th>

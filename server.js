@@ -1586,6 +1586,7 @@ app.get('/api/salla/abandoned-carts', async (req, res) => {
 // جلب المصروفات
 app.get('/api/expenses', (req, res) => {
     const cat = req.query.cat || '';
+    const period = req.query.period || '';
     const q = req.query.q || '';
     const sort = req.query.sort || 'desc'; // desc, asc, amt-desc, amt-asc
     const from = req.query.from || '';
@@ -1597,6 +1598,10 @@ app.get('/api/expenses', (req, res) => {
     if (cat) {
         query += " AND cat = ?";
         params.push(cat);
+    }
+    if (period) {
+        query += " AND period = ?";
+        params.push(period);
     }
     if (q) {
         query += " AND (desc LIKE ? OR note LIKE ?)";
