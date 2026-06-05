@@ -5192,7 +5192,7 @@ async function confirmPsPlusDelivery() {
                             `رقم الطلب : ${order_id}\n\n` +
                             `🌸 يسعدنا تقييمك للخدمة ومشاركتنا تجربتك المميزة!\n` +
                             `كود خصم خاص بطلبك القادم: (PS10) 🎁\n` +
-                            `رابط المتجر: https://salla.sa/shopstore`;
+                            `رابط المتجر: https://sho9.com`;
         
         // إعادة تحميل القائمة لتحديث الحالات
         loadPsPlusAccounts();
