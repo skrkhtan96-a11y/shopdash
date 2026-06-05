@@ -194,6 +194,27 @@ db.serialize(() => {
         )
     `);
 
+    // 14. جدول مخزون حسابات بلايستيشن بلس
+    db.run(`
+        CREATE TABLE IF NOT EXISTS ps_plus_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            plus_type TEXT NOT NULL,
+            plus_duration TEXT NOT NULL,
+            ps5_1_order TEXT,
+            ps5_1_phone TEXT,
+            ps5_1_status TEXT DEFAULT 'available',
+            ps5_2_order TEXT,
+            ps5_2_phone TEXT,
+            ps5_2_status TEXT DEFAULT 'available',
+            ps4_order TEXT,
+            ps4_phone TEXT,
+            ps4_status TEXT DEFAULT 'available',
+            created_at TEXT NOT NULL
+        )
+    `);
+
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });

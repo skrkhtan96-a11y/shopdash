@@ -2496,6 +2496,172 @@ async function handleToolCall(name, args) {
     });
 }
 
+// ── 3.1. مسارات إدارة مخزون حسابات بلايستيشن بلس ──
+app.get('/api/ps-plus/accounts', authenticateUser, (req, res) => {
+    db.all("SELECT * FROM ps_plus_accounts ORDER BY created_at DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+app.post('/api/ps-plus/accounts', authenticateUser, (req, res) => {
+    const { email, password, plus_type, plus_duration } = req.body;
+    if (!email || !password || !plus_type || !plus_duration) {
+        return res.status(400).json({ error: 'جميع الحقول (الإيميل، الباسورد، نوع البلس، مدة الاشتراك) مطلوبة.' });
+    }
+
+    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    db.run(
+        "INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, created_at) VALUES (?, ?, ?, ?, ?)",
+        [email.trim(), password.trim(), plus_type.trim(), plus_duration.trim(), createdAt],
+        function(err) {
+            if (err) {
+                if (err.message.includes('UNIQUE')) {
+                    return res.status(400).json({ error: 'هذا الإيميل مسجل بالفعل في حسابات بلس.' });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ success: true, id: this.lastID });
+        }
+    );
+});
+
+app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
+    const { id } = req.params;
+    const { email, password, plus_type, plus_duration, ps5_1_order, ps5_2_order, ps4_order } = req.body;
+    if (!email || !password || !plus_type || !plus_duration) {
+        return res.status(400).json({ error: 'جميع الحقول مطلوبة لتحديث البيانات.' });
+    }
+
+    const o51 = ps5_1_order ? ps5_1_order.trim() : '';
+    const o52 = ps5_2_order ? ps5_2_order.trim() : '';
+    const o4 = ps4_order ? ps4_order.trim() : '';
+
+    const s51 = o51 ? 'delivered' : 'available';
+    const s52 = o52 ? 'delivered' : 'available';
+    const s4 = o4 ? 'delivered' : 'available';
+
+    db.run(
+        `UPDATE ps_plus_accounts SET 
+            email = ?, 
+            password = ?, 
+            plus_type = ?, 
+            plus_duration = ?, 
+            ps5_1_order = ?, 
+            ps5_1_status = ?, 
+            ps5_2_order = ?, 
+            ps5_2_status = ?, 
+            ps4_order = ?, 
+            ps4_status = ? 
+         WHERE id = ?`,
+        [
+            email.trim(), 
+            password.trim(), 
+            plus_type.trim(), 
+            plus_duration.trim(), 
+            o51, 
+            s51, 
+            o52, 
+            s52, 
+            o4, 
+            s4, 
+            id
+        ],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true });
+        }
+    );
+});
+
+app.delete('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
+    const { id } = req.params;
+    db.run("DELETE FROM ps_plus_accounts WHERE id = ?", [id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
+app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
+    const { id, slot, order_id, phone } = req.body;
+    if (!id || !slot || !order_id) {
+        return res.status(400).json({ error: 'معرف الحساب، النسخة المراد تسليمها، ورقم الطلب مطلوبة.' });
+    }
+
+    if (!['ps5_1', 'ps5_2', 'ps4'].includes(slot)) {
+        return res.status(400).json({ error: 'النسخة المحددة غير صالحة.' });
+    }
+
+    const orderClean = order_id.trim();
+
+    // التحقق من عدم تكرار رقم الطلب في أي مكان بالجدول
+    db.get(
+        "SELECT id, email FROM ps_plus_accounts WHERE ps5_1_order = ? OR ps5_2_order = ? OR ps4_order = ?",
+        [orderClean],
+        (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (row) {
+                return res.status(400).json({ error: `رقم الطلب هذا تم استخدامه مسبقاً لتسليم الحساب (${row.email}). لا يمكن تكراره.` });
+            }
+
+            // تنفيذ التحديث
+            const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered' WHERE id = ?`;
+            db.run(query, [orderClean, phone ? phone.trim() : '', id], function(errUpdate) {
+                if (errUpdate) return res.status(500).json({ error: errUpdate.message });
+                res.json({ success: true });
+            });
+        }
+    );
+});
+
+app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
+    const accounts = req.body;
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+        return res.status(400).json({ error: 'الرجاء إرسال مصفوفة صالحة تحتوي على الحسابات.' });
+    }
+
+    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    
+    db.serialize(() => {
+        db.run("BEGIN TRANSACTION");
+        
+        let errorOccurred = false;
+        let count = 0;
+        
+        const stmt = db.prepare(
+            `INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, created_at) 
+             VALUES (?, ?, ?, ?, ?) 
+             ON CONFLICT(email) DO UPDATE SET 
+                password = excluded.password, 
+                plus_type = excluded.plus_type, 
+                plus_duration = excluded.plus_duration`
+        );
+        
+        for (const account of accounts) {
+            const { email, password, plus_type, plus_duration } = account;
+            if (!email || !password || !plus_type || !plus_duration) continue;
+            
+            stmt.run([email.trim(), password.trim(), plus_type.trim(), plus_duration.trim(), createdAt], function(err) {
+                if (err) {
+                    errorOccurred = err.message;
+                } else {
+                    count++;
+                }
+            });
+        }
+        
+        stmt.finalize(() => {
+            if (errorOccurred) {
+                db.run("ROLLBACK");
+                return res.status(500).json({ error: errorOccurred });
+            }
+            db.run("COMMIT");
+            res.json({ success: true, count });
+        });
+    });
+});
+
 // تشغيل السيرفر
 app.listen(PORT, () => {
     console.log(`=================================================`);

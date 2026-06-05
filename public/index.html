@@ -441,6 +441,7 @@
         <div class="nav-item" onclick="nav('expenses')"><i class="ti ti-receipt"></i> المصروفات</div>
         <div class="nav-item" onclick="nav('campaigns')"><i class="ti ti-speakerphone"></i> الحملات الإعلانية</div>
         <div class="nav-item" onclick="nav('certificates')"><i class="ti ti-certificate"></i> إدارة تقارير الشهادات</div>
+        <div class="nav-item" onclick="nav('ps-plus')"><i class="ti ti-brand-playstation"></i> مخزون حسابات بلس</div>
       </div>
 
       <div class="s-sep"></div>
@@ -1686,6 +1687,165 @@
           <div class="modal-foot">
             <button class="btn" onclick="closeCertModal()">إلغاء</button>
             <button class="btn btn-primary" onclick="saveCert()"><i class="ti ti-device-floppy"></i> حفظ الشهادة</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: PLAYSTATION PLUS MANAGEMENT -->
+      <div class="page pad" id="page-ps-plus">
+        <!-- KPIs Row -->
+        <div class="kpi-grid" style="margin-bottom:14px">
+          <div class="kpi-card">
+            <div class="kpi-icon accent"><i class="ti ti-brand-playstation"></i></div>
+            <div class="kpi-val" id="kpiPsTotalAccounts" style="font-weight:700;">0</div>
+            <div class="kpi-label">إجمالي الحسابات المسجلة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-device-gamepad-2"></i></div>
+            <div class="kpi-val" id="kpiPsAvailable5" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS5 المتاحة للبيع</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="ti ti-device-gamepad"></i></div>
+            <div class="kpi-val" id="kpiPsAvailable4" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS4 المتاحة للبيع</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-discount-check"></i></div>
+            <div class="kpi-val" id="kpiPsCompleted" style="font-weight:700;">0</div>
+            <div class="kpi-label">حسابات مكتملة التسليم</div>
+          </div>
+        </div>
+
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">إدارة ومخزون حسابات بلايستيشن بلس المشتركة (3 حصص لكل حساب)</div>
+            <div style="display:flex; gap:8px">
+              <input type="file" id="if-ps-plus" accept=".xlsx,.xls" onchange="importPsPlusExcel(event)" style="display:none">
+              <button class="btn btn-sm btn-success" onclick="document.getElementById('if-ps-plus').click()"><i class="ti ti-file-excel"></i> استيراد من Excel</button>
+              <button class="btn btn-sm btn-primary" onclick="openPsPlusModal()"><i class="ti ti-plus"></i> إضافة حساب يدوي</button>
+            </div>
+          </div>
+          
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>الإيميل</th>
+                  <th>الباسورد</th>
+                  <th>نوع البلس</th>
+                  <th>مدة الاشتراك</th>
+                  <th>نسخة PS5 (الأولى)</th>
+                  <th>نسخة PS5 (الثانية)</th>
+                  <th>نسخة PS4</th>
+                  <th>حالة الحساب</th>
+                  <th style="width:120px">العمليات</th>
+                </tr>
+              </thead>
+              <tbody id="psPlusTbody">
+                <tr>
+                  <td colspan="10">
+                    <div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل مخزون حسابات بلس...</p></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: إضافة / تعديل حساب بلس -->
+      <div class="modal-bg" id="psPlusModal">
+        <div class="modal">
+          <div class="modal-title" id="psPlusModalTitle"><i class="ti ti-brand-playstation" style="color:var(--accent)"></i> إضافة حساب بلس جديد</div>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">البريد الإلكتروني (الإيميل)</label>
+              <input type="email" id="psEmail" placeholder="مثال: shop112245+05@gmail.com">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">كلمة المرور (الباسورد)</label>
+              <input type="text" id="psPassword" placeholder="مثال: shop_1010">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">نوع البلس</label>
+              <select id="psType">
+                <option value="اساسي">اساسي (Essential)</option>
+                <option value="اضافي">اضافي (Extra)</option>
+                <option value="فاخر">فاخر (Deluxe)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">مدة الاشتراك / نوع الفترة</label>
+              <select id="psDuration">
+                <option value="يومي">يومي</option>
+                <option value="اسبوعي">اسبوعي</option>
+                <option value="شهري">شهري</option>
+                <option value="3 أشهر">3 أشهر</option>
+                <option value="6 أشهر">6 أشهر</option>
+                <option value="9 أشهر">9 أشهر</option>
+                <option value="سنة" selected>سنة</option>
+              </select>
+            </div>
+
+            <!-- حقول التعديل الاختيارية لتسويات التسليم اليدوية -->
+            <div class="form-group full" id="psEditDeliveriesSection" style="display:none; border-top:1px solid var(--border1); padding-top:10px; margin-top:5px;">
+              <div style="font-weight:600; font-size:12px; color:var(--text2); margin-bottom:8px;">إدارة تسويات التسليم (تصفير أو تعديل رقم الطلب يدويًا):</div>
+              <div class="form-grid" style="gap:8px;">
+                <div>
+                  <label class="form-label">طلب PS5 (1)</label>
+                  <input type="text" id="psEdit51Order" placeholder="رقم الطلب أو اتركه فارغاً للإتاحة">
+                </div>
+                <div>
+                  <label class="form-label">طلب PS5 (2)</label>
+                  <input type="text" id="psEdit52Order" placeholder="رقم الطلب أو اتركه فارغاً للإتاحة">
+                </div>
+                <div>
+                  <label class="form-label">طلب PS4</label>
+                  <input type="text" id="psEdit4Order" placeholder="رقم الطلب أو اتركه فارغاً للإتاحة">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-foot">
+            <button class="btn" onclick="closePsPlusModal()">إلغاء</button>
+            <button class="btn btn-primary" onclick="savePsPlusAccount()"><i class="ti ti-device-floppy"></i> حفظ الحساب</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: تسليم نسخة حساب بلس -->
+      <div class="modal-bg" id="psPlusDeliverModal">
+        <div class="modal" style="max-width:400px">
+          <div class="modal-title"><i class="ti ti-brand-whatsapp" style="color:var(--green)"></i> تسليم نسخة حساب بلس للعميل</div>
+          
+          <div style="padding:4px 0 10px; font-size:11px; color:var(--text2)">
+            <div><strong>الحساب:</strong> <span id="deliverShowEmail" class="mono"></span></div>
+            <div><strong>نوع البلس:</strong> <span id="deliverShowType"></span></div>
+            <div><strong>النسخة المراد تسليمها:</strong> <span id="deliverShowSlot" style="font-weight:bold; color:var(--accent)"></span></div>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="form-group">
+              <label class="form-label">رقم الطلب (سلة)</label>
+              <input type="text" id="deliverOrderId" placeholder="مثال: 264030206">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">رقم جوال العميل (مفتاح الدولة ثم الرقم)</label>
+              <input type="text" id="deliverCustomerPhone" placeholder="مثال: 966500000000">
+            </div>
+          </div>
+
+          <div class="modal-foot" style="margin-top:15px">
+            <button class="btn" onclick="closePsPlusDeliverModal()">إلغاء</button>
+            <button class="btn btn-success" onclick="confirmPsPlusDelivery()"><i class="ti ti-brand-whatsapp"></i> تأكيد وإرسال واتساب</button>
           </div>
         </div>
       </div>

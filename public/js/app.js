@@ -294,7 +294,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates'];
+const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -307,7 +307,8 @@ const PAGE_TITLES = {
     'salla-compare': 'مقارنة المبيعات والفروقات',
     import: 'استيراد Excel',
     users: 'إدارة المستخدمين',
-    certificates: 'إدارة تقارير الشهادات'
+    certificates: 'إدارة تقارير الشهادات',
+    'ps-plus': 'مخزون حسابات بلس'
 };
 
 // دالة التحكم في القائمة الجانبية للشاشات الصغيرة (الجوال)
@@ -368,6 +369,7 @@ function nav(name, updateHash = true) {
     if (name === 'salla-compare') initComparePage();
     if (name === 'users') loadUsers();
     if (name === 'certificates') loadCertificates();
+    if (name === 'ps-plus') loadPsPlusAccounts();
 }
 
 // ══════════════════════════════════════════════
@@ -4865,8 +4867,354 @@ async function deleteCert(id) {
         if (!res.ok) throw new Error(data.error || 'خطأ أثناء حذف الشهادة');
 
         toast('تم حذف الشهادة بنجاح من النظام.', 'success');
+        toast('تم حذف الشهادة بنجاح من النظام.', 'success');
         loadCertificates();
     } catch (e) {
         toast(e.message, 'error');
     }
 }
+
+// ══════════════════════════════════════════════
+//  PLAYSTATION PLUS MANAGEMENT
+// ══════════════════════════════════════════════
+let currentEditPsAccountId = null;
+let currentDeliverPsAccountId = null;
+let currentDeliverPsSlot = null;
+
+async function loadPsPlusAccounts() {
+    try {
+        const response = await fetch('/api/ps-plus/accounts');
+        if (!response.ok) throw new Error('فشل جلب حسابات بلس');
+        const data = await response.json();
+        renderPsPlusAccounts(data);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderPsPlusAccounts(accounts) {
+    const tbody = document.getElementById('psPlusTbody');
+    if (!tbody) return;
+
+    if (accounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات بلس مسجلة حالياً</p></div></td></tr>';
+        updatePsPlusKPIs(0, 0, 0, 0);
+        return;
+    }
+
+    let totalAccounts = accounts.length;
+    let availablePs5 = 0;
+    let availablePs4 = 0;
+    let completedAccounts = 0;
+
+    tbody.innerHTML = accounts.map((c, i) => {
+        let deliveredCount = 0;
+        if (c.ps5_1_status === 'available') availablePs5++; else deliveredCount++;
+        if (c.ps5_2_status === 'available') availablePs5++; else deliveredCount++;
+        if (c.ps4_status === 'available') availablePs4++; else deliveredCount++;
+
+        if (deliveredCount === 3) completedAccounts++;
+
+        // حساب حالة الحساب الإجمالية
+        let overallStatus = '';
+        if (deliveredCount === 3) {
+            overallStatus = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
+        } else if (deliveredCount === 0) {
+            overallStatus = '<span class="pill pill-blue">متبقي نسختي PS5 + نسخة PS4</span>';
+        } else {
+            const remParts = [];
+            const remPs5 = (c.ps5_1_status === 'available' ? 1 : 0) + (c.ps5_2_status === 'available' ? 1 : 0);
+            const remPs4 = c.ps4_status === 'available' ? 1 : 0;
+            
+            if (remPs5 === 2) remParts.push('نسختي PS5');
+            else if (remPs5 === 1) remParts.push('نسخة PS5');
+
+            if (remPs4 === 1) remParts.push('نسخة PS4');
+
+            overallStatus = `<span class="pill pill-amber">متبقي ${remParts.join(' + ')}</span>`;
+        }
+
+        // صياغة خلايا تسليم النسخ
+        const ps5_1_cell = c.ps5_1_status === 'available' 
+            ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_1', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
+            : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_1_order)})</span>`;
+
+        const ps5_2_cell = c.ps5_2_status === 'available' 
+            ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_2', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
+            : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_2_order)})</span>`;
+
+        const ps4_cell = c.ps4_status === 'available' 
+            ? `<button class="btn btn-xs btn-secondary" onclick="openPsPlusDeliverModal(${c.id}, 'ps4', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS4</button>`
+            : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
+
+        return `<tr>
+            <td style="color:var(--text3);font-size:10px">${i + 1}</td>
+            <td style="font-weight:600;" class="mono">${escapeHtml(c.email)}</td>
+            <td class="mono">${escapeHtml(c.password)}</td>
+            <td><span class="pill pill-purple">${escapeHtml(c.plus_type)}</span></td>
+            <td><span class="mono">${escapeHtml(c.plus_duration)}</span></td>
+            <td>${ps5_1_cell}</td>
+            <td>${ps5_2_cell}</td>
+            <td>${ps4_cell}</td>
+            <td>${overallStatus}</td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>
+                    <button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts);
+}
+
+function updatePsPlusKPIs(total, ps5, ps4, completed) {
+    document.getElementById('kpiPsTotalAccounts').textContent = total;
+    document.getElementById('kpiPsAvailable5').textContent = ps5;
+    document.getElementById('kpiPsAvailable4').textContent = ps4;
+    document.getElementById('kpiPsCompleted').textContent = completed;
+}
+
+function openPsPlusModal() {
+    currentEditPsAccountId = null;
+    document.getElementById('psPlusModalTitle').innerHTML = `<i class="ti ti-brand-playstation" style="color:var(--accent)"></i> إضافة حساب بلس جديد`;
+    document.getElementById('psEmail').value = '';
+    document.getElementById('psPassword').value = '';
+    document.getElementById('psType').value = 'اساسي';
+    document.getElementById('psDuration').value = 'سنة';
+    document.getElementById('psEditDeliveriesSection').style.display = 'none';
+    document.getElementById('psPlusModal').classList.add('open');
+}
+
+function closePsPlusModal() {
+    document.getElementById('psPlusModal').classList.remove('open');
+}
+
+function editPsPlusAccount(id, email, password, type, duration, ps5_1, ps5_2, ps4) {
+    currentEditPsAccountId = id;
+    document.getElementById('psPlusModalTitle').innerHTML = `<i class="ti ti-edit" style="color:var(--accent)"></i> تعديل حساب بلس`;
+    document.getElementById('psEmail').value = email;
+    document.getElementById('psPassword').value = password;
+    document.getElementById('psType').value = type;
+    document.getElementById('psDuration').value = duration;
+    
+    // إتاحة تعديل أرقام الطلبات يدوياً في حال الخطأ
+    document.getElementById('psEdit51Order').value = ps5_1;
+    document.getElementById('psEdit52Order').value = ps5_2;
+    document.getElementById('psEdit4Order').value = ps4;
+    document.getElementById('psEditDeliveriesSection').style.display = 'block';
+
+    document.getElementById('psPlusModal').classList.add('open');
+}
+
+async function savePsPlusAccount() {
+    const email = document.getElementById('psEmail').value;
+    const password = document.getElementById('psPassword').value;
+    const plus_type = document.getElementById('psType').value;
+    const plus_duration = document.getElementById('psDuration').value;
+
+    if (!email || !password) {
+        toast('الإيميل والباسورد مطلوبان لتسجيل الحساب.', 'warn');
+        return;
+    }
+
+    const payload = { email, password, plus_type, plus_duration };
+    if (currentEditPsAccountId) {
+        payload.ps5_1_order = document.getElementById('psEdit51Order').value;
+        payload.ps5_2_order = document.getElementById('psEdit52Order').value;
+        payload.ps4_order = document.getElementById('psEdit4Order').value;
+    }
+    const method = currentEditPsAccountId ? 'PUT' : 'POST';
+    const url = currentEditPsAccountId ? `/api/ps-plus/accounts/${currentEditPsAccountId}` : '/api/ps-plus/accounts';
+
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'خطأ أثناء حفظ الحساب');
+
+        // إذا كنا في وضع تعديل حساب ونريد حفظ التعديل على الطلبات المخصصة للحصص
+        if (currentEditPsAccountId) {
+            const o51 = document.getElementById('psEdit51Order').value.trim();
+            const o52 = document.getElementById('psEdit52Order').value.trim();
+            const o4 = document.getElementById('psEdit4Order').value.trim();
+            
+            // تحديث الحصص مباشرة بقاعدة البيانات عبر الـ PUT أو عبر تمرير قيم التسليم اليدوية
+            // لتسريع التطبيق سنقوم بإرسال طلب تحديث إضافي أو يمكن دمجها. دعنا ندمج التحديث في PUT بالخلفية لاحقاً إذا احتجنا، 
+            // لكن مؤقتاً سنقوم بتحديثها بشكل يدوي أو نعتمد أن PUT يغطي الحساب الأساسي فقط.
+            // دعنا نرسل تحديث الطلبات للحصص إلى مسار مخصص أو نجعل الـ PUT الأساسي يتقبل تحديث الحصص أيضاً!
+            // سنقوم بتحديث خادم server.js لتعديل الحصص في الـ PUT أيضاً لتفادي طلبات متعددة!
+        }
+
+        toast(currentEditPsAccountId ? 'تم تعديل الحساب بنجاح!' : 'تم إضافة الحساب إلى المخزون بنجاح!', 'success');
+        closePsPlusModal();
+        loadPsPlusAccounts();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function deletePsPlusAccount(id) {
+    if (!confirm('هل أنت متأكد من حذف هذا الحساب ومخزونه نهائياً؟')) return;
+    try {
+        const res = await fetch(`/api/ps-plus/accounts/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'خطأ أثناء حذف الحساب');
+
+        toast('تم حذف الحساب بنجاح.', 'success');
+        loadPsPlusAccounts();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function openPsPlusDeliverModal(id, slot, email, type) {
+    currentDeliverPsAccountId = id;
+    currentDeliverPsSlot = slot;
+    
+    document.getElementById('deliverShowEmail').textContent = email;
+    document.getElementById('deliverShowType').textContent = type;
+    document.getElementById('deliverShowSlot').textContent = slot === 'ps4' ? 'PS4' : 'PS5';
+    
+    document.getElementById('deliverOrderId').value = '';
+    document.getElementById('deliverCustomerPhone').value = '';
+    
+    document.getElementById('psPlusDeliverModal').classList.add('open');
+}
+
+function closePsPlusDeliverModal() {
+    document.getElementById('psPlusDeliverModal').classList.remove('open');
+}
+
+async function confirmPsPlusDelivery() {
+    const order_id = document.getElementById('deliverOrderId').value;
+    const phone = document.getElementById('deliverCustomerPhone').value;
+
+    if (!order_id) {
+        toast('رقم الطلب مطلوب لإكمال عملية التسليم.', 'warn');
+        return;
+    }
+
+    const payload = {
+        id: currentDeliverPsAccountId,
+        slot: currentDeliverPsSlot,
+        order_id,
+        phone
+    };
+
+    try {
+        const res = await fetch('/api/ps-plus/accounts/deliver', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل تسجيل التسليم');
+
+        toast('تم تسجيل التسليم بنجاح في النظام!', 'success');
+        closePsPlusDeliverModal();
+        
+        // جلب تفاصيل الحساب الحالي لتوليد رسالة الواتساب بدقة
+        const email = document.getElementById('deliverShowEmail').textContent;
+        const type = document.getElementById('deliverShowType').textContent;
+        const slotName = currentDeliverPsSlot === 'ps4' ? 'PS4' : 'PS5';
+
+        // صياغة رسالة الواتساب المنسقة
+        const messageText = `الإيميل : ${email}\n\n` + 
+                            `الباسورد   ${passwordPlaceholder(email)}\n\n` + 
+                            `نوع البلس : ( بلس ${type} ${slotName} )\n\n` + 
+                            `تم تسليم ${slotName}  ✅\n` + 
+                            `رقم الطلب : ${order_id}`;
+        
+        // إعادة تحميل القائمة لتحديث الحالات
+        loadPsPlusAccounts();
+
+        // فتح نافذة واتساب لإرسال الرسالة تلقائياً للعميل إذا تم إدخال رقم جوال
+        if (phone) {
+            const cleanPhone = phone.replace(/[^0-9]/g, '');
+            const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(messageText)}`;
+            window.open(waUrl, '_blank');
+        } else {
+            // نسخ الرسالة للحافظة كبديل في حال عدم وجود رقم
+            navigator.clipboard.writeText(messageText);
+            toast('تم نسخ رسالة التسليم المنسقة إلى الحافظة لعدم إدخال رقم هاتف.', 'info');
+        }
+
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+// دالة مساعدة لجلب كلمة المرور المخزنة للحساب لتسليمها بالواتساب
+function passwordPlaceholder(email) {
+    // سنقوم بجلب كلمة المرور الفعالة من جدول البيانات المحمل في الواجهة
+    // وذلك عن طريق البحث في الحسابات النشطة بـ DOM أو عبر استعلام محلي
+    const rows = document.querySelectorAll('#psPlusTbody tr');
+    for (const r of rows) {
+        const emailCell = r.querySelector('td:nth-child(2)');
+        if (emailCell && emailCell.textContent === email) {
+            return r.querySelector('td:nth-child(3)').textContent;
+        }
+    }
+    return 'shop_1010'; // قيمة افتراضية للاحتياط
+}
+
+async function importPsPlusExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        const rows = await readXLSX(file);
+        if (rows.length === 0) {
+            toast('ملف الإكسل فارغ أو غير صالح.', 'warn');
+            return;
+        }
+
+        // تحليل الأسطر وتحويل الحقول
+        const accounts = [];
+        rows.forEach(row => {
+            // مطابقة الأعمدة باللغة العربية والإنجليزية
+            let email = row['الإيميل'] || row['ايميل'] || row['Email'] || row['email'] || '';
+            let password = row['الباسورد'] || row['الرمز'] || row['كلمة المرور'] || row['Password'] || row['password'] || '';
+            let plus_type = row['نوع البلس'] || row['النوع'] || row['Type'] || row['plus_type'] || 'اساسي';
+            let plus_duration = row['مدة الاشتراك'] || row['المدة'] || row['Duration'] || row['plus_duration'] || 'سنة';
+
+            if (email && password) {
+                accounts.push({
+                    email: String(email).trim(),
+                    password: String(password).trim(),
+                    plus_type: String(plus_type).trim(),
+                    plus_duration: String(plus_duration).trim()
+                });
+            }
+        });
+
+        if (accounts.length === 0) {
+            toast('لم يتم العثور على حسابات صالحة في ملف الإكسل (يجب توفر أعمدة الإيميل والباسورد).', 'warn');
+            return;
+        }
+
+        // إرسال البيانات للباك إند
+        const res = await fetch('/api/ps-plus/accounts/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(accounts)
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'خطأ أثناء استيراد الحسابات');
+
+        toast(`تم استيراد وتحديث ${data.count} حساب بلس بنجاح!`, 'success');
+        loadPsPlusAccounts();
+        event.target.value = ''; // تصفير حقل الملف
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
