@@ -179,6 +179,21 @@ db.serialize(() => {
         )
     `);
 
+    // 13. جدول الشهادات والتقارير (بلس ايفون وسناب)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS certificates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            total_subs INTEGER DEFAULT 0,
+            sold_subs INTEGER DEFAULT 0,
+            comp_subs INTEGER DEFAULT 0,
+            ads_spend REAL DEFAULT 0,
+            status TEXT DEFAULT 'active',
+            note TEXT,
+            updated_at TEXT NOT NULL
+        )
+    `);
+
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });

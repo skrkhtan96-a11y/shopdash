@@ -294,7 +294,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users'];
+const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -306,7 +306,8 @@ const PAGE_TITLES = {
     'salla-products': 'المخزون والمنتجات',
     'salla-compare': 'مقارنة المبيعات والفروقات',
     import: 'استيراد Excel',
-    users: 'إدارة المستخدمين'
+    users: 'إدارة المستخدمين',
+    certificates: 'إدارة تقارير الشهادات'
 };
 
 // دالة التحكم في القائمة الجانبية للشاشات الصغيرة (الجوال)
@@ -366,6 +367,7 @@ function nav(name, updateHash = true) {
     if (name === 'salla-products') renderProducts();
     if (name === 'salla-compare') initComparePage();
     if (name === 'users') loadUsers();
+    if (name === 'certificates') loadCertificates();
 }
 
 // ══════════════════════════════════════════════
@@ -4718,4 +4720,153 @@ function exportCampaignDetailToExcel() {
     XLSX.writeFile(wb, fileName);
     
     toast('تم استخراج ملف إكسل مالي احترافي يدعم الترتيب والحسابات الرياضية بنجاح!', 'success');
+}
+
+// ══════════════════════════════════════════════
+//  CERTIFICATES MANAGEMENT (بلس ايفون وسناب)
+// ══════════════════════════════════════════════
+let currentEditCertId = null;
+
+async function loadCertificates() {
+    try {
+        const response = await fetch('/api/certificates/report');
+        if (!response.ok) throw new Error('فشل جلب تقارير الشهادات');
+        const data = await response.json();
+        renderCertificates(data);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderCertificates(certs) {
+    const tbody = document.getElementById('certsTbody');
+    if (!tbody) return;
+
+    if (certs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد شهادات مسجلة حالياً</p></div></td></tr>';
+        updateCertKPIs(0, 0, 0, 0);
+        return;
+    }
+
+    let totalSubs = 0;
+    let totalSold = 0;
+    let totalComp = 0;
+    let totalRem = 0;
+
+    tbody.innerHTML = certs.map((c, i) => {
+        totalSubs += c.total_subs;
+        totalSold += c.sold_subs;
+        totalComp += c.comp_subs;
+        totalRem += c.remaining;
+
+        const remClass = c.remaining <= 10 ? 'red' : c.remaining <= 30 ? 'amber' : 'green';
+        const statusClass = c.status === 'active' ? 'pill-green' : 'pill-gray';
+        const statusName = c.status === 'active' ? 'نشطة' : 'متوقفة';
+        const dateStr = c.updated_at ? c.updated_at.substring(0, 16) : '-';
+
+        return `<tr>
+            <td style="color:var(--text3);font-size:10px">${i + 1}</td>
+            <td style="font-weight:600;">${escapeHtml(c.name)}</td>
+            <td class="mono">${c.total_subs}</td>
+            <td class="mono green">${c.sold_subs}</td>
+            <td class="mono red">${c.comp_subs}</td>
+            <td><span class="mono ${remClass}" style="font-weight:700">${c.remaining}</span></td>
+            <td class="mono red">${fmt(c.ads_spend)}</td>
+            <td><span class="pill ${statusClass}">${statusName}</span></td>
+            <td style="font-size:11px;color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(c.note || '')}">${escapeHtml(c.note || '-')}</td>
+            <td style="font-size:10px;color:var(--text3)">${dateStr}</td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm" onclick="editCert(${c.id}, '${escapeHtml(c.name)}', ${c.total_subs}, ${c.comp_subs}, ${c.ads_spend}, '${escapeHtml(c.note || '')}', '${c.status}')"><i class="ti ti-edit"></i> تعديل</button>
+                    <button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deleteCert(${c.id})"><i class="ti ti-trash"></i> حذف</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    updateCertKPIs(totalSubs, totalSold, totalComp, totalRem);
+}
+
+function updateCertKPIs(total, sold, comp, remaining) {
+    document.getElementById('kpiCertTotal').textContent = total;
+    document.getElementById('kpiCertSold').textContent = sold;
+    document.getElementById('kpiCertComp').textContent = comp;
+    document.getElementById('kpiCertRemaining').textContent = remaining;
+}
+
+function openCertModal() {
+    currentEditCertId = null;
+    document.getElementById('certModalTitle').innerHTML = `<i class="ti ti-certificate" style="color:var(--accent)"></i> إضافة شهادة جديدة`;
+    document.getElementById('certName').value = '';
+    document.getElementById('certTotalSubs').value = 0;
+    document.getElementById('certCompSubs').value = 0;
+    document.getElementById('certAdsSpend').value = 0;
+    document.getElementById('certStatus').value = 'active';
+    document.getElementById('certNote').value = '';
+    document.getElementById('certModal').classList.add('open');
+}
+
+function closeCertModal() {
+    document.getElementById('certModal').classList.remove('open');
+}
+
+function editCert(id, name, total, comp, spend, note, status) {
+    currentEditCertId = id;
+    document.getElementById('certModalTitle').innerHTML = `<i class="ti ti-edit" style="color:var(--accent)"></i> تعديل بيانات الشهادة`;
+    document.getElementById('certName').value = name;
+    document.getElementById('certTotalSubs').value = total;
+    document.getElementById('certCompSubs').value = comp;
+    document.getElementById('certAdsSpend').value = spend;
+    document.getElementById('certStatus').value = status;
+    document.getElementById('certNote').value = note === '-' ? '' : note;
+    document.getElementById('certModal').classList.add('open');
+}
+
+async function saveCert() {
+    const name = document.getElementById('certName').value;
+    const total_subs = document.getElementById('certTotalSubs').value;
+    const comp_subs = document.getElementById('certCompSubs').value;
+    const ads_spend = document.getElementById('certAdsSpend').value;
+    const status = document.getElementById('certStatus').value;
+    const note = document.getElementById('certNote').value;
+
+    if (!name) {
+        toast('اسم الشهادة مطلوب بالكامل.', 'warn');
+        return;
+    }
+
+    const payload = { name, total_subs, comp_subs, ads_spend, status, note };
+    const method = currentEditCertId ? 'PUT' : 'POST';
+    const url = currentEditCertId ? `/api/certificates/${currentEditCertId}` : '/api/certificates';
+
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'خطأ أثناء حفظ بيانات الشهادة');
+
+        toast(currentEditCertId ? 'تم تعديل الشهادة وتحديث الإحصائيات بنجاح!' : 'تم إضافة الشهادة بنجاح في النظام!', 'success');
+        closeCertModal();
+        loadCertificates();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function deleteCert(id) {
+    if (!confirm('هل أنت متأكد من حذف هذه الشهادة نهائياً؟')) return;
+    try {
+        const res = await fetch(`/api/certificates/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'خطأ أثناء حذف الشهادة');
+
+        toast('تم حذف الشهادة بنجاح من النظام.', 'success');
+        loadCertificates();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
 }

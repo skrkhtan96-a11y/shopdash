@@ -1600,6 +1600,114 @@ app.get('/api/salla/abandoned-carts', async (req, res) => {
     }
 });
 
+// ── 2.8. مسارات إدارة الشهادات والتقارير (بلس ايفون وسناب) ──
+app.get('/api/certificates', authenticateUser, (req, res) => {
+    db.all("SELECT * FROM certificates ORDER BY name ASC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+app.post('/api/certificates', authenticateUser, (req, res) => {
+    const { name, total_subs, comp_subs, ads_spend, note } = req.body;
+    if (!name) return res.status(400).json({ error: 'اسم الشهادة مطلوب.' });
+
+    const total = parseInt(total_subs) || 0;
+    const comp = parseInt(comp_subs) || 0;
+    const spend = parseFloat(ads_spend) || 0;
+    const updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    db.run(
+        "INSERT INTO certificates (name, total_subs, comp_subs, ads_spend, note, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [name.trim(), total, comp, spend, note, updatedAt],
+        function(err) {
+            if (err) {
+                if (err.message.includes('UNIQUE')) {
+                    return res.status(400).json({ error: 'اسم هذه الشهادة مسجل بالفعل.' });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ success: true, id: this.lastID });
+        }
+    );
+});
+
+app.put('/api/certificates/:id', authenticateUser, (req, res) => {
+    const { id } = req.params;
+    const { name, total_subs, sold_subs, comp_subs, ads_spend, note, status } = req.body;
+    if (!name) return res.status(400).json({ error: 'اسم الشهادة مطلوب.' });
+
+    const total = parseInt(total_subs) || 0;
+    const sold = parseInt(sold_subs) || 0;
+    const comp = parseInt(comp_subs) || 0;
+    const spend = parseFloat(ads_spend) || 0;
+    const stat = status || 'active';
+    const updatedAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    db.run(
+        "UPDATE certificates SET name = ?, total_subs = ?, sold_subs = ?, comp_subs = ?, ads_spend = ?, note = ?, status = ?, updated_at = ? WHERE id = ?",
+        [name.trim(), total, sold, comp, spend, note, stat, updatedAt, id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true });
+        }
+    );
+});
+
+app.delete('/api/certificates/:id', authenticateUser, (req, res) => {
+    const { id } = req.params;
+    db.run("DELETE FROM certificates WHERE id = ?", [id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
+// مسار جلب تقرير الشهادة المفصل مع مبيعات سلة التلقائية
+app.get('/api/certificates/report', authenticateUser, async (req, res) => {
+    db.all("SELECT * FROM certificates ORDER BY name ASC", [], (err, certs) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        // جلب جميع الطلبات المستوردة لحساب المبيعات الحقيقية تلقائياً
+        db.all("SELECT product_name, quantity FROM salla_imported_orders", [], (errOrders, orders) => {
+            if (errOrders) return res.status(500).json({ error: errOrders.message });
+
+            // نقوم بمطابقة اسم الشهادة مع المنتجات المباعة
+            const report = certs.map(cert => {
+                let sallaSales = 0;
+                const searchName = cert.name.toLowerCase().trim();
+
+                orders.forEach(o => {
+                    const prodName = (o.product_name || '').toLowerCase().trim();
+                    // إذا كان اسم المنتج يحتوي على اسم الشهادة أو العكس
+                    if (prodName.includes(searchName) || searchName.includes(prodName)) {
+                        sallaSales += o.quantity || 1;
+                    }
+                });
+
+                // المتبقي الفعلي = إجمالي الاشتراكات - المبيعات - التعويضات
+                const total = cert.total_subs || 0;
+                const comp = cert.comp_subs || 0;
+                const remaining = total - sallaSales - comp;
+
+                return {
+                    id: cert.id,
+                    name: cert.name,
+                    total_subs: total,
+                    sold_subs: sallaSales, // المبيعات التلقائية من سلة
+                    comp_subs: comp,
+                    remaining: remaining,
+                    ads_spend: cert.ads_spend || 0,
+                    status: cert.status,
+                    note: cert.note,
+                    updated_at: cert.updated_at
+                };
+            });
+
+            res.json(report);
+        });
+    });
+});
+
 // ── 3. مسارات إدارة المصروفات عبر SQLite ──
 
 // جلب المصروفات

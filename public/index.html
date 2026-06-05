@@ -440,6 +440,7 @@
         <div class="nav-item active" onclick="nav('overview')"><i class="ti ti-layout-dashboard"></i> نظرة عامة</div>
         <div class="nav-item" onclick="nav('expenses')"><i class="ti ti-receipt"></i> المصروفات</div>
         <div class="nav-item" onclick="nav('campaigns')"><i class="ti ti-speakerphone"></i> الحملات الإعلانية</div>
+        <div class="nav-item" onclick="nav('certificates')"><i class="ti ti-certificate"></i> إدارة تقارير الشهادات</div>
       </div>
 
       <div class="s-sep"></div>
@@ -1576,6 +1577,114 @@
               </thead>
               <tbody id="usersTbody"></tbody>
             </table>
+          </div>
+        </div>
+      <!-- PAGE: CERTIFICATES MANAGEMENT -->
+      <div class="page pad" id="page-certificates">
+        <!-- KPIs Row -->
+        <div class="kpi-grid" style="margin-bottom:14px">
+          <div class="kpi-card">
+            <div class="kpi-icon accent"><i class="ti ti-certificate"></i></div>
+            <div class="kpi-val" id="kpiCertTotal" style="font-weight:700;">0</div>
+            <div class="kpi-label">إجمالي الاشتراكات في الشهادات</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-shopping-cart"></i></div>
+            <div class="kpi-val" id="kpiCertSold" style="font-weight:700;">0</div>
+            <div class="kpi-label">إجمالي المبيعات (تلقائي من سلة)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-alert-triangle"></i></div>
+            <div class="kpi-val" id="kpiCertComp" style="font-weight:700;">0</div>
+            <div class="kpi-label">إجمالي التعويضات</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="ti ti-discount-check"></i></div>
+            <div class="kpi-val" id="kpiCertRemaining" style="font-weight:700;">0</div>
+            <div class="kpi-label">المتبقي الإجمالي المتاح</div>
+          </div>
+        </div>
+
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">تقارير ومخزون الشهادات (بلس ايفون وسناب)</div>
+            <div>
+              <button class="btn btn-sm btn-primary" onclick="openCertModal()"><i class="ti ti-plus"></i> إضافة شهادة جديدة</button>
+            </div>
+          </div>
+          
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم الشهادة</th>
+                  <th>إجمالي الاشتراكات</th>
+                  <th>المباع بسلة (تلقائي)</th>
+                  <th>التعويضات</th>
+                  <th>المتبقي المتاح</th>
+                  <th>قيمة الحملات الإعلانية</th>
+                  <th>حالة الشهادة</th>
+                  <th>ملاحظات</th>
+                  <th>آخر تحديث</th>
+                  <th style="width:120px">العمليات</th>
+                </tr>
+              </thead>
+              <tbody id="certsTbody">
+                <tr>
+                  <td colspan="11">
+                    <div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل تقارير الشهادات...</p></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: إضافة / تعديل شهادة -->
+      <div class="modal-bg" id="certModal">
+        <div class="modal">
+          <div class="modal-title" id="certModalTitle"><i class="ti ti-certificate" style="color:var(--accent)"></i> إضافة شهادة جديدة</div>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">اسم الشهادة (يجب مطابقة الاسم مع سلة للربط التلقائي)</label>
+              <input type="text" id="certName" placeholder="مثال: بلس ايفون - الباقة الذهبية">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">إجمالي الاشتراكات بالشهادة</label>
+              <input type="number" id="certTotalSubs" placeholder="مثال: 200" value="0">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">عدد التعويضات</label>
+              <input type="number" id="certCompSubs" placeholder="مثال: 10" value="0">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">قيمة الحملات الإعلانية للشهادة (ر.س)</label>
+              <input type="number" step="0.01" id="certAdsSpend" placeholder="مثال: 150.00" value="0">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">الحالة</label>
+              <select id="certStatus">
+                <option value="active">نشطة</option>
+                <option value="inactive">مكتملة / متوقفة</option>
+              </select>
+            </div>
+
+            <div class="form-group full">
+              <label class="form-label">ملاحظات</label>
+              <textarea id="certNote" placeholder="ملاحظات تفصيلية حول الشهادة..." style="width:100%; min-height:60px; background:var(--bg3); border:1px solid var(--border2); color:var(--text); border-radius:var(--r1); padding:8px; outline:none; font-family:inherit; font-size:12px; resize:vertical;"></textarea>
+            </div>
+          </div>
+
+          <div class="modal-foot">
+            <button class="btn" onclick="closeCertModal()">إلغاء</button>
+            <button class="btn btn-primary" onclick="saveCert()"><i class="ti ti-device-floppy"></i> حفظ الشهادة</button>
           </div>
         </div>
       </div>
