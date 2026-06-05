@@ -602,8 +602,12 @@ async function loadOrders(reset = false) {
         ? state.ordSelectedProducts.join(',') 
         : '';
 
+    const sort = document.getElementById('ordSort')?.value || 'desc';
+    const minAmt = document.getElementById('ordMinAmt')?.value || '';
+    const maxAmt = document.getElementById('ordMaxAmt')?.value || '';
+
     try {
-        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&products=${encodeURIComponent(productsParam)}&per_page=3000`;
+        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&products=${encodeURIComponent(productsParam)}&sort=${sort}&min_amt=${minAmt}&max_amt=${maxAmt}&per_page=3000`;
         const response = await fetch(url);
         const data = await response.json();
 

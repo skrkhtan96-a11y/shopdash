@@ -558,6 +558,9 @@ app.get('/api/salla/orders', async (req, res) => {
     const q = req.query.q || '';
     const from = req.query.from || '';
     const to = req.query.to || '';
+    const sort = req.query.sort || 'desc';
+    const minAmt = req.query.min_amt || '';
+    const maxAmt = req.query.max_amt || '';
 
     const token = await getOrRefreshToken();
 
@@ -597,9 +600,25 @@ app.get('/api/salla/orders', async (req, res) => {
                     query += " AND date(date) <= date(?)";
                     params.push(to);
                 }
+                if (minAmt) {
+                    query += " AND amount >= ?";
+                    params.push(parseFloat(minAmt));
+                }
+                if (maxAmt) {
+                    query += " AND amount <= ?";
+                    params.push(parseFloat(maxAmt));
+                }
 
-                // ترتيب افتراضي بالتاريخ الأحدث أولاً
-                query += " ORDER BY date DESC, id DESC";
+                // الترتيب
+                if (sort === 'asc') {
+                    query += " ORDER BY date ASC, id ASC";
+                } else if (sort === 'amt-desc') {
+                    query += " ORDER BY amount DESC";
+                } else if (sort === 'amt-asc') {
+                    query += " ORDER BY amount ASC";
+                } else {
+                    query += " ORDER BY date DESC, id DESC";
+                }
 
                 db.all(query, params, (err, rows) => {
                     if (err) {
@@ -651,7 +670,7 @@ app.get('/api/salla/orders', async (req, res) => {
                 });
             } else {
                 // لا توجد بيانات مستوردة، نرجع المحاكاة الافتراضية
-                return res.json(getSimulatedOrders(page, perPage, status, products, q, from, to));
+                return res.json(getSimulatedOrders(page, perPage, status, products, sort, minAmt, maxAmt, q, from, to));
             }
         });
         return;
@@ -1866,7 +1885,7 @@ app.delete('/api/archives/:key', (req, res) => {
 
 // ── 5. دوال محاكاة البيانات عند العمل في نمط الأوفلاين (Simulated Fallback Mode) ──
 
-function getSimulatedOrders(page, perPage, status, products, q, from, to) {
+function getSimulatedOrders(page, perPage, status, products, sort, minAmt, maxAmt, q, from, to) {
     const all = [
         {id:238527512,reference_id:263108285,date:{date:"2026-05-29 23:25:41"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس ايفون - الباقة الذهبية',thumbnail:'https://cdn.salla.sa/aevBBK/e30803cb-7c60-4245-ac70-ca04d355a963-500x500-1hYysBKrG0KI1CXvnyO94wNMkeT9m4bSoC6PnJjd.webp'}],customer:{full_name:'حاتم'},payment_actions:{refund_action:{paid_amount:{amount:27,currency:'SAR'}}}},
         {id:923976324,reference_id:263107617,date:{date:"2026-05-28 23:20:36"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اساسي PS5',thumbnail:'https://cdn.salla.sa/aevBBK/4a0e123c-3634-44d4-bad7-4192754380b7-500x500-Vi0fjX27pFXRikUZE3UFBiqaH07RGOOraeAR3ilH.jpg'}],customer:{full_name:'عبدالله الدوسري'},payment_actions:{refund_action:{paid_amount:{amount:45,currency:'SAR'}}}},
@@ -1886,6 +1905,7 @@ function getSimulatedOrders(page, perPage, status, products, q, from, to) {
     ];
 
     let filtered = all.filter(o => {
+        const amt = o.payment_actions?.refund_action?.paid_amount?.amount ?? o.total?.amount ?? 0;
         if (status) {
             const statusList = status.split(',').map(s => s.trim()).filter(s => s);
             if (statusList.length > 0 && !statusList.includes(o.status.slug)) {
@@ -1899,6 +1919,8 @@ function getSimulatedOrders(page, perPage, status, products, q, from, to) {
                 if (!matches) return false;
             }
         }
+        if (minAmt && amt < parseFloat(minAmt)) return false;
+        if (maxAmt && amt > parseFloat(maxAmt)) return false;
         if (q) {
             const matchesCust = o.customer.full_name.includes(q);
             const matchesProd = o.items.some(it => it.name.includes(q));
@@ -1909,6 +1931,24 @@ function getSimulatedOrders(page, perPage, status, products, q, from, to) {
         if (to && oDate > to) return false;
         return true;
     });
+
+    if (sort === 'asc') {
+        filtered.sort((a, b) => a.date.date.localeCompare(b.date.date) || a.id - b.id);
+    } else if (sort === 'amt-desc') {
+        filtered.sort((a, b) => {
+            const amtA = a.payment_actions?.refund_action?.paid_amount?.amount ?? a.total?.amount ?? 0;
+            const amtB = b.payment_actions?.refund_action?.paid_amount?.amount ?? b.total?.amount ?? 0;
+            return amtB - amtA;
+        });
+    } else if (sort === 'amt-asc') {
+        filtered.sort((a, b) => {
+            const amtA = a.payment_actions?.refund_action?.paid_amount?.amount ?? a.total?.amount ?? 0;
+            const amtB = b.payment_actions?.refund_action?.paid_amount?.amount ?? b.total?.amount ?? 0;
+            return amtA - amtB;
+        });
+    } else {
+        filtered.sort((a, b) => b.date.date.localeCompare(a.date.date) || b.id - a.id);
+    }
 
     const total = filtered.length;
     const startIndex = (page - 1) * perPage;

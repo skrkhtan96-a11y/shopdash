@@ -1057,6 +1057,20 @@
                 </div>
               </div>
             </div>
+            
+            <label style="margin-right:4px">الترتيب:</label>
+            <select id="ordSort" onchange="loadOrders(true)" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:var(--r1);padding:4px 8px;font-size:11px;outline:none;cursor:pointer;height:30px;">
+              <option value="desc">تاريخ: الأحدث أولاً</option>
+              <option value="asc">تاريخ: الأقدم أولاً</option>
+              <option value="amt-desc">المبلغ: الأعلى أولاً</option>
+              <option value="amt-asc">المبلغ: الأقل أولاً</option>
+            </select>
+
+            <label style="margin-right:4px">المبلغ من:</label>
+            <input type="number" id="ordMinAmt" placeholder="الحد الأدنى" style="width:80px;height:30px;font-size:11px;padding:4px 8px;" onchange="loadOrders(true)">
+            <label>إلى:</label>
+            <input type="number" id="ordMaxAmt" placeholder="الحد الأقصى" style="width:80px;height:30px;font-size:11px;padding:4px 8px;" onchange="loadOrders(true)">
+
             <button class="btn btn-sm btn-primary" onclick="loadOrders(true)"><i class="ti ti-search"></i> تصفية وتحديث</button>
           </div>
           
