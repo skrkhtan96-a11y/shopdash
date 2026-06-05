@@ -554,6 +554,7 @@ app.get('/api/salla/orders', async (req, res) => {
     const page = req.query.page || 1;
     const perPage = req.query.per_page || 15;
     const status = req.query.status || '';
+    const products = req.query.products || '';
     const q = req.query.q || '';
     const from = req.query.from || '';
     const to = req.query.to || '';
@@ -574,6 +575,14 @@ app.get('/api/salla/orders', async (req, res) => {
                         const placeholders = statusList.map(() => '?').join(',');
                         query += ` AND status_slug IN (${placeholders})`;
                         params.push(...statusList);
+                    }
+                }
+                if (products) {
+                    const prodList = products.split(',').map(p => p.trim()).filter(p => p);
+                    if (prodList.length > 0) {
+                        const placeholders = prodList.map(() => '?').join(',');
+                        query += ` AND product_name IN (${placeholders})`;
+                        params.push(...prodList);
                     }
                 }
                 if (q) {
@@ -642,7 +651,7 @@ app.get('/api/salla/orders', async (req, res) => {
                 });
             } else {
                 // لا توجد بيانات مستوردة، نرجع المحاكاة الافتراضية
-                return res.json(getSimulatedOrders(page, perPage, status, q, from, to));
+                return res.json(getSimulatedOrders(page, perPage, status, products, q, from, to));
             }
         });
         return;
@@ -651,6 +660,9 @@ app.get('/api/salla/orders', async (req, res) => {
     try {
         let url = `https://api.salla.dev/admin/v2/orders?page=${page}&per_page=${perPage}`;
         if (status) url += `&status=${status}`;
+        if (products) {
+            // Note: Salla API doesn't have a direct multiselect products query parameter usually in standard queries, but if they are using it or we are offline/imported, we do it. We can pass it or handle.
+        }
         if (q) url += `&keyword=${encodeURIComponent(q)}`;
         if (from) url += `&created_at_from=${from}`;
         if (to) url += `&created_at_to=${to}`;
@@ -1849,7 +1861,7 @@ app.delete('/api/archives/:key', (req, res) => {
 
 // ── 5. دوال محاكاة البيانات عند العمل في نمط الأوفلاين (Simulated Fallback Mode) ──
 
-function getSimulatedOrders(page, perPage, status, q, from, to) {
+function getSimulatedOrders(page, perPage, status, products, q, from, to) {
     const all = [
         {id:238527512,reference_id:263108285,date:{date:"2026-05-29 23:25:41"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس ايفون - الباقة الذهبية',thumbnail:'https://cdn.salla.sa/aevBBK/e30803cb-7c60-4245-ac70-ca04d355a963-500x500-1hYysBKrG0KI1CXvnyO94wNMkeT9m4bSoC6PnJjd.webp'}],customer:{full_name:'حاتم'},payment_actions:{refund_action:{paid_amount:{amount:27,currency:'SAR'}}}},
         {id:923976324,reference_id:263107617,date:{date:"2026-05-28 23:20:36"},status:{slug:'completed',name:'تم التنفيذ',customized:{name:'تم التنفيذ'}},payment_method:'mada',items:[{name:'بلس اساسي PS5',thumbnail:'https://cdn.salla.sa/aevBBK/4a0e123c-3634-44d4-bad7-4192754380b7-500x500-Vi0fjX27pFXRikUZE3UFBiqaH07RGOOraeAR3ilH.jpg'}],customer:{full_name:'عبدالله الدوسري'},payment_actions:{refund_action:{paid_amount:{amount:45,currency:'SAR'}}}},
@@ -1873,6 +1885,13 @@ function getSimulatedOrders(page, perPage, status, q, from, to) {
             const statusList = status.split(',').map(s => s.trim()).filter(s => s);
             if (statusList.length > 0 && !statusList.includes(o.status.slug)) {
                 return false;
+            }
+        }
+        if (products) {
+            const prodList = products.split(',').map(p => p.trim()).filter(p => p);
+            if (prodList.length > 0) {
+                const matches = o.items.some(it => prodList.includes(it.name));
+                if (!matches) return false;
             }
         }
         if (q) {

@@ -66,7 +66,8 @@ let state = {
     editingType: null,
     user: null, // الحساب النشط حالياً
     users: [], // حسابات كافة موظفي اللوحة
-    selectedProducts: [] // المنتجات المحددة للتصفية المتعددة
+    selectedProducts: [], // المنتجات المحددة للتصفية المتعددة
+    ordSelectedProducts: [] // المنتجات المحددة لتصفية الطلبات
 };
 
 let currentUsername = '';
@@ -596,9 +597,13 @@ async function loadOrders(reset = false) {
         if (chk.checked) selectedStatuses.push(chk.value);
     });
     const status = (selectedStatuses.length === 3 || selectedStatuses.length === 0) ? '' : selectedStatuses.join(',');
+    
+    const productsParam = (state.ordSelectedProducts && state.ordSelectedProducts.length > 0) 
+        ? state.ordSelectedProducts.join(',') 
+        : '';
 
     try {
-        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&per_page=3000`;
+        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&products=${encodeURIComponent(productsParam)}&per_page=3000`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -1135,6 +1140,24 @@ function renderProducts() {
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" title="${escapeHtml(name)}">${name}</span>
                 </label>`;
             }).join('');
+        }
+    }
+
+    const ordOptionsDiv = document.getElementById('ordProdMultiOptions');
+    if (ordOptionsDiv) {
+        const allNames = Object.keys(map).sort();
+        const existingOptions = Array.from(ordOptionsDiv.querySelectorAll('.ord-prod-multi-chk')).map(chk => chk.value);
+        const isDifferent = JSON.stringify(allNames) !== JSON.stringify(existingOptions.sort());
+        
+        if (isDifferent || ordOptionsDiv.innerHTML === '') {
+            ordOptionsDiv.innerHTML = allNames.map(name => {
+                const isChecked = state.ordSelectedProducts.includes(name);
+                return `<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);cursor:pointer;padding:4px 6px;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                    <input type="checkbox" class="ord-prod-multi-chk" value="${escapeHtml(name)}" ${isChecked ? 'checked' : ''} onchange="onOrdProductCheckboxChange(this)" style="cursor:pointer;accent-color:var(--accent);">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" title="${escapeHtml(name)}">${name}</span>
+                </label>`;
+            }).join('');
+            updateOrdProdMultiBtnText();
         }
     }
 
@@ -2759,6 +2782,52 @@ function updateOrderStatusBtnText() {
     }
 }
 
+function toggleOrdProdDropdown(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('ordProdMultiDropdown');
+    if (dropdown) {
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function ordProdSelectAll(selectBool, e) {
+    if (e) e.stopPropagation();
+    const checkboxes = document.querySelectorAll('.ord-prod-multi-chk');
+    state.ordSelectedProducts = [];
+    checkboxes.forEach(chk => {
+        chk.checked = selectBool;
+        if (selectBool) {
+            state.ordSelectedProducts.push(chk.value);
+        }
+    });
+    updateOrdProdMultiBtnText();
+    loadOrders(true);
+}
+
+function onOrdProductCheckboxChange(chk) {
+    const val = chk.value;
+    if (chk.checked) {
+        if (!state.ordSelectedProducts.includes(val)) {
+            state.ordSelectedProducts.push(val);
+        }
+    } else {
+        state.ordSelectedProducts = state.ordSelectedProducts.filter(p => p !== val);
+    }
+    updateOrdProdMultiBtnText();
+    loadOrders(true);
+}
+
+function updateOrdProdMultiBtnText() {
+    const btnSpan = document.querySelector('#ordProdMultiBtn span');
+    if (btnSpan) {
+        if (state.ordSelectedProducts.length === 0) {
+            btnSpan.textContent = 'المنتجات (الكل)';
+        } else {
+            btnSpan.textContent = `المنتجات (${state.ordSelectedProducts.length})`;
+        }
+    }
+}
+
 // إغلاق قائمة التحديد المتعدد عند النقر في الخارج
 window.addEventListener('click', (e) => {
     const dropdown = document.getElementById('prodMultiDropdown');
@@ -2771,6 +2840,12 @@ window.addEventListener('click', (e) => {
     const ordBtn = document.getElementById('ordStatusBtn');
     if (ordDropdown && ordBtn && !ordBtn.contains(e.target) && !ordDropdown.contains(e.target)) {
         ordDropdown.style.display = 'none';
+    }
+
+    const ordProdDropdown = document.getElementById('ordProdMultiDropdown');
+    const ordProdBtn = document.getElementById('ordProdMultiBtn');
+    if (ordProdDropdown && ordProdBtn && !ordProdBtn.contains(e.target) && !ordProdDropdown.contains(e.target)) {
+        ordProdDropdown.style.display = 'none';
     }
 });
 

@@ -1032,6 +1032,23 @@
                 </div>
               </div>
             </div>
+
+            <!-- فلتر تحديد المنتجات المتعدد في صفحة الطلبات -->
+            <div class="custom-multiselect" style="position:relative;display:inline-block;z-index:98">
+              <button class="btn btn-sm" id="ordProdMultiBtn" onclick="toggleOrdProdDropdown(event)" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);display:flex;align-items:center;gap:6px;font-size:11px;min-width:180px;justify-content:space-between;padding:5px 8px;height:30px;border-radius:var(--r1);">
+                <span>المنتجات (الكل)</span>
+                <i class="ti ti-chevron-down" style="font-size:10px;opacity:0.7"></i>
+              </button>
+              <div class="multiselect-dropdown" id="ordProdMultiDropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r1);box-shadow:0 10px 25px rgba(0,0,0,0.3);width:260px;max-height:260px;overflow-y:auto;padding:8px;z-index:999;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);">
+                <div style="display:flex;justify-content:space-between;padding:4px 6px;border-bottom:1px solid var(--border2);margin-bottom:6px;gap:6px">
+                  <button type="button" class="btn btn-xs" onclick="ordProdSelectAll(true, event)" style="font-size:9px;padding:2px 6px;height:20px;border-radius:4px;cursor:pointer;">تحديد الكل</button>
+                  <button type="button" class="btn btn-xs" onclick="ordProdSelectAll(false, event)" style="font-size:9px;padding:2px 6px;height:20px;border-radius:4px;cursor:pointer;">إلغاء الكل</button>
+                </div>
+                <div id="ordProdMultiOptions" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;padding-right:4px">
+                  <!-- سيتم بناؤه ديناميكياً من خلال الجافاسكريبت -->
+                </div>
+              </div>
+            </div>
             <button class="btn btn-sm btn-primary" onclick="loadOrders(true)"><i class="ti ti-search"></i> تصفية وتحديث</button>
           </div>
           
