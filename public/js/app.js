@@ -67,7 +67,8 @@ let state = {
     user: null, // الحساب النشط حالياً
     users: [], // حسابات كافة موظفي اللوحة
     selectedProducts: [], // المنتجات المحددة للتصفية المتعددة
-    ordSelectedProducts: [] // المنتجات المحددة لتصفية الطلبات
+    ordSelectedProducts: [], // المنتجات المحددة لتصفية الطلبات
+    expSelectedDescs: [] // البيانات الوصفية المحددة لتصفية المصروفات
 };
 
 let currentUsername = '';
@@ -258,6 +259,7 @@ async function loadLocalData() {
     try {
         const expRes = await fetch(`/api/expenses`);
         state.expenses = await expRes.json();
+        state.allUnfilteredExpenses = [...state.expenses];
 
         const arcRes = await fetch(`/api/archives`);
         state.archives = await arcRes.json();
@@ -1483,6 +1485,28 @@ function renderExpRows(data) {
     document.getElementById('expCount').textContent = `${data.length} بند — ${fmt(total)} ر.س`;
     const ro = !!state.viewingArc || (state.user && state.user.role === 'موظف');
 
+    // توليد وتحديث خيارات التحديد المتعدد للبيان الوصفي
+    const expDescOptionsDiv = document.getElementById('expDescMultiOptions');
+    if (expDescOptionsDiv) {
+        // نستخدم جميع المصروفات المتوفرة (أو المفلترة جزئياً بدون فلتر البيان نفسه) للحصول على البيانات الوصفية الفريدة
+        const allExpensesToExtract = state.viewingArc ? state.expenses : (state.allUnfilteredExpenses || data || []);
+        const uniqueDescs = Array.from(new Set(allExpensesToExtract.map(e => (e.desc || '').trim()).filter(d => d))).sort();
+        
+        const existingOptions = Array.from(expDescOptionsDiv.querySelectorAll('.exp-desc-multi-chk')).map(chk => chk.value);
+        const isDifferent = JSON.stringify(uniqueDescs) !== JSON.stringify(existingOptions.sort());
+        
+        if (isDifferent || expDescOptionsDiv.innerHTML === '') {
+            expDescOptionsDiv.innerHTML = uniqueDescs.map(descName => {
+                const isChecked = state.expSelectedDescs.includes(descName);
+                return `<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);cursor:pointer;padding:4px 6px;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                    <input type="checkbox" class="exp-desc-multi-chk" value="${escapeHtml(descName)}" ${isChecked ? 'checked' : ''} onchange="onExpDescCheckboxChange(this)" style="cursor:pointer;accent-color:var(--accent);">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" title="${escapeHtml(descName)}">${descName}</span>
+                </label>`;
+            }).join('');
+            updateExpDescMultiBtnText();
+        }
+    }
+
     body.innerHTML = data.map((r, i) => `<tr onclick="showExpenseDetails(${r.id})" style="cursor:pointer;">
     <td style="color:var(--text3);font-size:10px">${i + 1}</td>
     <td style="font-weight:600;">${r.desc}</td>
@@ -1577,10 +1601,10 @@ function renderExp() {
     
     const cat = document.getElementById('expCat').value;
     const period = document.getElementById('expPeriod')?.value || '';
-    const q = (document.getElementById('expQ').value || '').toLowerCase();
     const sort = document.getElementById('expSort').value;
     const from = document.getElementById('expFrom')?.value || '';
     const to = document.getElementById('expTo')?.value || '';
+    const descsParam = (state.expSelectedDescs && state.expSelectedDescs.length > 0) ? state.expSelectedDescs.join(',') : '';
 
     if (state.viewingArc) {
         let data = [...state.expenses];
@@ -1590,8 +1614,8 @@ function renderExp() {
         if (period) {
             data = data.filter(e => e.period === period);
         }
-        if (q) {
-            data = data.filter(e => (e.desc && e.desc.toLowerCase().includes(q)) || (e.note && e.note.toLowerCase().includes(q)));
+        if (state.expSelectedDescs && state.expSelectedDescs.length > 0) {
+            data = data.filter(e => state.expSelectedDescs.includes(e.desc));
         }
         if (from) {
             data = data.filter(e => e.date >= from);
@@ -1614,7 +1638,7 @@ function renderExp() {
         return;
     }
 
-    let url = `/api/expenses?cat=${cat}&period=${encodeURIComponent(period)}&q=${encodeURIComponent(q)}&sort=${sort}&from=${from}&to=${to}`;
+    let url = `/api/expenses?cat=${cat}&period=${encodeURIComponent(period)}&descs=${encodeURIComponent(descsParam)}&sort=${sort}&from=${from}&to=${to}`;
     
     fetch(url)
         .then(res => res.json())
@@ -2855,6 +2879,79 @@ window.addEventListener('click', (e) => {
     const ordProdBtn = document.getElementById('ordProdMultiBtn');
     if (ordProdDropdown && ordProdBtn && !ordProdBtn.contains(e.target) && !ordProdDropdown.contains(e.target)) {
         ordProdDropdown.style.display = 'none';
+    }
+});
+
+function toggleExpDescDropdown(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('expDescMultiDropdown');
+    if (dropdown) {
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function expDescSelectAll(selectBool, e) {
+    if (e) e.stopPropagation();
+    const checkboxes = document.querySelectorAll('.exp-desc-multi-chk');
+    state.expSelectedDescs = [];
+    checkboxes.forEach(chk => {
+        chk.checked = selectBool;
+        if (selectBool) {
+            state.expSelectedDescs.push(chk.value);
+        }
+    });
+    updateExpDescMultiBtnText();
+    renderExp();
+}
+
+function onExpDescCheckboxChange(chk) {
+    const val = chk.value;
+    if (chk.checked) {
+        if (!state.expSelectedDescs.includes(val)) {
+            state.expSelectedDescs.push(val);
+        }
+    } else {
+        state.expSelectedDescs = state.expSelectedDescs.filter(d => d !== val);
+    }
+    updateExpDescMultiBtnText();
+    renderExp();
+}
+
+function updateExpDescMultiBtnText() {
+    const btnSpan = document.querySelector('#expDescMultiBtn span');
+    if (btnSpan) {
+        if (state.expSelectedDescs.length === 0) {
+            btnSpan.textContent = 'البيان الوصفي (الكل)';
+        } else {
+            btnSpan.textContent = `البيان الوصفي (${state.expSelectedDescs.length})`;
+        }
+    }
+}
+
+// إغلاق قائمة التحديد المتعدد عند النقر في الخارج
+window.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('prodMultiDropdown');
+    const btn = document.getElementById('prodMultiBtn');
+    if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+
+    const ordDropdown = document.getElementById('ordStatusDropdown');
+    const ordBtn = document.getElementById('ordStatusBtn');
+    if (ordDropdown && ordBtn && !ordBtn.contains(e.target) && !ordDropdown.contains(e.target)) {
+        ordDropdown.style.display = 'none';
+    }
+
+    const ordProdDropdown = document.getElementById('ordProdMultiDropdown');
+    const ordProdBtn = document.getElementById('ordProdMultiBtn');
+    if (ordProdDropdown && ordProdBtn && !ordProdBtn.contains(e.target) && !ordProdDropdown.contains(e.target)) {
+        ordProdDropdown.style.display = 'none';
+    }
+
+    const expDescDropdown = document.getElementById('expDescMultiDropdown');
+    const expDescBtn = document.getElementById('expDescMultiBtn');
+    if (expDescDropdown && expDescBtn && !expDescBtn.contains(e.target) && !expDescDropdown.contains(e.target)) {
+        expDescDropdown.style.display = 'none';
     }
 });
 

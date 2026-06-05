@@ -1606,6 +1606,7 @@ app.get('/api/salla/abandoned-carts', async (req, res) => {
 app.get('/api/expenses', (req, res) => {
     const cat = req.query.cat || '';
     const period = req.query.period || '';
+    const descs = req.query.descs || '';
     const q = req.query.q || '';
     const sort = req.query.sort || 'desc'; // desc, asc, amt-desc, amt-asc
     const from = req.query.from || '';
@@ -1621,6 +1622,14 @@ app.get('/api/expenses', (req, res) => {
     if (period) {
         query += " AND period = ?";
         params.push(period);
+    }
+    if (descs) {
+        const descList = descs.split(',').map(d => d.trim()).filter(d => d);
+        if (descList.length > 0) {
+            const placeholders = descList.map(() => '?').join(',');
+            query += ` AND desc IN (${placeholders})`;
+            params.push(...descList);
+        }
     }
     if (q) {
         query += " AND (desc LIKE ? OR note LIKE ?)";
