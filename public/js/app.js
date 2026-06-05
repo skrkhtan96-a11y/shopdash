@@ -4886,6 +4886,7 @@ async function loadPsPlusAccounts() {
         const response = await fetch('/api/ps-plus/accounts');
         if (!response.ok) throw new Error('فشل جلب حسابات بلس');
         const data = await response.json();
+        state.psPlusAccounts = data;
         renderPsPlusAccounts(data);
     } catch (e) {
         toast(e.message, 'error');
@@ -5079,7 +5080,29 @@ function openPsPlusDeliverModal(id, slot, email, type) {
     
     document.getElementById('deliverShowEmail').textContent = email;
     document.getElementById('deliverShowType').textContent = type;
-    document.getElementById('deliverShowSlot').textContent = slot === 'ps4' ? 'PS4' : 'PS5';
+    
+    const select = document.getElementById('deliverSlotSelect');
+    select.value = slot;
+
+    // تفعيل أو تعطيل النسخ حسب التوفر
+    const account = (state.psPlusAccounts || []).find(a => a.id === id);
+    if (account) {
+        const opt51 = select.querySelector('option[value="ps5_1"]');
+        if (opt51) {
+            opt51.disabled = account.ps5_1_status !== 'available' && slot !== 'ps5_1';
+            opt51.textContent = `PS5 (النسخة الأولى)${account.ps5_1_status !== 'available' ? ' - تم التسليم' : ''}`;
+        }
+        const opt52 = select.querySelector('option[value="ps5_2"]');
+        if (opt52) {
+            opt52.disabled = account.ps5_2_status !== 'available' && slot !== 'ps5_2';
+            opt52.textContent = `PS5 (النسخة الثانية)${account.ps5_2_status !== 'available' ? ' - تم التسليم' : ''}`;
+        }
+        const opt4 = select.querySelector('option[value="ps4"]');
+        if (opt4) {
+            opt4.disabled = account.ps4_status !== 'available' && slot !== 'ps4';
+            opt4.textContent = `PS4 (النسخة الوحيدة)${account.ps4_status !== 'available' ? ' - تم التسليم' : ''}`;
+        }
+    }
     
     document.getElementById('deliverOrderId').value = '';
     document.getElementById('deliverCustomerPhone').value = '';
@@ -5094,6 +5117,7 @@ function closePsPlusDeliverModal() {
 async function confirmPsPlusDelivery() {
     const order_id = document.getElementById('deliverOrderId').value;
     const phone = document.getElementById('deliverCustomerPhone').value;
+    const slot = document.getElementById('deliverSlotSelect').value;
 
     if (!order_id) {
         toast('رقم الطلب مطلوب لإكمال عملية التسليم.', 'warn');
@@ -5102,7 +5126,7 @@ async function confirmPsPlusDelivery() {
 
     const payload = {
         id: currentDeliverPsAccountId,
-        slot: currentDeliverPsSlot,
+        slot,
         order_id,
         phone
     };
@@ -5123,7 +5147,7 @@ async function confirmPsPlusDelivery() {
         // جلب تفاصيل الحساب الحالي لتوليد رسالة الواتساب بدقة
         const email = document.getElementById('deliverShowEmail').textContent;
         const type = document.getElementById('deliverShowType').textContent;
-        const slotName = currentDeliverPsSlot === 'ps4' ? 'PS4' : 'PS5';
+        const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
 
         // صياغة رسالة الواتساب المنسقة
         const messageText = `الإيميل : ${email}\n\n` + 

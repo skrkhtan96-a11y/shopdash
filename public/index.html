@@ -1828,7 +1828,14 @@
           <div style="padding:4px 0 10px; font-size:11px; color:var(--text2)">
             <div><strong>الحساب:</strong> <span id="deliverShowEmail" class="mono"></span></div>
             <div><strong>نوع البلس:</strong> <span id="deliverShowType"></span></div>
-            <div><strong>النسخة المراد تسليمها:</strong> <span id="deliverShowSlot" style="font-weight:bold; color:var(--accent)"></span></div>
+            <div style="margin-top:6px">
+              <label class="form-label" style="font-weight:600; font-size:11px; margin-bottom:3px; display:block">تحديد النسخة المراد تسليمها:</label>
+              <select id="deliverSlotSelect" style="width:100%; font-size:12px; padding:6px 8px; background:var(--bg3); color:var(--text); border:1px solid var(--border2); border-radius:var(--r1); outline:none">
+                <option value="ps5_1">PS5 (النسخة الأولى)</option>
+                <option value="ps5_2">PS5 (النسخة الثانية)</option>
+                <option value="ps4">PS4 (النسخة الوحيدة)</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-grid" style="grid-template-columns:1fr;">
