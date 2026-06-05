@@ -341,14 +341,22 @@ function nav(name, updateHash = true) {
     });
     document.getElementById('page-' + name)?.classList.add('active');
     
-    // تحديث التحديد في القائمة الجانبية
+    // تحديث التحديد في القائمة الجانبية والشريط السفلي
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    // إيجاد العنصر الفعال وتحديده
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
         const onClickStr = item.getAttribute('onclick') || '';
         if (onClickStr.includes(`'${name}'`)) {
             item.classList.add('active');
+        }
+    });
+
+    document.querySelectorAll('.bottom-nav-item').forEach(item => {
+        const onClickStr = item.getAttribute('onclick') || '';
+        if (onClickStr.includes(`'${name}'`)) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
         }
     });
 

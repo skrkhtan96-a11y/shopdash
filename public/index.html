@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="logo.png">
   <title>شوب ستور — لوحة التحكم المتكاملة</title>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
@@ -1854,6 +1855,26 @@
             <button class="btn" onclick="closePsPlusDeliverModal()">إلغاء</button>
             <button class="btn btn-success" onclick="confirmPsPlusDelivery()"><i class="ti ti-brand-whatsapp"></i> تأكيد وإرسال واتساب</button>
           </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM NAVIGATION BAR (FOR MOBILE SCREEN APP FEEL) -->
+      <div class="bottom-nav">
+        <div class="bottom-nav-item active" onclick="nav('overview')">
+          <i class="ti ti-layout-dashboard"></i>
+          <span>الرئيسية</span>
+        </div>
+        <div class="bottom-nav-item" onclick="nav('expenses')">
+          <i class="ti ti-receipt"></i>
+          <span>المصروفات</span>
+        </div>
+        <div class="bottom-nav-item" onclick="nav('ps-plus')">
+          <i class="ti ti-brand-playstation"></i>
+          <span>بلس</span>
+        </div>
+        <div class="bottom-nav-item" onclick="nav('certificates')">
+          <i class="ti ti-certificate"></i>
+          <span>الشهادات</span>
         </div>
       </div>
 
