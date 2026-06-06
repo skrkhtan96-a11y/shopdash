@@ -5011,7 +5011,7 @@ function renderPsPlusAccounts(accounts) {
     if (!tbody) return;
 
     if (accounts.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات بلس مسجلة حالياً</p></div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات بلس مسجلة حالياً</p></div></td></tr>';
         return;
     }
 
@@ -5038,7 +5038,7 @@ function renderPsPlusAccounts(accounts) {
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات تطابق خيارات التصفية الحالية</p></div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11"><div class="empty"><i class="ti ti-brand-playstation"></i><p>لا توجد حسابات تطابق خيارات التصفية الحالية</p></div></td></tr>';
         return;
     }
 
@@ -5097,6 +5097,7 @@ function renderPsPlusAccounts(accounts) {
             <td class="mono">${escapeHtml(c.password)}</td>
             <td><span class="pill pill-purple">${escapeHtml(c.plus_type)}</span></td>
             <td><span class="mono">${escapeHtml(c.plus_duration)}</span></td>
+            <td><span style="font-size:11.5px;font-weight:600;color:var(--text2)"><i class="ti ti-user" style="font-size:11px;opacity:0.7"></i> ${escapeHtml(c.created_by || 'غير محدد')}</span></td>
             <td>${ps5_1_cell}</td>
             <td>${ps5_2_cell}</td>
             <td>${ps4_cell}</td>

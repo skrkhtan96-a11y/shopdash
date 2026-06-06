@@ -215,6 +215,7 @@ db.serialize(() => {
             ps4_order TEXT,
             ps4_phone TEXT,
             ps4_status TEXT DEFAULT 'available',
+            created_by TEXT,
             created_at TEXT NOT NULL
         )
     `);
@@ -241,7 +242,8 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN can_delete INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_deliver INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
 
-
+    // ترقية جدول حسابات البلس لإضافة اسم المستخدم الذي قام بإضافة الحساب
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN created_by TEXT", (err) => { /* تجاهل الخطأ */ });
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {

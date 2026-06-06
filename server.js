@@ -2555,8 +2555,8 @@ app.post('/api/ps-plus/accounts', authenticateUser, (req, res) => {
     const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     db.run(
-        "INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, created_at) VALUES (?, ?, ?, ?, ?)",
-        [email.trim(), password.trim(), plus_type.trim(), plus_duration.trim(), createdAt],
+        "INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [email.trim(), password.trim(), plus_type.trim(), plus_duration.trim(), req.user.username, createdAt],
         function(err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
@@ -2699,8 +2699,8 @@ app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
         let count = 0;
         
         const stmt = db.prepare(
-            `INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, created_at) 
-             VALUES (?, ?, ?, ?, ?) 
+            `INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, created_by, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?) 
              ON CONFLICT(email) DO UPDATE SET 
                 password = excluded.password, 
                 plus_type = excluded.plus_type, 
@@ -2711,7 +2711,7 @@ app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
             const { email, password, plus_type, plus_duration } = account;
             if (!email || !password || !plus_type || !plus_duration) continue;
             
-            stmt.run([email.trim(), password.trim(), plus_type.trim(), plus_duration.trim(), createdAt], function(err) {
+            stmt.run([email.trim(), password.trim(), plus_type.trim(), plus_duration.trim(), req.user.username, createdAt], function(err) {
                 if (err) {
                     errorOccurred = err.message;
                 } else {
