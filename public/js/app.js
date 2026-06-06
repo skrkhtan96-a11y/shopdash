@@ -4377,7 +4377,9 @@ function openCampaignDetail(campaignName, platform) {
 
             // حالة المجموعات وحالة التوصيل
             const isCampaignActive = records.some(r => r.status === 'active');
-            detCampaignStatus.innerHTML = isCampaignActive ? '<span class="pill pill-green">نشطة</span>' : '<span class="pill pill-gray">متوقفة</span>';
+            detCampaignStatus.innerHTML = isCampaignActive 
+                ? '<span class="pill pill-green">نشطة (توصيل الإعلانات وتلقي النقرات والظهور بشكل طبيعي)</span>' 
+                : '<span class="pill pill-gray">متوقفة (الحملة لا تنفق وتوقفت بطلب من مدير الإعلانات)</span>';
             
             document.getElementById('detAdGroupActive').textContent = isCampaignActive ? '2' : '0';
             document.getElementById('detAdGroupNot').textContent = isCampaignActive ? '0' : '2';
@@ -4388,7 +4390,7 @@ function openCampaignDetail(campaignName, platform) {
                 let recsHTML = '';
                 
                 // التوصية 1: الإعلانات الإبداعية
-                let creativeTitle = '<i class="ti ti-photo-video" style="color:#00f2fe"></i> الإعلانات الإبداعية (Creatives)';
+                let creativeTitle = '<i class="ti ti-photo-video" style="color:#00f2fe"></i> الفيديوهات والإعلانات الإبداعية';
                 let creativeDesc = '';
                 let creativeAction = '';
                 if (avgCTR < 1.5) {
@@ -4412,7 +4414,7 @@ function openCampaignDetail(campaignName, platform) {
                 `;
 
                 // التوصية 2: المزايدة والميزانية
-                let budgetTitle = '<i class="ti ti-coin" style="color:#00f2fe"></i> المزايدة والميزانية (Bid & Budget)';
+                let budgetTitle = '<i class="ti ti-coin" style="color:#00f2fe"></i> المزايدة والميزانية الذكية';
                 let budgetDesc = '';
                 let budgetAction = '';
                 if (isCampaignActive && avgROAS > 3.0) {
@@ -4423,7 +4425,7 @@ function openCampaignDetail(campaignName, platform) {
                     budgetAction = 'تعديل هدف التحسين';
                 } else {
                     budgetDesc = `أداء الحملة متزن. تكلفة الطلب (CPA) الحالية تبلغ ${totalConversions > 0 ? avgCPA.toFixed(2) : '0'} ر.س. يفضل الحفاظ على الميزانية الحالية ومتابعة الاستقرار.`;
-                    budgetAction = 'ضبط Cost Cap يدوياً';
+                    budgetAction = 'ضبط التكلفة يدوياً';
                 }
                 recsHTML += `
                     <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between; min-height:140px;">
