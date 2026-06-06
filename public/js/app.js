@@ -5359,7 +5359,7 @@ async function confirmPsPlusDelivery() {
 
         // استخراج كود التحقق والبيانات الأخرى
         let vCode = '';
-        const currentAcc = (state.psPlusAccounts || []).find(acc => acc.id === id);
+        const currentAcc = (state.psPlusAccounts || []).find(acc => acc.id === currentDeliverPsAccountId);
         if (currentAcc) {
             if (slot === 'ps5_1') vCode = currentAcc.ps5_1_code || '';
             else if (slot === 'ps5_2') vCode = currentAcc.ps5_2_code || '';
