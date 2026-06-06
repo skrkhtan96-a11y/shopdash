@@ -104,6 +104,10 @@ db.serialize(() => {
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             role TEXT DEFAULT 'موظف',
+            can_add INTEGER DEFAULT 1,
+            can_edit INTEGER DEFAULT 1,
+            can_delete INTEGER DEFAULT 1,
+            can_deliver INTEGER DEFAULT 1,
             created_at TEXT NOT NULL
         )
     `);
@@ -230,6 +234,12 @@ db.serialize(() => {
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });
+    
+    // ترقية جدول المستخدمين لإضافة صلاحيات التحكم بمخزون الحسابات بلس
+    db.run("ALTER TABLE users ADD COLUMN can_add INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE users ADD COLUMN can_delete INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE users ADD COLUMN can_deliver INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
 
 
 

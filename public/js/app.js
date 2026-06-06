@@ -3008,6 +3008,7 @@ async function loadUsers() {
         const res = await fetch('/api/users');
         if (!res.ok) throw new Error('فشل جلب المستخدمين');
         const users = await res.json();
+        state.users = users;
         renderUsers(users);
     } catch (e) {
         toast(e.message, 'error');
@@ -3026,11 +3027,24 @@ function renderUsers(users) {
         const roleLabel = user.role === 'admin' ? 'مدير' : user.role === 'accountant' ? 'محاسب' : user.role === 'games_employee' ? 'موظف ألعاب' : 'موظف';
         const roleColor = user.role === 'admin' ? 'var(--blue)' : user.role === 'accountant' ? 'var(--amber)' : user.role === 'games_employee' ? 'var(--purple)' : 'var(--accent)';
         
+        const perms = [];
+        if (user.role === 'admin' || user.can_add) perms.push('<span class="pill pill-blue" style="font-size: 8.5px; padding: 1px 3px;">+إضافة</span>');
+        if (user.role === 'admin' || user.can_edit) perms.push('<span class="pill pill-amber" style="font-size: 8.5px; padding: 1px 3px;">✎تعديل</span>');
+        if (user.role === 'admin' || user.can_delete) perms.push('<span class="pill pill-red" style="font-size: 8.5px; padding: 1px 3px;">✖حذف</span>');
+        if (user.role === 'admin' || user.can_deliver) perms.push('<span class="pill pill-green" style="font-size: 8.5px; padding: 1px 3px;">✓تسليم</span>');
+
         tr.innerHTML = `
             <td>${user.id}</td>
             <td>${user.username}</td>
             <td>${user.email || '-'}</td>
-            <td><span style="color: ${roleColor}; border: 1px solid ${roleColor}33; background: ${roleColor}11; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${roleLabel}</span></td>
+            <td>
+                <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                    <span style="color: ${roleColor}; border: 1px solid ${roleColor}33; background: ${roleColor}11; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight:600;">${roleLabel}</span>
+                    <div style="display:flex; gap:2px; flex-wrap:wrap; margin-top:2px;">
+                        ${perms.join('')}
+                    </div>
+                </div>
+            </td>
             <td>${user.created_at || '-'}</td>
             <td>
                 <button class="btn btn-sm" onclick="openUserModal('${user.id}', '${user.username}', '${user.role}', '${user.email || ''}')"><i class="ti ti-edit"></i> تعديل</button>
@@ -3048,6 +3062,23 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
     document.getElementById('uPassword').value = ''; // empty means do not change if editing
     document.getElementById('uRole').value = role;
     
+    // Look up user in state.users to populate checkboxes
+    const user = (state.users || []).find(u => String(u.id) === String(id));
+    if (user) {
+        document.getElementById('uCanAdd').checked = user.role === 'admin' || !!user.can_add;
+        document.getElementById('uCanEdit').checked = user.role === 'admin' || !!user.can_edit;
+        document.getElementById('uCanDelete').checked = user.role === 'admin' || !!user.can_delete;
+        document.getElementById('uCanDeliver').checked = user.role === 'admin' || !!user.can_deliver;
+    } else {
+        // Defaults for new users
+        document.getElementById('uCanAdd').checked = true;
+        document.getElementById('uCanEdit').checked = true;
+        document.getElementById('uCanDelete').checked = true;
+        document.getElementById('uCanDeliver').checked = true;
+    }
+    
+    togglePermissionsSection(role);
+    
     const title = document.querySelector('#userModal .modal-title');
     if (id) {
         title.innerHTML = '<i class="ti ti-user-edit" style="color:var(--accent)"></i> تعديل مستخدم';
@@ -3062,6 +3093,20 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
 
 function closeUserModal() {
     document.getElementById('userModal').classList.remove('open');
+}
+
+function togglePermissionsSection(role) {
+    const isAdmin = role === 'admin';
+    document.getElementById('uCanAdd').disabled = isAdmin;
+    document.getElementById('uCanEdit').disabled = isAdmin;
+    document.getElementById('uCanDelete').disabled = isAdmin;
+    document.getElementById('uCanDeliver').disabled = isAdmin;
+    if (isAdmin) {
+        document.getElementById('uCanAdd').checked = true;
+        document.getElementById('uCanEdit').checked = true;
+        document.getElementById('uCanDelete').checked = true;
+        document.getElementById('uCanDeliver').checked = true;
+    }
 }
 
 async function saveUser() {
@@ -3085,10 +3130,15 @@ async function saveUser() {
         return;
     }
     
+    const can_add = document.getElementById('uCanAdd').checked ? 1 : 0;
+    const can_edit = document.getElementById('uCanEdit').checked ? 1 : 0;
+    const can_delete = document.getElementById('uCanDelete').checked ? 1 : 0;
+    const can_deliver = document.getElementById('uCanDeliver').checked ? 1 : 0;
+
     const url = currentEditUserId ? `/api/users/${currentEditUserId}` : '/api/users';
     const method = currentEditUserId ? 'PUT' : 'POST';
     
-    const body = { username, email, role };
+    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver };
     if (password) body.password = password;
     
     try {
@@ -4934,6 +4984,13 @@ function renderPsPlusAccounts(accounts) {
         accounts = state.psPlusAccounts || [];
     }
 
+    // Toggle add/import buttons visibility based on can_add permission
+    const canAdd = state.user && (state.user.role === 'admin' || !!state.user.can_add);
+    const addBtn = document.getElementById('psAddManualBtn');
+    const importBtn = document.getElementById('psImportExcelBtn');
+    if (addBtn) addBtn.style.display = canAdd ? '' : 'none';
+    if (importBtn) importBtn.style.display = canAdd ? '' : 'none';
+
     // Calculate total KPIs first (based on the full list)
     let totalAccounts = accounts.length;
     let availablePs5 = 0;
@@ -4985,6 +5042,11 @@ function renderPsPlusAccounts(accounts) {
         return;
     }
 
+    // Read other PS Plus permissions
+    const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit);
+    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const canDeliver = state.user && (state.user.role === 'admin' || !!state.user.can_deliver);
+
     tbody.innerHTML = filtered.map((c, i) => {
         let deliveredCount = 0;
         if (c.ps5_1_status !== 'available') deliveredCount++;
@@ -5012,15 +5074,21 @@ function renderPsPlusAccounts(accounts) {
 
         // صياغة خلايا تسليم النسخ
         const ps5_1_cell = c.ps5_1_status === 'available' 
-            ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_1', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
+            ? (canDeliver 
+                ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_1', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
+                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`)
             : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_1_order)})</span>`;
 
         const ps5_2_cell = c.ps5_2_status === 'available' 
-            ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_2', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
+            ? (canDeliver 
+                ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_2', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
+                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`)
             : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_2_order)})</span>`;
 
         const ps4_cell = c.ps4_status === 'available' 
-            ? `<button class="btn btn-xs btn-secondary" onclick="openPsPlusDeliverModal(${c.id}, 'ps4', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS4</button>`
+            ? (canDeliver 
+                ? `<button class="btn btn-xs btn-secondary" onclick="openPsPlusDeliverModal(${c.id}, 'ps4', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS4</button>`
+                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`)
             : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
 
         return `<tr>
@@ -5035,8 +5103,8 @@ function renderPsPlusAccounts(accounts) {
             <td>${overallStatus}</td>
             <td>
                 <div style="display:flex;gap:4px">
-                    <button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>
-                    <button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>
+                    ${canEdit ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>` : ''}
+                    ${canDelete ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>` : ''}
                 </div>
             </td>
         </tr>`;

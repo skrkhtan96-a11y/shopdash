@@ -311,7 +311,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">دور الصلاحيات</label>
-          <select id="uRole">
+          <select id="uRole" onchange="togglePermissionsSection(this.value)">
             <option value="employee">موظف (مشاهدة وإضافة مصروفات)</option>
             <option value="accountant">محاسب (إدارة الحسابات والجرد والرفع)</option>
             <option value="admin">مدير (تحكم وصلاحيات كاملة)</option>
@@ -332,6 +332,28 @@
           <label class="form-label" id="uPasswordLabel">كلمة المرور</label>
           <input type="password" id="uPassword" placeholder="أدخل كلمة مرور قوية...">
           <div style="font-size: 10px; color: var(--text3); margin-top: 4px;" id="uPasswordHint"></div>
+        </div>
+      </div>
+      
+      <div class="form-row full" id="uPermissionsSection" style="margin-top: 10px; border-top: 1px solid var(--border2); padding-top: 10px; margin-bottom: 10px;">
+        <label class="form-label" style="font-weight: 600; margin-bottom: 8px; color: var(--text2);">صلاحيات مخزون حسابات بلايستيشن بلس:</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+            <input type="checkbox" id="uCanAdd" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
+            <span>إضافة حسابات جديدة</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+            <input type="checkbox" id="uCanEdit" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
+            <span>تعديل بيانات الحسابات</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+            <input type="checkbox" id="uCanDelete" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
+            <span>حذف الحسابات</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+            <input type="checkbox" id="uCanDeliver" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
+            <span>تسليم النسخ (واتساب)</span>
+          </label>
         </div>
       </div>
       
@@ -1725,8 +1747,8 @@
             <div class="tbl-title">إدارة ومخزون حسابات بلايستيشن بلس المشتركة (3 حصص لكل حساب)</div>
             <div style="display:flex; gap:8px">
               <input type="file" id="if-ps-plus" accept=".xlsx,.xls" onchange="importPsPlusExcel(event)" style="display:none">
-              <button class="btn btn-sm btn-success" onclick="document.getElementById('if-ps-plus').click()"><i class="ti ti-file-excel"></i> استيراد من Excel</button>
-              <button class="btn btn-sm btn-primary" onclick="openPsPlusModal()"><i class="ti ti-plus"></i> إضافة حساب يدوي</button>
+              <button class="btn btn-sm btn-success" id="psImportExcelBtn" onclick="document.getElementById('if-ps-plus').click()"><i class="ti ti-file-excel"></i> استيراد من Excel</button>
+              <button class="btn btn-sm btn-primary" id="psAddManualBtn" onclick="openPsPlusModal()"><i class="ti ti-plus"></i> إضافة حساب يدوي</button>
             </div>
           </div>
           

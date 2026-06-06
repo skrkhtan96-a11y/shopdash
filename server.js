@@ -24,7 +24,7 @@ const authenticateUser = (req, res, next) => {
         return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.' });
     }
     db.get(
-        `SELECT u.id, u.username, u.email, u.role FROM sessions s 
+        `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver FROM sessions s 
          JOIN users u ON s.user_id = u.id 
          WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
         [token],
@@ -60,7 +60,7 @@ app.use((req, res, next) => {
             return res.redirect('/login.html');
         }
         db.get(
-            `SELECT u.id, u.username, u.email, u.role FROM sessions s 
+            `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver FROM sessions s 
              JOIN users u ON s.user_id = u.id 
              WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
             [token],
@@ -227,7 +227,7 @@ app.get('/api/activity-logs', authenticateUser, (req, res) => {
 
 // 6. Manage users: Get all users (Admin only)
 app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
-    db.all("SELECT id, username, email, role, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
+    db.all("SELECT id, username, email, role, can_add, can_edit, can_delete, can_deliver, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
@@ -235,7 +235,7 @@ app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
 
 // 7. Manage users: Add user manually (Admin only)
 app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
-    const { username, email, password, role } = req.body;
+    const { username, email, password, role, can_add, can_edit, can_delete, can_deliver } = req.body;
     if (!username || !email || !password || !role) {
         return res.status(400).json({ error: 'يرجى تقديم كافة حقول البيانات للمستخدم الجديد.' });
     }
@@ -243,9 +243,14 @@ app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
     const hashedPassword = hashPassword(password);
     const createdAt = new Date().toISOString().split('T')[0];
     
+    const cAdd = can_add !== undefined ? (can_add ? 1 : 0) : 1;
+    const cEdit = can_edit !== undefined ? (can_edit ? 1 : 0) : 1;
+    const cDelete = can_delete !== undefined ? (can_delete ? 1 : 0) : 1;
+    const cDeliver = can_deliver !== undefined ? (can_deliver ? 1 : 0) : 1;
+
     db.run(
-        "INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)",
-        [username.trim(), email.trim().toLowerCase(), hashedPassword, role, createdAt],
+        "INSERT INTO users (username, email, password, role, can_add, can_edit, can_delete, can_deliver, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [username.trim(), email.trim().toLowerCase(), hashedPassword, role, cAdd, cEdit, cDelete, cDeliver, createdAt],
         function(err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
@@ -262,17 +267,22 @@ app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
 // 8. Manage users: Edit user role (Admin only)
 app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) => {
     const { id } = req.params;
-    const { role, username, email, password } = req.body;
+    const { role, username, email, password, can_add, can_edit, can_delete, can_deliver } = req.body;
     
     if (!role) {
         return res.status(400).json({ error: 'يرجى تحديد دور المستخدم.' });
     }
     
+    const cAdd = can_add !== undefined ? (can_add ? 1 : 0) : 1;
+    const cEdit = can_edit !== undefined ? (can_edit ? 1 : 0) : 1;
+    const cDelete = can_delete !== undefined ? (can_delete ? 1 : 0) : 1;
+    const cDeliver = can_deliver !== undefined ? (can_deliver ? 1 : 0) : 1;
+
     if (password) {
         const hashedPassword = hashPassword(password);
         db.run(
-            "UPDATE users SET role = ?, username = ?, email = ?, password = ? WHERE id = ?",
-            [role, username.trim(), email.trim().toLowerCase(), hashedPassword, id],
+            "UPDATE users SET role = ?, username = ?, email = ?, password = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), hashedPassword, cAdd, cEdit, cDelete, cDeliver, id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
@@ -281,8 +291,8 @@ app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) =
         );
     } else {
         db.run(
-            "UPDATE users SET role = ?, username = ?, email = ? WHERE id = ?",
-            [role, username.trim(), email.trim().toLowerCase(), id],
+            "UPDATE users SET role = ?, username = ?, email = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), cAdd, cEdit, cDelete, cDeliver, id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
@@ -2534,6 +2544,9 @@ app.get('/api/ps-plus/accounts', authenticateUser, (req, res) => {
 });
 
 app.post('/api/ps-plus/accounts', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_add) {
+        return res.status(403).json({ error: 'غير مصرح لك بإضافة الحسابات.' });
+    }
     const { email, password, plus_type, plus_duration } = req.body;
     if (!email || !password || !plus_type || !plus_duration) {
         return res.status(400).json({ error: 'جميع الحقول (الإيميل، الباسورد، نوع البلس، مدة الاشتراك) مطلوبة.' });
@@ -2558,6 +2571,9 @@ app.post('/api/ps-plus/accounts', authenticateUser, (req, res) => {
 });
 
 app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit) {
+        return res.status(403).json({ error: 'غير مصرح لك بتعديل بيانات الحسابات.' });
+    }
     const { id } = req.params;
     const { email, password, plus_type, plus_duration, ps5_1_order, ps5_2_order, ps4_order } = req.body;
     if (!email || !password || !plus_type || !plus_duration) {
@@ -2607,6 +2623,9 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
 });
 
 app.delete('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'غير مصرح لك بحذف الحسابات.' });
+    }
     const { id } = req.params;
     db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errFetch, row) => {
         const email = row ? row.email : 'غير معروف';
@@ -2621,6 +2640,9 @@ app.delete('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
 });
 
 app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_deliver) {
+        return res.status(403).json({ error: 'غير مصرح لك بتسليم الحسابات.' });
+    }
     const { id, slot, order_id, phone } = req.body;
     if (!id || !slot || !order_id) {
         return res.status(400).json({ error: 'معرف الحساب، النسخة المراد تسليمها، ورقم الطلب مطلوبة.' });
@@ -2660,6 +2682,9 @@ app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
 });
 
 app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_add) {
+        return res.status(403).json({ error: 'غير مصرح لك باستيراد الحسابات.' });
+    }
     const accounts = req.body;
     if (!Array.isArray(accounts) || accounts.length === 0) {
         return res.status(400).json({ error: 'الرجاء إرسال مصفوفة صالحة تحتوي على الحسابات.' });
