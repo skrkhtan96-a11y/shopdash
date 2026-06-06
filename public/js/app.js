@@ -6050,9 +6050,9 @@ function generateInteractiveReport() {
                 </div>
             </div>
             
-            <div style="margin-top:16px; text-align:left;">
-                <button class="btn btn-sm btn-primary" onclick="window.print()" style="font-size:11px; padding:6px 12px; border-radius:6px; cursor:pointer;">
-                    <i class="ti ti-printer"></i> طباعة / حفظ التقرير PDF
+            <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;" class="no-print-area">
+                <button class="btn btn-sm" onclick="downloadReportPDF()" style="background:#00f2fe; color:#0b0e14; border:none; padding:10px 18px; border-radius:8px; font-weight:700; display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3); transition: all 0.2s ease;">
+                    <i class="ti ti-download" style="font-size:16px;"></i> تحميل التقرير PDF احترافي
                 </button>
             </div>
         </div>
@@ -6069,5 +6069,127 @@ function generateInteractiveReport() {
         `;
     });
 }
+
+// دالة تحميل التقرير بصيغة PDF مصممة باحترافية
+function downloadReportPDF() {
+    const reportElement = document.getElementById('detCustomReportArea').firstElementChild.cloneNode(true);
+    
+    // إزالة أزرار الطباعة والتحميل من النسخة المطبوعة
+    const noPrintBtn = reportElement.querySelector('.no-print-area');
+    if (noPrintBtn) noPrintBtn.remove();
+    
+    // تحسين وتنسيق التصميم خصيصاً للـ PDF ليكون بخلفية وتنسيقات مناسبة للطباعة
+    reportElement.style.background = '#ffffff';
+    reportElement.style.color = '#1f2937';
+    reportElement.style.fontFamily = "'IBM Plex Sans Arabic', sans-serif";
+    reportElement.style.padding = '24px';
+    reportElement.style.borderRadius = '0px';
+    reportElement.style.border = 'none';
+    
+    // تعديل الجداول لتكون واضحة بخلفية بيضاء
+    const tables = reportElement.querySelectorAll('table');
+    tables.forEach(t => {
+        t.style.color = '#1f2937';
+        t.style.borderCollapse = 'collapse';
+        t.style.width = '100%';
+        t.style.marginBottom = '20px';
+        
+        const ths = t.querySelectorAll('th');
+        ths.forEach(th => {
+            th.style.background = '#f3f4f6';
+            th.style.color = '#111827';
+            th.style.border = '1px solid #e5e7eb';
+            th.style.padding = '10px';
+            th.style.textAlign = 'right';
+            th.style.fontSize = '12px';
+        });
+        
+        const tds = t.querySelectorAll('td');
+        tds.forEach(td => {
+            td.style.border = '1px solid #e5e7eb';
+            td.style.padding = '10px';
+            td.style.fontSize = '12px';
+            td.style.color = '#374151';
+        });
+    });
+
+    // تعديل العناوين
+    const headers = reportElement.querySelectorAll('h2, h3, h4, h5');
+    headers.forEach(h => {
+        h.style.color = '#111827';
+    });
+
+    // تعديل الأقسام الجانبية
+    const sections = reportElement.querySelectorAll('div[style*="border: 1px solid rgba(255,255,255,0.05)"]');
+    sections.forEach(sec => {
+        sec.style.background = '#f9fafb';
+        sec.style.border = '1px solid #e5e7eb';
+        sec.style.color = '#374151';
+    });
+
+    // تعديل نصوص التحليل
+    const analysisParagraphs = reportElement.querySelectorAll('p[style*="border-right:3px solid #00f2fe"]');
+    analysisParagraphs.forEach(p => {
+        p.style.background = '#f0fdfa';
+        p.style.color = '#0f766e';
+        p.style.borderRight = '4px solid #0d9488';
+        p.style.padding = '12px';
+    });
+
+    // تعديل التوصيات
+    const recDivs = reportElement.querySelectorAll('div[style*="background:rgba("]');
+    recDivs.forEach(div => {
+        const bg = div.style.background;
+        if (bg.includes('239,68,68')) {
+            div.style.background = '#fef2f2';
+            div.style.border = '1px solid #fecaca';
+            div.style.color = '#991b1b';
+        } else if (bg.includes('0,242,254')) {
+            div.style.background = '#f0fdfa';
+            div.style.border = '1px solid #ccfbf1';
+            div.style.color = '#115e59';
+        } else if (bg.includes('245,158,11')) {
+            div.style.background = '#fffbeb';
+            div.style.border = '1px solid #fef3c7';
+            div.style.color = '#92400e';
+        } else if (bg.includes('16,185,129')) {
+            div.style.background = '#f0fdf4';
+            div.style.border = '1px solid #dcfce7';
+            div.style.color = '#166534';
+        }
+    });
+
+    // تعديل البطاقات (نقاط القوة والضعف) لتبدو جذابة
+    const strengthCard = reportElement.querySelector('div[style*="rgba(16,185,129,0.02)"]');
+    if (strengthCard) {
+        strengthCard.parentElement.style.display = 'block'; // لجعلها عمودية في الـ PDF لتفادي اقتطاع المحتوى عرضياً
+        strengthCard.style.background = '#f0fdf4';
+        strengthCard.style.border = '1px solid #bbf7d0';
+        strengthCard.style.padding = '16px';
+        strengthCard.style.borderRadius = '8px';
+        strengthCard.style.marginBottom = '16px';
+    }
+    const weaknessCard = reportElement.querySelector('div[style*="rgba(239,68,68,0.02)"]');
+    if (weaknessCard) {
+        weaknessCard.style.background = '#fef2f2';
+        weaknessCard.style.border = '1px solid #fecaca';
+        weaknessCard.style.padding = '16px';
+        weaknessCard.style.borderRadius = '8px';
+        weaknessCard.style.marginBottom = '16px';
+    }
+
+    // إعدادات html2pdf
+    const opt = {
+        margin:       [10, 10, 10, 10], // هوامش علوية وسفلية وجانبية
+        filename:     `تقرير_تحليل_حملات_تيك_توك_${new Date().toISOString().split('T')[0]}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // تشغيل التحميل
+    html2pdf().set(opt).from(reportElement).save();
+}
+
 
 
