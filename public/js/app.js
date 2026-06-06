@@ -5394,12 +5394,57 @@ function renderActivityLogs(logs) {
 
         return `<tr>
             <td style="color:var(--text3);font-size:11px">${index + 1}</td>
-            <td class="mono" style="font-size:11.5px; white-space:nowrap;">${log.timestamp}</td>
+            <td class="mono" style="font-size:11.5px; white-space:nowrap;">${formatSaudiTime(log.timestamp)}</td>
             <td style="font-weight:600;"><i class="ti ti-user" style="font-size:12px; opacity:0.6;"></i> ${escapeHtml(log.username)}</td>
             <td><span class="pill pill-purple" style="font-size:10.5px">${escapeHtml(sectStr)}</span></td>
             <td><span class="pill ${colorClass}" style="font-size:10.5px">${log.action_type}</span></td>
             <td style="text-align:right; font-weight:500;">${escapeHtml(log.details)}</td>
         </tr>`;
     }).join('');
+}
+
+// دالة مساعدة لتنسيق الوقت بنظام 12 ساعة وتوقيت السعودية (UTC+3)
+function formatSaudiTime(timestampStr) {
+    if (!timestampStr) return '';
+    try {
+        if (timestampStr.includes('AM') || timestampStr.includes('PM') || timestampStr.includes('ص') || timestampStr.includes('م')) {
+            return timestampStr;
+        }
+
+        // صيغة قاعدة البيانات المتوقعة: YYYY-MM-DD HH:MM:SS
+        const match = timestampStr.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
+        if (!match) return timestampStr;
+
+        // نقوم بتحليله كتوقيت عالمي UTC لأن السيرفر يحفظ بالتوقيت العالمي
+        const utcDate = new Date(Date.UTC(
+            parseInt(match[1], 10),
+            parseInt(match[2], 10) - 1,
+            parseInt(match[3], 10),
+            parseInt(match[4], 10),
+            parseInt(match[5], 10),
+            parseInt(match[6], 10)
+        ));
+
+        // التحويل إلى توقيت السعودية (Asia/Riyadh) بنظام 12 ساعة
+        const options = {
+            timeZone: 'Asia/Riyadh',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        };
+        
+        const formatter = new Intl.DateTimeFormat('en-US', options);
+        const parts = formatter.formatToParts(utcDate);
+        const val = (name) => parts.find(p => p.type === name).value;
+        const ampm = val('dayPeriod') === 'PM' ? 'م' : 'ص';
+
+        return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${ampm}`;
+    } catch (e) {
+        return timestampStr;
+    }
 }
 
