@@ -2600,7 +2600,7 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
         ],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity(req.user.username, 'UPDATE', 'ps_plus', `تم تحديث بيانات حساب بلس: ${email} (بلس ${plus_type})`).catch(console.error);
+            logActivity(req.user.username, 'UPDATE', 'ps_plus', `تم تحديث بيانات حساب بلس: ${email} (بلس ${plus_type} ${plus_duration})`).catch(console.error);
             res.json({ success: true });
         }
     );
@@ -2608,11 +2608,13 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
 
 app.delete('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
     const { id } = req.params;
-    db.get("SELECT email FROM ps_plus_accounts WHERE id = ?", [id], (errFetch, row) => {
+    db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errFetch, row) => {
         const email = row ? row.email : 'غير معروف';
+        const type = row ? row.plus_type : '';
+        const duration = row ? row.plus_duration : '';
         db.run("DELETE FROM ps_plus_accounts WHERE id = ?", [id], function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity(req.user.username, 'DELETE', 'ps_plus', `تم حذف حساب بلس: ${email}`).catch(console.error);
+            logActivity(req.user.username, 'DELETE', 'ps_plus', `تم حذف حساب بلس: ${email} (بلس ${type} ${duration})`).catch(console.error);
             res.json({ success: true });
         });
     });
@@ -2644,10 +2646,12 @@ app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
             const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered' WHERE id = ?`;
             db.run(query, [orderClean, phone ? phone.trim() : '', id], function(errUpdate) {
                 if (errUpdate) return res.status(500).json({ error: errUpdate.message });
-                db.get("SELECT email FROM ps_plus_accounts WHERE id = ?", [id], (errGet, accountRow) => {
+                db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errGet, accountRow) => {
                     const email = accountRow ? accountRow.email : 'غير معروف';
+                    const type = accountRow ? accountRow.plus_type : '';
+                    const duration = accountRow ? accountRow.plus_duration : '';
                     const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
-                    logActivity(req.user.username, 'DELIVER', 'ps_plus', `تم تسليم نسخة ${slotName} من الحساب ${email} للطلب رقم: ${orderClean}`).catch(console.error);
+                    logActivity(req.user.username, 'DELIVER', 'ps_plus', `تم تسليم نسخة ${slotName} من حساب بلس ${type} (${duration}) ${email} للطلب رقم: ${orderClean}`).catch(console.error);
                 });
                 res.json({ success: true });
             });
