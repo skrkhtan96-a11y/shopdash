@@ -5461,7 +5461,7 @@ function renderActivityLogs(logs) {
         const sectStr = sectionNames[log.section] || log.section;
         const colorClass = actionColors[log.action_type] || 'pill-gray';
 
-        return `<tr>
+        return `<tr onclick="showActivityLogDetails(${log.id})" style="cursor:pointer" title="انقر لعرض كامل التفاصيل">
             <td style="color:var(--text3);font-size:11px">${index + 1}</td>
             <td class="mono" style="font-size:11.5px; white-space:nowrap;">${formatSaudiTime(log.timestamp)}</td>
             <td style="font-weight:600;"><i class="ti ti-user" style="font-size:12px; opacity:0.6;"></i> ${escapeHtml(log.username)}</td>
@@ -5471,6 +5471,49 @@ function renderActivityLogs(logs) {
         </tr>`;
     }).join('');
 }
+
+function showActivityLogDetails(logId) {
+    const log = (state.activityLogs || []).find(l => l.id === logId);
+    if (!log) return;
+
+    const sectionNames = {
+        ps_plus: 'مخزون بلس 🎮',
+        expenses: 'المصروفات 💸',
+        certificates: 'الشهادات 📜',
+        users: 'المستخدمين 👥'
+    };
+
+    const actionColors = {
+        ADD: 'pill-blue',
+        UPDATE: 'pill-amber',
+        DELETE: 'pill-red',
+        DELIVER: 'pill-green',
+        IMPORT: 'pill-purple',
+        CLEAR: 'pill-gray'
+    };
+
+    const sectStr = sectionNames[log.section] || log.section;
+    const colorClass = actionColors[log.action_type] || 'pill-gray';
+
+    document.getElementById('aldUser').textContent = log.username;
+    document.getElementById('aldTime').textContent = formatSaudiTime(log.timestamp);
+    
+    const secEl = document.getElementById('aldSection');
+    secEl.textContent = sectStr;
+    
+    const actEl = document.getElementById('aldAction');
+    actEl.textContent = log.action_type;
+    actEl.className = `pill ${colorClass}`;
+    
+    document.getElementById('aldDetails').textContent = log.details;
+
+    document.getElementById('activityLogDetailsModal').classList.add('open');
+}
+
+function closeActivityLogDetailsModal() {
+    document.getElementById('activityLogDetailsModal').classList.remove('open');
+}
+
 
 // دالة مساعدة لتنسيق الوقت بنظام 12 ساعة وتوقيت السعودية (UTC+3)
 function formatSaudiTime(timestampStr) {
