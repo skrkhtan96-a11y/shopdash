@@ -4295,7 +4295,7 @@ function openCampaignDetail(campaignName, platform) {
         .then(res => res.json())
         .then(data => {
             // تصفية السجلات الخاصة بهذه الحملة فقط
-            const records = data.filter(r => r.campaign_name === campaignName);
+            const records = data.filter(r => r.campaign_name === campaignName && r.platform === platform);
             
             // حفظ السجلات في متغيرات عامة لغرض التصدير لاحقاً
             window.currentCampaignRecords = records;
