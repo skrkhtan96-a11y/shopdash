@@ -1914,6 +1914,22 @@
               </select>
             </div>
 
+            <!-- أكواد التحقق المخصصة لكل نسخة -->
+            <div class="form-group">
+              <label class="form-label">كود تحقق نسخة PS5 (الأولى)</label>
+              <input type="text" id="psCode51" placeholder="مثال: CL4QMK">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">كود تحقق نسخة PS5 (الثانية)</label>
+              <input type="text" id="psCode52" placeholder="مثال: BK9WLM">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">كود تحقق نسخة PS4</label>
+              <input type="text" id="psCode4" placeholder="مثال: XY7ZTR">
+            </div>
+
             <!-- حقول التعديل الاختيارية لتسويات التسليم اليدوية -->
             <div class="form-group full" id="psEditDeliveriesSection" style="display:none; border-top:1px solid var(--border1); padding-top:10px; margin-top:5px;">
               <div style="font-weight:600; font-size:12px; color:var(--text2); margin-bottom:8px;">إدارة تسويات التسليم (تصفير أو تعديل رقم الطلب يدويًا):</div>
@@ -2045,6 +2061,10 @@
               <div id="psdPs5_1_Status" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
             <div>
+              <div style="font-size:10px; color:var(--text2)">كود التحقق</div>
+              <div id="psdPs5_1_Code" class="mono" style="font-weight:600; font-size:12px; color:var(--accent); margin-top:2px;">-</div>
+            </div>
+            <div>
               <div style="font-size:10px; color:var(--text2)">رقم الطلب</div>
               <div id="psdPs5_1_Order" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
@@ -2052,7 +2072,7 @@
               <div style="font-size:10px; color:var(--text2)">رقم هاتف العميل</div>
               <div id="psdPs5_1_Phone" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
-            <div>
+            <div style="grid-column: span 2">
               <div style="font-size:10px; color:var(--text2)">سلمت بواسطة</div>
               <div id="psdPs5_1_DeliveredBy" style="font-weight:600; font-size:12px; margin-top:2px; color:var(--text2)">-</div>
             </div>
@@ -2070,6 +2090,10 @@
               <div id="psdPs5_2_Status" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
             <div>
+              <div style="font-size:10px; color:var(--text2)">كود التحقق</div>
+              <div id="psdPs5_2_Code" class="mono" style="font-weight:600; font-size:12px; color:var(--accent); margin-top:2px;">-</div>
+            </div>
+            <div>
               <div style="font-size:10px; color:var(--text2)">رقم الطلب</div>
               <div id="psdPs5_2_Order" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
@@ -2077,7 +2101,7 @@
               <div style="font-size:10px; color:var(--text2)">رقم هاتف العميل</div>
               <div id="psdPs5_2_Phone" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
-            <div>
+            <div style="grid-column: span 2">
               <div style="font-size:10px; color:var(--text2)">سلمت بواسطة</div>
               <div id="psdPs5_2_DeliveredBy" style="font-weight:600; font-size:12px; margin-top:2px; color:var(--text2)">-</div>
             </div>
@@ -2095,6 +2119,10 @@
               <div id="psdPs4_Status" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
             <div>
+              <div style="font-size:10px; color:var(--text2)">كود التحقق</div>
+              <div id="psdPs4_Code" class="mono" style="font-weight:600; font-size:12px; color:var(--accent); margin-top:2px;">-</div>
+            </div>
+            <div>
               <div style="font-size:10px; color:var(--text2)">رقم الطلب</div>
               <div id="psdPs4_Order" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
@@ -2102,7 +2130,7 @@
               <div style="font-size:10px; color:var(--text2)">رقم هاتف العميل</div>
               <div id="psdPs4_Phone" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
             </div>
-            <div>
+            <div style="grid-column: span 2">
               <div style="font-size:10px; color:var(--text2)">سلمت بواسطة</div>
               <div id="psdPs4_DeliveredBy" style="font-weight:600; font-size:12px; margin-top:2px; color:var(--text2)">-</div>
             </div>

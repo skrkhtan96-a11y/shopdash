@@ -5133,6 +5133,7 @@ function showPsPlusDetails(accountId) {
     p51StatusEl.innerHTML = c.ps5_1_status === 'available' 
         ? '<span class="pill pill-blue">متاح للبيع</span>' 
         : '<span class="pill pill-green">تم التسليم ✅</span>';
+    document.getElementById('psdPs5_1_Code').textContent = c.ps5_1_code || 'لا يوجد كود';
     document.getElementById('psdPs5_1_Order').textContent = c.ps5_1_order || 'لا يوجد';
     document.getElementById('psdPs5_1_Phone').textContent = c.ps5_1_phone || 'لا يوجد';
     document.getElementById('psdPs5_1_DeliveredBy').textContent = c.ps5_1_delivered_by || 'غير محدد';
@@ -5142,6 +5143,7 @@ function showPsPlusDetails(accountId) {
     p52StatusEl.innerHTML = c.ps5_2_status === 'available' 
         ? '<span class="pill pill-blue">متاح للبيع</span>' 
         : '<span class="pill pill-green">تم التسليم ✅</span>';
+    document.getElementById('psdPs5_2_Code').textContent = c.ps5_2_code || 'لا يوجد كود';
     document.getElementById('psdPs5_2_Order').textContent = c.ps5_2_order || 'لا يوجد';
     document.getElementById('psdPs5_2_Phone').textContent = c.ps5_2_phone || 'لا يوجد';
     document.getElementById('psdPs5_2_DeliveredBy').textContent = c.ps5_2_delivered_by || 'غير محدد';
@@ -5151,6 +5153,7 @@ function showPsPlusDetails(accountId) {
     p4StatusEl.innerHTML = c.ps4_status === 'available' 
         ? '<span class="pill pill-blue">متاح للبيع</span>' 
         : '<span class="pill pill-green">تم التسليم ✅</span>';
+    document.getElementById('psdPs4_Code').textContent = c.ps4_code || 'لا يوجد كود';
     document.getElementById('psdPs4_Order').textContent = c.ps4_order || 'لا يوجد';
     document.getElementById('psdPs4_Phone').textContent = c.ps4_phone || 'لا يوجد';
     document.getElementById('psdPs4_DeliveredBy').textContent = c.ps4_delivered_by || 'غير محدد';
@@ -5170,6 +5173,9 @@ function openPsPlusModal() {
     document.getElementById('psPassword').value = '';
     document.getElementById('psType').value = 'اساسي';
     document.getElementById('psDuration').value = 'سنة';
+    document.getElementById('psCode51').value = '';
+    document.getElementById('psCode52').value = '';
+    document.getElementById('psCode4').value = '';
     document.getElementById('psEditDeliveriesSection').style.display = 'none';
     document.getElementById('psPlusModal').classList.add('open');
 }
@@ -5192,6 +5198,18 @@ function editPsPlusAccount(id, email, password, type, duration, ps5_1, ps5_2, ps
     document.getElementById('psEdit4Order').value = ps4;
     document.getElementById('psEditDeliveriesSection').style.display = 'block';
 
+    // استرجاع أكواد التحقق من الكاش الفعلي
+    const c = (state.psPlusAccounts || []).find(acc => acc.id === id);
+    if (c) {
+        document.getElementById('psCode51').value = c.ps5_1_code || '';
+        document.getElementById('psCode52').value = c.ps5_2_code || '';
+        document.getElementById('psCode4').value = c.ps4_code || '';
+    } else {
+        document.getElementById('psCode51').value = '';
+        document.getElementById('psCode52').value = '';
+        document.getElementById('psCode4').value = '';
+    }
+
     document.getElementById('psPlusModal').classList.add('open');
 }
 
@@ -5201,12 +5219,16 @@ async function savePsPlusAccount() {
     const plus_type = document.getElementById('psType').value;
     const plus_duration = document.getElementById('psDuration').value;
 
+    const ps5_1_code = document.getElementById('psCode51').value;
+    const ps5_2_code = document.getElementById('psCode52').value;
+    const ps4_code = document.getElementById('psCode4').value;
+
     if (!email || !password) {
         toast('الإيميل والباسورد مطلوبان لتسجيل الحساب.', 'warn');
         return;
     }
 
-    const payload = { email, password, plus_type, plus_duration };
+    const payload = { email, password, plus_type, plus_duration, ps5_1_code, ps5_2_code, ps4_code };
     if (currentEditPsAccountId) {
         payload.ps5_1_order = document.getElementById('psEdit51Order').value;
         payload.ps5_2_order = document.getElementById('psEdit52Order').value;
@@ -5335,10 +5357,20 @@ async function confirmPsPlusDelivery() {
         const type = document.getElementById('deliverShowType').textContent;
         const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
 
+        // استخراج كود التحقق والبيانات الأخرى
+        let vCode = '';
+        const currentAcc = (state.psPlusAccounts || []).find(acc => acc.id === id);
+        if (currentAcc) {
+            if (slot === 'ps5_1') vCode = currentAcc.ps5_1_code || '';
+            else if (slot === 'ps5_2') vCode = currentAcc.ps5_2_code || '';
+            else if (slot === 'ps4') vCode = currentAcc.ps4_code || '';
+        }
+
         // صياغة رسالة الواتساب المنسقة مع رسالة تسويقية فاخرة
         const messageText = `مرحباً بك! تم تسليم طلبك بنجاح من متجر شوب ستور 🎮✨\n\n` +
                             `الإيميل : ${email}\n` + 
-                            `الباسورد   ${passwordPlaceholder(email)}\n\n` + 
+                            `الباسورد   ${passwordPlaceholder(email)}\n` +
+                            (vCode ? `كود التحقق:${vCode}\n` : '') +
                             `نوع البلس : ( بلس ${type} ${slotName} )\n\n` + 
                             `تم تسليم ${slotName}  ✅\n` + 
                             `رقم الطلب : ${order_id}\n\n` +
