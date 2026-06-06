@@ -216,6 +216,9 @@ db.serialize(() => {
             ps4_phone TEXT,
             ps4_status TEXT DEFAULT 'available',
             created_by TEXT,
+            ps5_1_delivered_by TEXT,
+            ps5_2_delivered_by TEXT,
+            ps4_delivered_by TEXT,
             created_at TEXT NOT NULL
         )
     `);
@@ -244,6 +247,9 @@ db.serialize(() => {
 
     // ترقية جدول حسابات البلس لإضافة اسم المستخدم الذي قام بإضافة الحساب
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN created_by TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_1_delivered_by TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_2_delivered_by TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps4_delivered_by TEXT", (err) => { /* تجاهل الخطأ */ });
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {

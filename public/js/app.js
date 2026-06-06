@@ -5091,7 +5091,7 @@ function renderPsPlusAccounts(accounts) {
                 : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`)
             : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
 
-        return `<tr>
+        return `<tr onclick="if(!event.target.closest('button')) showPsPlusDetails(${c.id})" style="cursor:pointer" title="انقر لعرض كامل التفاصيل والمسؤولين">
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
             <td style="font-weight:600;" class="mono">${escapeHtml(c.email)}</td>
             <td class="mono">${escapeHtml(c.password)}</td>
@@ -5118,6 +5118,50 @@ function updatePsPlusKPIs(total, ps5, ps4, completed) {
     document.getElementById('kpiPsAvailable4').textContent = ps4;
     document.getElementById('kpiPsCompleted').textContent = completed;
 }
+
+function showPsPlusDetails(accountId) {
+    const c = (state.psPlusAccounts || []).find(acc => acc.id === accountId);
+    if (!c) return;
+
+    document.getElementById('psdEmail').textContent = c.email || 'غير محدد';
+    document.getElementById('psdType').textContent = c.plus_type || 'غير محدد';
+    document.getElementById('psdDuration').textContent = c.plus_duration || 'غير محدد';
+    document.getElementById('psdCreatedBy').textContent = c.created_by || 'غير محدد';
+
+    // PS5 1
+    const p51StatusEl = document.getElementById('psdPs5_1_Status');
+    p51StatusEl.innerHTML = c.ps5_1_status === 'available' 
+        ? '<span class="pill pill-blue">متاح للبيع</span>' 
+        : '<span class="pill pill-green">تم التسليم ✅</span>';
+    document.getElementById('psdPs5_1_Order').textContent = c.ps5_1_order || 'لا يوجد';
+    document.getElementById('psdPs5_1_Phone').textContent = c.ps5_1_phone || 'لا يوجد';
+    document.getElementById('psdPs5_1_DeliveredBy').textContent = c.ps5_1_delivered_by || 'غير محدد';
+
+    // PS5 2
+    const p52StatusEl = document.getElementById('psdPs5_2_Status');
+    p52StatusEl.innerHTML = c.ps5_2_status === 'available' 
+        ? '<span class="pill pill-blue">متاح للبيع</span>' 
+        : '<span class="pill pill-green">تم التسليم ✅</span>';
+    document.getElementById('psdPs5_2_Order').textContent = c.ps5_2_order || 'لا يوجد';
+    document.getElementById('psdPs5_2_Phone').textContent = c.ps5_2_phone || 'لا يوجد';
+    document.getElementById('psdPs5_2_DeliveredBy').textContent = c.ps5_2_delivered_by || 'غير محدد';
+
+    // PS4
+    const p4StatusEl = document.getElementById('psdPs4_Status');
+    p4StatusEl.innerHTML = c.ps4_status === 'available' 
+        ? '<span class="pill pill-blue">متاح للبيع</span>' 
+        : '<span class="pill pill-green">تم التسليم ✅</span>';
+    document.getElementById('psdPs4_Order').textContent = c.ps4_order || 'لا يوجد';
+    document.getElementById('psdPs4_Phone').textContent = c.ps4_phone || 'لا يوجد';
+    document.getElementById('psdPs4_DeliveredBy').textContent = c.ps4_delivered_by || 'غير محدد';
+
+    document.getElementById('psPlusDetailsModal').classList.add('open');
+}
+
+function closePsPlusDetailsModal() {
+    document.getElementById('psPlusDetailsModal').classList.remove('open');
+}
+
 
 function openPsPlusModal() {
     currentEditPsAccountId = null;

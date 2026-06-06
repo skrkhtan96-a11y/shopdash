@@ -2005,6 +2005,118 @@
     </div><!-- /content -->
   </div><!-- /shell -->
 
+  <!-- MODAL: تفاصيل حساب بلس المنبثق -->
+  <div class="modal-bg" id="psPlusDetailsModal">
+    <div class="modal" style="max-width: 550px; border-color: rgba(255,255,255,0.1); background: rgba(17, 21, 32, 0.9); backdrop-filter: blur(20px);">
+      <div class="modal-title" style="font-size: 15px; font-weight: 600; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; display:flex; align-items:center; gap:8px">
+        <i class="ti ti-brand-playstation"></i> تفاصيل بيانات حساب بلايستيشن بلس
+      </div>
+      
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        
+        <!-- الحساب الأساسي والنوع والمضيف -->
+        <div style="background:var(--bg3); padding:12px; border-radius:var(--r); border:1px solid var(--border)">
+          <div style="font-size:10px; color:var(--text2); margin-bottom:2px">الإيميل الموحد للحساب</div>
+          <div id="psdEmail" class="mono" style="font-weight:700; font-size:14px; color:#fff;">-</div>
+          <div style="margin-top:8px; display:flex; gap:10px;">
+            <div>
+              <div style="font-size:10px; color:var(--text2); margin-bottom:2px">النوع</div>
+              <span id="psdType" class="pill pill-purple">-</span>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2); margin-bottom:2px">المدة</div>
+              <span id="psdDuration" class="pill pill-blue">-</span>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2); margin-bottom:2px">أضيف بواسطة</div>
+              <span id="psdCreatedBy" class="pill pill-gray" style="font-weight:600; color:var(--text2); font-size:11px;">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- معلومات تسليم النسخة PS5 الأولى -->
+        <div style="background:var(--bg3); padding:12px; border-radius:var(--r); border:1px solid var(--border)">
+          <div style="font-size:11px; font-weight:700; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:5px">
+            <i class="ti ti-device-gamepad-2"></i> نسخة PS5 (الأولى)
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+            <div>
+              <div style="font-size:10px; color:var(--text2)">الحالة</div>
+              <div id="psdPs5_1_Status" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">رقم الطلب</div>
+              <div id="psdPs5_1_Order" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">رقم هاتف العميل</div>
+              <div id="psdPs5_1_Phone" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">سلمت بواسطة</div>
+              <div id="psdPs5_1_DeliveredBy" style="font-weight:600; font-size:12px; margin-top:2px; color:var(--text2)">-</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- معلومات تسليم النسخة PS5 الثانية -->
+        <div style="background:var(--bg3); padding:12px; border-radius:var(--r); border:1px solid var(--border)">
+          <div style="font-size:11px; font-weight:700; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:5px">
+            <i class="ti ti-device-gamepad-2"></i> نسخة PS5 (الثانية)
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+            <div>
+              <div style="font-size:10px; color:var(--text2)">الحالة</div>
+              <div id="psdPs5_2_Status" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">رقم الطلب</div>
+              <div id="psdPs5_2_Order" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">رقم هاتف العميل</div>
+              <div id="psdPs5_2_Phone" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">سلمت بواسطة</div>
+              <div id="psdPs5_2_DeliveredBy" style="font-weight:600; font-size:12px; margin-top:2px; color:var(--text2)">-</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- معلومات تسليم النسخة PS4 -->
+        <div style="background:var(--bg3); padding:12px; border-radius:var(--r); border:1px solid var(--border)">
+          <div style="font-size:11px; font-weight:700; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:5px">
+            <i class="ti ti-device-gamepad"></i> نسخة PS4
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+            <div>
+              <div style="font-size:10px; color:var(--text2)">الحالة</div>
+              <div id="psdPs4_Status" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">رقم الطلب</div>
+              <div id="psdPs4_Order" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">رقم هاتف العميل</div>
+              <div id="psdPs4_Phone" class="mono" style="font-weight:600; font-size:12px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2)">سلمت بواسطة</div>
+              <div id="psdPs4_DeliveredBy" style="font-weight:600; font-size:12px; margin-top:2px; color:var(--text2)">-</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-foot" style="margin-top:20px; padding-top:10px">
+        <button class="btn btn-primary" onclick="closePsPlusDetailsModal()"><i class="ti ti-check"></i> إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: تفاصيل سجل العمليات المنبثق -->
   <div class="modal-bg" id="activityLogDetailsModal">
     <div class="modal" style="max-width: 550px; border-color: rgba(255,255,255,0.1); background: rgba(17, 21, 32, 0.9); backdrop-filter: blur(20px);">

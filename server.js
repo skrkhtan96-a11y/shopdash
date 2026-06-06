@@ -2665,8 +2665,8 @@ app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
             }
 
             // تنفيذ التحديث
-            const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered' WHERE id = ?`;
-            db.run(query, [orderClean, phone ? phone.trim() : '', id], function(errUpdate) {
+            const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered', ${slot}_delivered_by = ? WHERE id = ?`;
+            db.run(query, [orderClean, phone ? phone.trim() : '', req.user.username, id], function(errUpdate) {
                 if (errUpdate) return res.status(500).json({ error: errUpdate.message });
                 db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errGet, accountRow) => {
                     const email = accountRow ? accountRow.email : 'غير معروف';
