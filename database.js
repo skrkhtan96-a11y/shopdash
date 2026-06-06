@@ -215,6 +215,18 @@ db.serialize(() => {
         )
     `);
 
+    // 15. جدول سجل النشاطات (Activity Logs)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            section TEXT NOT NULL,
+            details TEXT NOT NULL,
+            timestamp TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    `);
+
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });
@@ -311,6 +323,18 @@ module.exports = {
                 if (err) reject(err);
                 else resolve(true);
             });
+        });
+    },
+    logActivity: (username, action_type, section, details) => {
+        return new Promise((resolve, reject) => {
+            db.run(
+                "INSERT INTO activity_logs (username, action_type, section, details) VALUES (?, ?, ?, ?)",
+                [username || 'System', action_type, section, details],
+                (err) => {
+                    if (err) reject(err);
+                    else resolve(true);
+                }
+            );
         });
     }
 };

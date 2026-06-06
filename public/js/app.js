@@ -159,10 +159,10 @@ function applyRoleBasedPermissions() {
     }
 
     if (role === 'games_employee') {
-        // إخفاء كافة عناصر القائمة الجانبية ما عدا مخزون حسابات بلس
+        // إخفاء كافة عناصر القائمة الجانبية ما عدا مخزون حسابات بلس وسجل النشاطات
         document.querySelectorAll('.sidebar .nav-item').forEach(item => {
             const onClickStr = item.getAttribute('onclick') || '';
-            if (!onClickStr.includes("'ps-plus'")) {
+            if (!onClickStr.includes("'ps-plus'") && !onClickStr.includes("'activity-logs'")) {
                 item.style.display = 'none';
             }
         });
@@ -171,10 +171,10 @@ function applyRoleBasedPermissions() {
             el.style.display = 'none';
         });
 
-        // إخفاء كافة أزرار الشريط السفلي للموبايل ما عدا بلس
+        // إخفاء كافة أزرار الشريط السفلي للموبايل ما عدا بلس والنشاطات
         document.querySelectorAll('.bottom-nav-item').forEach(item => {
             const onClickStr = item.getAttribute('onclick') || '';
-            if (!onClickStr.includes("'ps-plus'")) {
+            if (!onClickStr.includes("'ps-plus'") && !onClickStr.includes("'activity-logs'")) {
                 item.style.display = 'none';
             }
         });
@@ -316,7 +316,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus'];
+const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'activity-logs'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -330,7 +330,8 @@ const PAGE_TITLES = {
     import: 'استيراد Excel',
     users: 'إدارة المستخدمين',
     certificates: 'إدارة تقارير الشهادات',
-    'ps-plus': 'مخزون حسابات بلس'
+    'ps-plus': 'مخزون حسابات بلس',
+    'activity-logs': 'سجل النشاطات والعمليات'
 };
 
 // دالة التحكم في القائمة الجانبية للشاشات الصغيرة (الجوال)
@@ -348,7 +349,7 @@ function toggleSidebar(open) {
 }
 
 function nav(name, updateHash = true) {
-    if (state.user && state.user.role === 'games_employee' && name !== 'ps-plus') {
+    if (state.user && state.user.role === 'games_employee' && name !== 'ps-plus' && name !== 'activity-logs') {
         nav('ps-plus', true);
         return;
     }
@@ -404,6 +405,7 @@ function nav(name, updateHash = true) {
     if (name === 'users') loadUsers();
     if (name === 'certificates') loadCertificates();
     if (name === 'ps-plus') loadPsPlusAccounts();
+    if (name === 'activity-logs') loadActivityLogs();
 }
 
 // ══════════════════════════════════════════════
@@ -5315,5 +5317,89 @@ async function importPsPlusExcel(event) {
     } catch (e) {
         toast(e.message, 'error');
     }
+}
+
+// ══════════════════════════════════════════════
+//  ACTIVITY LOGS (سجل تتبع العمليات)
+// ══════════════════════════════════════════════
+async function loadActivityLogs() {
+    const tbody = document.getElementById('activityLogsTbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل سجل العمليات والنشاطات...</p></div></td></tr>';
+
+    try {
+        const response = await fetch('/api/activity-logs');
+        if (!response.ok) throw new Error('فشل جلب سجل العمليات');
+        const data = await response.json();
+        state.activityLogs = data;
+        renderActivityLogs(data);
+    } catch (e) {
+        toast(e.message, 'error');
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><i class="ti ti-alert-triangle" style="color:var(--red)"></i><p>${e.message}</p></div></td></tr>`;
+    }
+}
+
+function renderActivityLogs(logs) {
+    if (!logs) {
+        logs = state.activityLogs || [];
+    }
+
+    const tbody = document.getElementById('activityLogsTbody');
+    if (!tbody) return;
+
+    if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><i class="ti ti-history"></i><p>سجل النشاطات فارغ حالياً</p></div></td></tr>';
+        return;
+    }
+
+    // Get filter options
+    const sectionFilter = document.getElementById('logFilterSection')?.value || '';
+    const actionFilter = document.getElementById('logFilterAction')?.value || '';
+    const searchFilter = document.getElementById('logFilterSearch')?.value.trim().toLowerCase() || '';
+
+    // Apply filtering
+    const filtered = logs.filter(log => {
+        if (sectionFilter && log.section !== sectionFilter) return false;
+        if (actionFilter && log.action_type !== actionFilter) return false;
+        if (searchFilter && !log.details.toLowerCase().includes(searchFilter) && !log.username.toLowerCase().includes(searchFilter)) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><i class="ti ti-history"></i><p>لا توجد نشاطات تطابق خيارات التصفية الحالية</p></div></td></tr>';
+        return;
+    }
+
+    // Arabic labels map for presentation
+    const sectionNames = {
+        ps_plus: 'مخزون بلس 🎮',
+        expenses: 'المصروفات 💸',
+        certificates: 'الشهادات 📜',
+        users: 'المستخدمين 👥'
+    };
+
+    const actionColors = {
+        ADD: 'pill-blue',
+        UPDATE: 'pill-amber',
+        DELETE: 'pill-red',
+        DELIVER: 'pill-green',
+        IMPORT: 'pill-purple',
+        CLEAR: 'pill-gray'
+    };
+
+    tbody.innerHTML = filtered.map((log, index) => {
+        const sectStr = sectionNames[log.section] || log.section;
+        const colorClass = actionColors[log.action_type] || 'pill-gray';
+
+        return `<tr>
+            <td style="color:var(--text3);font-size:11px">${index + 1}</td>
+            <td class="mono" style="font-size:11.5px; white-space:nowrap;">${log.timestamp}</td>
+            <td style="font-weight:600;"><i class="ti ti-user" style="font-size:12px; opacity:0.6;"></i> ${escapeHtml(log.username)}</td>
+            <td><span class="pill pill-purple" style="font-size:10.5px">${escapeHtml(sectStr)}</span></td>
+            <td><span class="pill ${colorClass}" style="font-size:10.5px">${log.action_type}</span></td>
+            <td style="text-align:right; font-weight:500;">${escapeHtml(log.details)}</td>
+        </tr>`;
+    }).join('');
 }
 

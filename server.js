@@ -4,7 +4,7 @@ const axios = require('axios');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const { db, getConfig, setConfig, deleteConfig, hashPassword, verifyPassword } = require('./database');
+const { db, getConfig, setConfig, deleteConfig, hashPassword, verifyPassword, logActivity } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -217,6 +217,14 @@ app.get('/api/auth/me', authenticateUser, (req, res) => {
     res.json(req.user);
 });
 
+// Get activity logs (accessible to authenticated users)
+app.get('/api/activity-logs', authenticateUser, (req, res) => {
+    db.all("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 500", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
 // 6. Manage users: Get all users (Admin only)
 app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
     db.all("SELECT id, username, email, role, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
@@ -245,6 +253,7 @@ app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
                 }
                 return res.status(500).json({ error: err.message });
             }
+            logActivity(req.user.username, 'ADD', 'users', `تم إضافة مستخدم جديد: ${username} برتبة ${role}`).catch(console.error);
             res.json({ success: true, id: this.lastID });
         }
     );
@@ -266,6 +275,7 @@ app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) =
             [role, username.trim(), email.trim().toLowerCase(), hashedPassword, id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
+                logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
                 res.json({ success: true });
             }
         );
@@ -275,6 +285,7 @@ app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) =
             [role, username.trim(), email.trim().toLowerCase(), id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
+                logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
                 res.json({ success: true });
             }
         );
@@ -288,9 +299,13 @@ app.delete('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res
         return res.status(400).json({ error: 'لا يمكنك حذف حسابك الشخصي النشط حالياً.' });
     }
     
-    db.run("DELETE FROM users WHERE id = ?", [id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT username FROM users WHERE id = ?", [id], (errGet, userRow) => {
+        const targetUsername = userRow ? userRow.username : 'غير معروف';
+        db.run("DELETE FROM users WHERE id = ?", [id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(req.user.username, 'DELETE', 'users', `تم حذف المستخدم: ${targetUsername} (معرف: ${id})`).catch(console.error);
+            res.json({ success: true });
+        });
     });
 });
 
@@ -1627,6 +1642,7 @@ app.post('/api/certificates', authenticateUser, (req, res) => {
                 }
                 return res.status(500).json({ error: err.message });
             }
+            logActivity(req.user.username, 'ADD', 'certificates', `تم إضافة شهادة جديدة: ${name} (إجمالي ${total})`).catch(console.error);
             res.json({ success: true, id: this.lastID });
         }
     );
@@ -1649,6 +1665,7 @@ app.put('/api/certificates/:id', authenticateUser, (req, res) => {
         [name.trim(), total, sold, comp, spend, note, stat, updatedAt, id],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
+            logActivity(req.user.username, 'UPDATE', 'certificates', `تم تعديل بيانات الشهادة: ${name} (إجمالي ${total}, تعويضات ${comp})`).catch(console.error);
             res.json({ success: true });
         }
     );
@@ -1656,9 +1673,13 @@ app.put('/api/certificates/:id', authenticateUser, (req, res) => {
 
 app.delete('/api/certificates/:id', authenticateUser, (req, res) => {
     const { id } = req.params;
-    db.run("DELETE FROM certificates WHERE id = ?", [id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT name FROM certificates WHERE id = ?", [id], (errFetch, row) => {
+        const name = row ? row.name : 'غير معروف';
+        db.run("DELETE FROM certificates WHERE id = ?", [id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(req.user.username, 'DELETE', 'certificates', `تم حذف الشهادة: ${name}`).catch(console.error);
+            res.json({ success: true });
+        });
     });
 });
 
@@ -1791,6 +1812,7 @@ app.post('/api/expenses', (req, res) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
+            logActivity(req.user.username, 'ADD', 'expenses', `تم إضافة مصروف جديد: ${desc} بقيمة ${amt} ر.س`).catch(console.error);
             res.json({ success: true, id: this.lastID });
         }
     );
@@ -1821,6 +1843,7 @@ app.put('/api/expenses/:id', (req, res) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
+            logActivity(req.user.username, 'UPDATE', 'expenses', `تم تعديل المصروف: ${desc} بقيمة ${amt} ر.س`).catch(console.error);
             res.json({ success: true, changes: this.changes });
         }
     );
@@ -1829,11 +1852,16 @@ app.put('/api/expenses/:id', (req, res) => {
 // حذف مصروف
 app.delete('/api/expenses/:id', (req, res) => {
     const { id } = req.params;
-    db.run("DELETE FROM expenses WHERE id = ?", [id], function (err) {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json({ success: true, changes: this.changes });
+    db.get("SELECT desc, amt FROM expenses WHERE id = ?", [id], (errFetch, row) => {
+        const desc = row ? row.desc : 'غير معروف';
+        const amt = row ? row.amt : 0;
+        db.run("DELETE FROM expenses WHERE id = ?", [id], function (err) {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            logActivity(req.user.username, 'DELETE', 'expenses', `تم حذف المصروف: ${desc} بقيمة ${amt} ر.س`).catch(console.error);
+            res.json({ success: true, changes: this.changes });
+        });
     });
 });
 
@@ -1846,6 +1874,7 @@ app.post('/api/expenses/clear', (req, res) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
+        logActivity(req.user.username, 'CLEAR', 'expenses', `تم حذف وتصفير جميع المصروفات`).catch(console.error);
         res.json({ success: true, changes: this.changes });
     });
 });
@@ -2522,6 +2551,7 @@ app.post('/api/ps-plus/accounts', authenticateUser, (req, res) => {
                 }
                 return res.status(500).json({ error: err.message });
             }
+            logActivity(req.user.username, 'ADD', 'ps_plus', `تم إضافة حساب بلس جديد: ${email} (بلس ${plus_type} ${plus_duration})`).catch(console.error);
             res.json({ success: true, id: this.lastID });
         }
     );
@@ -2570,6 +2600,7 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
         ],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
+            logActivity(req.user.username, 'UPDATE', 'ps_plus', `تم تحديث بيانات حساب بلس: ${email} (بلس ${plus_type})`).catch(console.error);
             res.json({ success: true });
         }
     );
@@ -2577,9 +2608,13 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
 
 app.delete('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
     const { id } = req.params;
-    db.run("DELETE FROM ps_plus_accounts WHERE id = ?", [id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT email FROM ps_plus_accounts WHERE id = ?", [id], (errFetch, row) => {
+        const email = row ? row.email : 'غير معروف';
+        db.run("DELETE FROM ps_plus_accounts WHERE id = ?", [id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(req.user.username, 'DELETE', 'ps_plus', `تم حذف حساب بلس: ${email}`).catch(console.error);
+            res.json({ success: true });
+        });
     });
 });
 
@@ -2609,6 +2644,11 @@ app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
             const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered' WHERE id = ?`;
             db.run(query, [orderClean, phone ? phone.trim() : '', id], function(errUpdate) {
                 if (errUpdate) return res.status(500).json({ error: errUpdate.message });
+                db.get("SELECT email FROM ps_plus_accounts WHERE id = ?", [id], (errGet, accountRow) => {
+                    const email = accountRow ? accountRow.email : 'غير معروف';
+                    const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
+                    logActivity(req.user.username, 'DELIVER', 'ps_plus', `تم تسليم نسخة ${slotName} من الحساب ${email} للطلب رقم: ${orderClean}`).catch(console.error);
+                });
                 res.json({ success: true });
             });
         }
@@ -2657,6 +2697,7 @@ app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
                 return res.status(500).json({ error: errorOccurred });
             }
             db.run("COMMIT");
+            logActivity(req.user.username, 'IMPORT', 'ps_plus', `تم استيراد/تحديث ${count} حساب بلس من ملف Excel`).catch(console.error);
             res.json({ success: true, count });
         });
     });
