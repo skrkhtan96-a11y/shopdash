@@ -789,6 +789,9 @@
             </div>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-sm btn-success" onclick="generateInteractiveReport()" style="padding:8px 12px; border-radius:8px; font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
+              <i class="ti ti-file-analytics" style="font-size:14px;"></i> إنشاء التقرير التحليلي المتكامل 📊
+            </button>
             <button class="btn btn-sm" onclick="exportCampaignDetailToExcel()" style="background:rgba(16,185,129,0.1); color:#10B981; border:1px solid rgba(16,185,129,0.2); padding:8px 12px; border-radius:8px; font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
               <i class="ti ti-file-spreadsheet" style="font-size:14px;"></i> تصدير البيانات إلى إكسل (Excel)
             </button>
@@ -796,6 +799,11 @@
               <i class="ti ti-activity"></i> مباشر من تيك توك Ads
             </div>
           </div>
+        </div>
+
+        <!-- Custom Generated Interactive Report -->
+        <div id="detCustomReportArea" style="display:none; margin-bottom:20px;">
+          <!-- سيتم توليد تقرير متكامل وتفاعلي هنا بلحظة النقر -->
         </div>
 
         <!-- Recommendations Grid -->
