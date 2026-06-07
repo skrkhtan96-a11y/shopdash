@@ -108,6 +108,7 @@ db.serialize(() => {
             can_edit INTEGER DEFAULT 1,
             can_delete INTEGER DEFAULT 1,
             can_deliver INTEGER DEFAULT 1,
+            can_view_ps_details INTEGER DEFAULT 1,
             created_at TEXT NOT NULL
         )
     `);
@@ -247,6 +248,7 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN can_edit INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_delete INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_deliver INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_ps_details INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
 
     // ترقية جدول حسابات البلس لإضافة اسم المستخدم الذي قام بإضافة الحساب
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN created_by TEXT", (err) => { /* تجاهل الخطأ */ });

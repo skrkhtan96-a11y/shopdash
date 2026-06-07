@@ -3039,6 +3039,7 @@ function renderUsers(users) {
         if (user.role === 'admin' || user.can_edit) perms.push('<span class="pill pill-amber" style="font-size: 8.5px; padding: 1px 3px;">✎تعديل</span>');
         if (user.role === 'admin' || user.can_delete) perms.push('<span class="pill pill-red" style="font-size: 8.5px; padding: 1px 3px;">✖حذف</span>');
         if (user.role === 'admin' || user.can_deliver) perms.push('<span class="pill pill-green" style="font-size: 8.5px; padding: 1px 3px;">✓تسليم</span>');
+        if (user.role === 'admin' || user.can_view_ps_details) perms.push('<span class="pill pill-purple" style="font-size: 8.5px; padding: 1px 3px;">🔑تفاصيل بلس</span>');
 
         tr.innerHTML = `
             <td>${user.id}</td>
@@ -3076,12 +3077,14 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
         document.getElementById('uCanEdit').checked = user.role === 'admin' || !!user.can_edit;
         document.getElementById('uCanDelete').checked = user.role === 'admin' || !!user.can_delete;
         document.getElementById('uCanDeliver').checked = user.role === 'admin' || !!user.can_deliver;
+        document.getElementById('uCanViewPsDetails').checked = user.role === 'admin' || (user.can_view_ps_details !== undefined ? !!user.can_view_ps_details : true);
     } else {
         // Defaults for new users
         document.getElementById('uCanAdd').checked = true;
         document.getElementById('uCanEdit').checked = true;
         document.getElementById('uCanDelete').checked = true;
         document.getElementById('uCanDeliver').checked = true;
+        document.getElementById('uCanViewPsDetails').checked = true;
     }
     
     togglePermissionsSection(role);
@@ -3108,11 +3111,13 @@ function togglePermissionsSection(role) {
     document.getElementById('uCanEdit').disabled = isAdmin;
     document.getElementById('uCanDelete').disabled = isAdmin;
     document.getElementById('uCanDeliver').disabled = isAdmin;
+    document.getElementById('uCanViewPsDetails').disabled = isAdmin;
     if (isAdmin) {
         document.getElementById('uCanAdd').checked = true;
         document.getElementById('uCanEdit').checked = true;
         document.getElementById('uCanDelete').checked = true;
         document.getElementById('uCanDeliver').checked = true;
+        document.getElementById('uCanViewPsDetails').checked = true;
     }
 }
 
@@ -3141,11 +3146,12 @@ async function saveUser() {
     const can_edit = document.getElementById('uCanEdit').checked ? 1 : 0;
     const can_delete = document.getElementById('uCanDelete').checked ? 1 : 0;
     const can_deliver = document.getElementById('uCanDeliver').checked ? 1 : 0;
+    const can_view_ps_details = document.getElementById('uCanViewPsDetails').checked ? 1 : 0;
 
     const url = currentEditUserId ? `/api/users/${currentEditUserId}` : '/api/users';
     const method = currentEditUserId ? 'PUT' : 'POST';
     
-    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver };
+    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details };
     if (password) body.password = password;
     
     try {
@@ -4997,6 +5003,18 @@ async function deleteCert(id) {
 // ══════════════════════════════════════════════
 //  PLAYSTATION PLUS MANAGEMENT
 // ══════════════════════════════════════════════
+function maskEmail(email) {
+    if (!email) return '';
+    const parts = email.split('@');
+    if (parts.length !== 2) return '***';
+    const name = parts[0];
+    const domain = parts[1];
+    if (name.length <= 2) {
+        return name[0] + '***@' + domain;
+    }
+    return name.substring(0, 2) + '***' + name.substring(name.length - 1) + '@' + domain;
+}
+
 let currentEditPsAccountId = null;
 let currentDeliverPsAccountId = null;
 let currentDeliverPsSlot = null;
@@ -5093,6 +5111,7 @@ function renderPsPlusAccounts(accounts) {
     const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit);
     const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
     const canDeliver = state.user && (state.user.role === 'admin' || !!state.user.can_deliver);
+    const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_ps_details);
 
     tbody.innerHTML = filtered.map((c, i) => {
         let activeSlotsCount = 0;
@@ -5166,10 +5185,10 @@ function renderPsPlusAccounts(accounts) {
             ps4_cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
         }
 
-        return `<tr onclick="if(!event.target.closest('button')) showPsPlusDetails(${c.id})" style="cursor:pointer" title="انقر لعرض كامل التفاصيل والمسؤولين">
+        return `<tr onclick="if(${canViewDetails}) { if(!event.target.closest('button')) showPsPlusDetails(${c.id}) } else { toast('ليس لديك صلاحية عرض تفاصيل وأكواد حسابات بلس', 'error') }" style="${canViewDetails ? 'cursor:pointer' : 'cursor:default'}" title="${canViewDetails ? 'انقر لعرض كامل التفاصيل والمسؤولين' : 'لا تملك صلاحية لعرض التفاصيل'}">
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
-            <td style="font-weight:600;" class="mono">${escapeHtml(c.email)}</td>
-            <td class="mono">${escapeHtml(c.password)}</td>
+            <td style="font-weight:600;" class="mono">${escapeHtml(canViewDetails ? c.email : maskEmail(c.email))}</td>
+            <td class="mono">${escapeHtml(canViewDetails ? c.password : '••••••••')}</td>
             <td><span class="pill pill-purple">${escapeHtml(c.plus_type)}</span></td>
             <td><span class="mono">${escapeHtml(c.plus_duration)}</span></td>
             <td><span style="font-size:11.5px;font-weight:600;color:var(--text2)"><i class="ti ti-user" style="font-size:11px;opacity:0.7"></i> ${escapeHtml(c.created_by || 'غير محدد')}</span></td>
@@ -5179,8 +5198,8 @@ function renderPsPlusAccounts(accounts) {
             <td>${overallStatus}</td>
             <td>
                 <div style="display:flex;gap:4px">
-                    ${canEdit ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>` : ''}
-                    ${canDelete ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>` : ''}
+                    ${(canEdit && canViewDetails) ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>` : ''}
+                    ${(canDelete && canViewDetails) ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>` : ''}
                 </div>
             </td>
         </tr>`;
@@ -5195,6 +5214,11 @@ function updatePsPlusKPIs(total, ps5, ps4, completed) {
 }
 
 function showPsPlusDetails(accountId) {
+    const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_ps_details);
+    if (!canViewDetails) {
+        toast('ليس لديك صلاحية عرض تفاصيل وأكواد حسابات بلس', 'error');
+        return;
+    }
     const c = (state.psPlusAccounts || []).find(acc => acc.id === accountId);
     if (!c) return;
 
@@ -5428,7 +5452,8 @@ function openPsPlusDeliverModal(id, slot, email, type) {
     currentDeliverPsAccountId = id;
     currentDeliverPsSlot = slot;
     
-    document.getElementById('deliverShowEmail').textContent = email;
+    const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_ps_details);
+    document.getElementById('deliverShowEmail').textContent = canViewDetails ? email : maskEmail(email);
     document.getElementById('deliverShowType').textContent = type;
     
     const select = document.getElementById('deliverSlotSelect');
@@ -5497,8 +5522,9 @@ async function confirmPsPlusDelivery() {
         toast('تم تسجيل التسليم بنجاح في النظام!', 'success');
         closePsPlusDeliverModal();
         
-        // جلب تفاصيل الحساب الحالي لتوليد رسالة الواتساب بدقة
-        const email = document.getElementById('deliverShowEmail').textContent;
+        // استخراج الإيميل الفعلي غير المشفر
+        const account = (state.psPlusAccounts || []).find(a => a.id === currentDeliverPsAccountId);
+        const email = account ? account.email : document.getElementById('deliverShowEmail').textContent;
         const type = document.getElementById('deliverShowType').textContent;
         const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
 
@@ -5544,8 +5570,10 @@ async function confirmPsPlusDelivery() {
 
 // دالة مساعدة لجلب كلمة المرور المخزنة للحساب لتسليمها بالواتساب
 function passwordPlaceholder(email) {
-    // سنقوم بجلب كلمة المرور الفعالة من جدول البيانات المحمل في الواجهة
-    // وذلك عن طريق البحث في الحسابات النشطة بـ DOM أو عبر استعلام محلي
+    // سنحاول أولاً جلب كلمة المرور من الذاكرة المحلية لتجنب مشاكل النصوص المشفرة في الجدول
+    const acc = (state.psPlusAccounts || []).find(a => a.email === email);
+    if (acc) return acc.password;
+    
     const rows = document.querySelectorAll('#psPlusTbody tr');
     for (const r of rows) {
         const emailCell = r.querySelector('td:nth-child(2)');

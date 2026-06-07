@@ -24,7 +24,7 @@ const authenticateUser = (req, res, next) => {
         return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.' });
     }
     db.get(
-        `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver FROM sessions s 
+        `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details FROM sessions s 
          JOIN users u ON s.user_id = u.id 
          WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
         [token],
@@ -60,7 +60,7 @@ app.use((req, res, next) => {
             return res.redirect('/login.html');
         }
         db.get(
-            `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver FROM sessions s 
+            `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details FROM sessions s 
              JOIN users u ON s.user_id = u.id 
              WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
             [token],
@@ -227,7 +227,7 @@ app.get('/api/activity-logs', authenticateUser, (req, res) => {
 
 // 6. Manage users: Get all users (Admin only)
 app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
-    db.all("SELECT id, username, email, role, can_add, can_edit, can_delete, can_deliver, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
+    db.all("SELECT id, username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
@@ -235,7 +235,7 @@ app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
 
 // 7. Manage users: Add user manually (Admin only)
 app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
-    const { username, email, password, role, can_add, can_edit, can_delete, can_deliver } = req.body;
+    const { username, email, password, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details } = req.body;
     if (!username || !email || !password || !role) {
         return res.status(400).json({ error: 'يرجى تقديم كافة حقول البيانات للمستخدم الجديد.' });
     }
@@ -247,10 +247,11 @@ app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
     const cEdit = can_edit !== undefined ? (can_edit ? 1 : 0) : 1;
     const cDelete = can_delete !== undefined ? (can_delete ? 1 : 0) : 1;
     const cDeliver = can_deliver !== undefined ? (can_deliver ? 1 : 0) : 1;
+    const cViewPsDetails = can_view_ps_details !== undefined ? (can_view_ps_details ? 1 : 0) : 1;
 
     db.run(
-        "INSERT INTO users (username, email, password, role, can_add, can_edit, can_delete, can_deliver, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [username.trim(), email.trim().toLowerCase(), hashedPassword, role, cAdd, cEdit, cDelete, cDeliver, createdAt],
+        "INSERT INTO users (username, email, password, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [username.trim(), email.trim().toLowerCase(), hashedPassword, role, cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, createdAt],
         function(err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
@@ -267,7 +268,7 @@ app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
 // 8. Manage users: Edit user role (Admin only)
 app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) => {
     const { id } = req.params;
-    const { role, username, email, password, can_add, can_edit, can_delete, can_deliver } = req.body;
+    const { role, username, email, password, can_add, can_edit, can_delete, can_deliver, can_view_ps_details } = req.body;
     
     if (!role) {
         return res.status(400).json({ error: 'يرجى تحديد دور المستخدم.' });
@@ -277,12 +278,13 @@ app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) =
     const cEdit = can_edit !== undefined ? (can_edit ? 1 : 0) : 1;
     const cDelete = can_delete !== undefined ? (can_delete ? 1 : 0) : 1;
     const cDeliver = can_deliver !== undefined ? (can_deliver ? 1 : 0) : 1;
+    const cViewPsDetails = can_view_ps_details !== undefined ? (can_view_ps_details ? 1 : 0) : 1;
 
     if (password) {
         const hashedPassword = hashPassword(password);
         db.run(
-            "UPDATE users SET role = ?, username = ?, email = ?, password = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ? WHERE id = ?",
-            [role, username.trim(), email.trim().toLowerCase(), hashedPassword, cAdd, cEdit, cDelete, cDeliver, id],
+            "UPDATE users SET role = ?, username = ?, email = ?, password = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ?, can_view_ps_details = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), hashedPassword, cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
@@ -291,8 +293,8 @@ app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) =
         );
     } else {
         db.run(
-            "UPDATE users SET role = ?, username = ?, email = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ? WHERE id = ?",
-            [role, username.trim(), email.trim().toLowerCase(), cAdd, cEdit, cDelete, cDeliver, id],
+            "UPDATE users SET role = ?, username = ?, email = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ?, can_view_ps_details = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
