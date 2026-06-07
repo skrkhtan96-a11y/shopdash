@@ -4332,6 +4332,22 @@ function openCampaignDetail(campaignName, platform) {
             document.getElementById('detConversionsValue').textContent = fmt(totalConversions);
             document.getElementById('detCPAValue').textContent = totalConversions > 0 ? (avgCPA.toFixed(2) + ' ر.س') : '0.00 ر.س';
             document.getElementById('detROASValue').textContent = avgROAS.toFixed(2) + 'x';
+
+            // ملخص أداء الحملة
+            const totalSales = totalConversions * 27.39;
+            const netProfit = totalSales - totalCost;
+            document.getElementById('detCampaignTotalSpend').textContent = fmt(totalCost) + ' ر.س';
+            document.getElementById('detCampaignTotalSales').textContent = fmt(totalSales) + ' ر.س';
+            
+            const netProfitEl = document.getElementById('detCampaignNetProfit');
+            if (netProfitEl) {
+                netProfitEl.textContent = fmt(netProfit) + ' ر.س';
+                if (netProfit >= 0) {
+                    netProfitEl.className = 'mono green';
+                } else {
+                    netProfitEl.className = 'mono red';
+                }
+            }
             
             // تحديث ميزانية الحملة وميزانية الحساب والإنفاق اليومي حياً
             const firstRec = records[0];
