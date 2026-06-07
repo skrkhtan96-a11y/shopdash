@@ -4695,6 +4695,10 @@ function openCampaignDetail(campaignName, platform, triggerNav = true) {
                     }
                 }
             });
+        })
+        .catch(err => {
+            console.error("Failed to load campaign details:", err);
+            toast("حدث خطأ أثناء تحميل تفاصيل الحملة الإعلانية.", "error");
         });
 }
 
