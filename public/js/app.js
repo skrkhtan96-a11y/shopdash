@@ -406,6 +406,13 @@ function nav(name, updateHash = true) {
     if (name === 'certificates') loadCertificates();
     if (name === 'ps-plus') loadPsPlusAccounts();
     if (name === 'activity-logs') loadActivityLogs();
+    if (name === 'campaign-detail') {
+        const storedName = sessionStorage.getItem('detail_campaign_name');
+        const storedPlatform = sessionStorage.getItem('detail_campaign_platform');
+        if (storedName && storedPlatform) {
+            openCampaignDetail(storedName, storedPlatform, false);
+        }
+    }
 }
 
 // ══════════════════════════════════════════════
@@ -4265,8 +4272,13 @@ function toggleDetailKPI(metric) {
     }
 }
 
-function openCampaignDetail(campaignName, platform) {
-    nav('campaign-detail');
+function openCampaignDetail(campaignName, platform, triggerNav = true) {
+    sessionStorage.setItem('detail_campaign_name', campaignName);
+    sessionStorage.setItem('detail_campaign_platform', platform);
+    
+    if (triggerNav) {
+        nav('campaign-detail');
+    }
     
     const detCampaignName = document.getElementById('detCampaignName');
     const detCampaignId = document.getElementById('detCampaignId');
