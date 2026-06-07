@@ -5000,11 +5000,24 @@ function renderPsPlusAccounts(accounts) {
     let completedAccounts = 0;
 
     accounts.forEach(c => {
-        let deliveredCount = 0;
-        if (c.ps5_1_status === 'available') availablePs5++; else deliveredCount++;
-        if (c.ps5_2_status === 'available') availablePs5++; else deliveredCount++;
-        if (c.ps4_status === 'available') availablePs4++; else deliveredCount++;
-        if (deliveredCount === 3) completedAccounts++;
+        let activeSlots = 0;
+        let deliveredSlots = 0;
+        if (c.ps5_1_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps5_1_status === 'available') availablePs5++;
+            else if (c.ps5_1_status === 'delivered') deliveredSlots++;
+        }
+        if (c.ps5_2_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps5_2_status === 'available') availablePs5++;
+            else if (c.ps5_2_status === 'delivered') deliveredSlots++;
+        }
+        if (c.ps4_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps4_status === 'available') availablePs4++;
+            else if (c.ps4_status === 'delivered') deliveredSlots++;
+        }
+        if (activeSlots > 0 && deliveredSlots === activeSlots) completedAccounts++;
     });
 
     updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts);
@@ -5050,48 +5063,76 @@ function renderPsPlusAccounts(accounts) {
     const canDeliver = state.user && (state.user.role === 'admin' || !!state.user.can_deliver);
 
     tbody.innerHTML = filtered.map((c, i) => {
+        let activeSlotsCount = 0;
         let deliveredCount = 0;
-        if (c.ps5_1_status !== 'available') deliveredCount++;
-        if (c.ps5_2_status !== 'available') deliveredCount++;
-        if (c.ps4_status !== 'available') deliveredCount++;
+        if (c.ps5_1_status !== 'unavailable') {
+            activeSlotsCount++;
+            if (c.ps5_1_status !== 'available') deliveredCount++;
+        }
+        if (c.ps5_2_status !== 'unavailable') {
+            activeSlotsCount++;
+            if (c.ps5_2_status !== 'available') deliveredCount++;
+        }
+        if (c.ps4_status !== 'unavailable') {
+            activeSlotsCount++;
+            if (c.ps4_status !== 'available') deliveredCount++;
+        }
 
         // حساب حالة الحساب الإجمالية
         let overallStatus = '';
-        if (deliveredCount === 3) {
+        if (activeSlotsCount === 0) {
+            overallStatus = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">بدون نسخ نشطة</span>';
+        } else if (deliveredCount === activeSlotsCount) {
             overallStatus = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
         } else if (deliveredCount === 0) {
-            overallStatus = '<span class="pill pill-blue">متبقي نسختي PS5 + نسخة PS4</span>';
+            const remParts = [];
+            const remPs5 = (c.ps5_1_status === 'available' ? 1 : 0) + (c.ps5_2_status === 'available' ? 1 : 0);
+            const remPs4 = c.ps4_status === 'available' ? 1 : 0;
+            if (remPs5 > 0) remParts.push(remPs5 === 2 ? 'نسختي PS5' : 'نسخة PS5');
+            if (remPs4 > 0) remParts.push('نسخة PS4');
+            overallStatus = `<span class="pill pill-blue">متبقي ${remParts.join(' + ')}</span>`;
         } else {
             const remParts = [];
             const remPs5 = (c.ps5_1_status === 'available' ? 1 : 0) + (c.ps5_2_status === 'available' ? 1 : 0);
             const remPs4 = c.ps4_status === 'available' ? 1 : 0;
-            
-            if (remPs5 === 2) remParts.push('نسختي PS5');
-            else if (remPs5 === 1) remParts.push('نسخة PS5');
-
-            if (remPs4 === 1) remParts.push('نسخة PS4');
-
+            if (remPs5 > 0) remParts.push(remPs5 === 2 ? 'نسختي PS5' : 'نسخة PS5');
+            if (remPs4 > 0) remParts.push('نسخة PS4');
             overallStatus = `<span class="pill pill-amber">متبقي ${remParts.join(' + ')}</span>`;
         }
 
         // صياغة خلايا تسليم النسخ
-        const ps5_1_cell = c.ps5_1_status === 'available' 
-            ? (canDeliver 
+        let ps5_1_cell = '';
+        if (c.ps5_1_status === 'unavailable') {
+            ps5_1_cell = `<span class="dim" style="font-size:11px;color:var(--txt-faint);"><i class="ti ti-ban"></i> غير مضاف</span>`;
+        } else if (c.ps5_1_status === 'available') {
+            ps5_1_cell = canDeliver 
                 ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_1', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
-                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`)
-            : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_1_order)})</span>`;
+                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`;
+        } else {
+            ps5_1_cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_1_order)})</span>`;
+        }
 
-        const ps5_2_cell = c.ps5_2_status === 'available' 
-            ? (canDeliver 
+        let ps5_2_cell = '';
+        if (c.ps5_2_status === 'unavailable') {
+            ps5_2_cell = `<span class="dim" style="font-size:11px;color:var(--txt-faint);"><i class="ti ti-ban"></i> غير مضاف</span>`;
+        } else if (c.ps5_2_status === 'available') {
+            ps5_2_cell = canDeliver 
                 ? `<button class="btn btn-xs btn-primary" onclick="openPsPlusDeliverModal(${c.id}, 'ps5_2', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>`
-                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`)
-            : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_2_order)})</span>`;
+                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`;
+        } else {
+            ps5_2_cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps5_2_order)})</span>`;
+        }
 
-        const ps4_cell = c.ps4_status === 'available' 
-            ? (canDeliver 
+        let ps4_cell = '';
+        if (c.ps4_status === 'unavailable') {
+            ps4_cell = `<span class="dim" style="font-size:11px;color:var(--txt-faint);"><i class="ti ti-ban"></i> غير مضاف</span>`;
+        } else if (c.ps4_status === 'available') {
+            ps4_cell = canDeliver 
                 ? `<button class="btn btn-xs btn-secondary" onclick="openPsPlusDeliverModal(${c.id}, 'ps4', '${escapeHtml(c.email)}', '${escapeHtml(c.plus_type)}')"><i class="ti ti-brand-whatsapp"></i> تسليم PS4</button>`
-                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`)
-            : `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
+                : `<span class="gray" style="font-size:11px;"><i class="ti ti-lock"></i> متاح للبيع</span>`;
+        } else {
+            ps4_cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
+        }
 
         return `<tr onclick="if(!event.target.closest('button')) showPsPlusDetails(${c.id})" style="cursor:pointer" title="انقر لعرض كامل التفاصيل والمسؤولين">
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
@@ -5132,33 +5173,45 @@ function showPsPlusDetails(accountId) {
 
     // PS5 1
     const p51StatusEl = document.getElementById('psdPs5_1_Status');
-    p51StatusEl.innerHTML = c.ps5_1_status === 'available' 
-        ? '<span class="pill pill-blue">متاح للبيع</span>' 
-        : '<span class="pill pill-green">تم التسليم ✅</span>';
-    document.getElementById('psdPs5_1_Code').textContent = c.ps5_1_code || 'لا يوجد كود';
-    document.getElementById('psdPs5_1_Order').textContent = c.ps5_1_order || 'لا يوجد';
-    document.getElementById('psdPs5_1_Phone').textContent = c.ps5_1_phone || 'لا يوجد';
-    document.getElementById('psdPs5_1_DeliveredBy').textContent = c.ps5_1_delivered_by || 'غير محدد';
+    if (c.ps5_1_status === 'unavailable') {
+        p51StatusEl.innerHTML = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">غير مضاف</span>';
+    } else {
+        p51StatusEl.innerHTML = c.ps5_1_status === 'available' 
+            ? '<span class="pill pill-blue">متاح للبيع</span>' 
+            : '<span class="pill pill-green">تم التسليم ✅</span>';
+    }
+    document.getElementById('psdPs5_1_Code').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_code || 'لا يوجد كود');
+    document.getElementById('psdPs5_1_Order').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_order || 'لا يوجد');
+    document.getElementById('psdPs5_1_Phone').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_phone || 'لا يوجد');
+    document.getElementById('psdPs5_1_DeliveredBy').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_delivered_by || 'غير محدد');
 
     // PS5 2
     const p52StatusEl = document.getElementById('psdPs5_2_Status');
-    p52StatusEl.innerHTML = c.ps5_2_status === 'available' 
-        ? '<span class="pill pill-blue">متاح للبيع</span>' 
-        : '<span class="pill pill-green">تم التسليم ✅</span>';
-    document.getElementById('psdPs5_2_Code').textContent = c.ps5_2_code || 'لا يوجد كود';
-    document.getElementById('psdPs5_2_Order').textContent = c.ps5_2_order || 'لا يوجد';
-    document.getElementById('psdPs5_2_Phone').textContent = c.ps5_2_phone || 'لا يوجد';
-    document.getElementById('psdPs5_2_DeliveredBy').textContent = c.ps5_2_delivered_by || 'غير محدد';
+    if (c.ps5_2_status === 'unavailable') {
+        p52StatusEl.innerHTML = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">غير مضاف</span>';
+    } else {
+        p52StatusEl.innerHTML = c.ps5_2_status === 'available' 
+            ? '<span class="pill pill-blue">متاح للبيع</span>' 
+            : '<span class="pill pill-green">تم التسليم ✅</span>';
+    }
+    document.getElementById('psdPs5_2_Code').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_code || 'لا يوجد كود');
+    document.getElementById('psdPs5_2_Order').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_order || 'لا يوجد');
+    document.getElementById('psdPs5_2_Phone').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_phone || 'لا يوجد');
+    document.getElementById('psdPs5_2_DeliveredBy').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_delivered_by || 'غير محدد');
 
     // PS4
     const p4StatusEl = document.getElementById('psdPs4_Status');
-    p4StatusEl.innerHTML = c.ps4_status === 'available' 
-        ? '<span class="pill pill-blue">متاح للبيع</span>' 
-        : '<span class="pill pill-green">تم التسليم ✅</span>';
-    document.getElementById('psdPs4_Code').textContent = c.ps4_code || 'لا يوجد كود';
-    document.getElementById('psdPs4_Order').textContent = c.ps4_order || 'لا يوجد';
-    document.getElementById('psdPs4_Phone').textContent = c.ps4_phone || 'لا يوجد';
-    document.getElementById('psdPs4_DeliveredBy').textContent = c.ps4_delivered_by || 'غير محدد';
+    if (c.ps4_status === 'unavailable') {
+        p4StatusEl.innerHTML = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">غير مضاف</span>';
+    } else {
+        p4StatusEl.innerHTML = c.ps4_status === 'available' 
+            ? '<span class="pill pill-blue">متاح للبيع</span>' 
+            : '<span class="pill pill-green">تم التسليم ✅</span>';
+    }
+    document.getElementById('psdPs4_Code').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_code || 'لا يوجد كود');
+    document.getElementById('psdPs4_Order').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_order || 'لا يوجد');
+    document.getElementById('psdPs4_Phone').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_phone || 'لا يوجد');
+    document.getElementById('psdPs4_DeliveredBy').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_delivered_by || 'غير محدد');
 
     document.getElementById('psPlusDetailsModal').classList.add('open');
 }
@@ -5179,11 +5232,36 @@ function openPsPlusModal() {
     document.getElementById('psCode52').value = '';
     document.getElementById('psCode4').value = '';
     document.getElementById('psEditDeliveriesSection').style.display = 'none';
+
+    document.getElementById('psActive51').checked = true;
+    document.getElementById('psActive52').checked = true;
+    document.getElementById('psActive4').checked = true;
+    document.getElementById('psCode51').disabled = false;
+    document.getElementById('psCode52').disabled = false;
+    document.getElementById('psCode4').disabled = false;
+
     document.getElementById('psPlusModal').classList.add('open');
 }
 
 function closePsPlusModal() {
     document.getElementById('psPlusModal').classList.remove('open');
+}
+
+// Add event listeners to checkboxes dynamically
+if (document.getElementById('psActive51') && !document.getElementById('psActive51').hasEventListener) {
+    document.getElementById('psActive51').addEventListener('change', (e) => {
+        document.getElementById('psCode51').disabled = !e.target.checked;
+        if (!e.target.checked) document.getElementById('psCode51').value = '';
+    });
+    document.getElementById('psActive52').addEventListener('change', (e) => {
+        document.getElementById('psCode52').disabled = !e.target.checked;
+        if (!e.target.checked) document.getElementById('psCode52').value = '';
+    });
+    document.getElementById('psActive4').addEventListener('change', (e) => {
+        document.getElementById('psCode4').disabled = !e.target.checked;
+        if (!e.target.checked) document.getElementById('psCode4').value = '';
+    });
+    document.getElementById('psActive51').hasEventListener = true;
 }
 
 function editPsPlusAccount(id, email, password, type, duration, ps5_1, ps5_2, ps4) {
@@ -5200,16 +5278,30 @@ function editPsPlusAccount(id, email, password, type, duration, ps5_1, ps5_2, ps
     document.getElementById('psEdit4Order').value = ps4;
     document.getElementById('psEditDeliveriesSection').style.display = 'block';
 
-    // استرجاع أكواد التحقق من الكاش الفعلي
+    // استرجاع أكواد التحقق والنسخ النشطة من الكاش الفعلي
     const c = (state.psPlusAccounts || []).find(acc => acc.id === id);
     if (c) {
         document.getElementById('psCode51').value = c.ps5_1_code || '';
         document.getElementById('psCode52').value = c.ps5_2_code || '';
         document.getElementById('psCode4').value = c.ps4_code || '';
+
+        document.getElementById('psActive51').checked = c.ps5_1_status !== 'unavailable';
+        document.getElementById('psActive52').checked = c.ps5_2_status !== 'unavailable';
+        document.getElementById('psActive4').checked = c.ps4_status !== 'unavailable';
+
+        document.getElementById('psCode51').disabled = c.ps5_1_status === 'unavailable';
+        document.getElementById('psCode52').disabled = c.ps5_2_status === 'unavailable';
+        document.getElementById('psCode4').disabled = c.ps4_status === 'unavailable';
     } else {
         document.getElementById('psCode51').value = '';
         document.getElementById('psCode52').value = '';
         document.getElementById('psCode4').value = '';
+        document.getElementById('psActive51').checked = true;
+        document.getElementById('psActive52').checked = true;
+        document.getElementById('psActive4').checked = true;
+        document.getElementById('psCode51').disabled = false;
+        document.getElementById('psCode52').disabled = false;
+        document.getElementById('psCode4').disabled = false;
     }
 
     document.getElementById('psPlusModal').classList.add('open');
@@ -5225,12 +5317,41 @@ async function savePsPlusAccount() {
     const ps5_2_code = document.getElementById('psCode52').value;
     const ps4_code = document.getElementById('psCode4').value;
 
+    const ps5_1_active = document.getElementById('psActive51').checked;
+    const ps5_2_active = document.getElementById('psActive52').checked;
+    const ps4_active = document.getElementById('psActive4').checked;
+
     if (!email || !password) {
         toast('الإيميل والباسورد مطلوبان لتسجيل الحساب.', 'warn');
         return;
     }
 
-    const payload = { email, password, plus_type, plus_duration, ps5_1_code, ps5_2_code, ps4_code };
+    let ps5_1_status = ps5_1_active ? 'available' : 'unavailable';
+    let ps5_2_status = ps5_2_active ? 'available' : 'unavailable';
+    let ps4_status = ps4_active ? 'available' : 'unavailable';
+
+    if (currentEditPsAccountId) {
+        const c = (state.psPlusAccounts || []).find(acc => acc.id === currentEditPsAccountId);
+        if (c) {
+            ps5_1_status = ps5_1_active ? (c.ps5_1_status === 'delivered' ? 'delivered' : 'available') : 'unavailable';
+            ps5_2_status = ps5_2_active ? (c.ps5_2_status === 'delivered' ? 'delivered' : 'available') : 'unavailable';
+            ps4_status = ps4_active ? (c.ps4_status === 'delivered' ? 'delivered' : 'available') : 'unavailable';
+        }
+    }
+
+    const payload = { 
+        email, 
+        password, 
+        plus_type, 
+        plus_duration, 
+        ps5_1_code, 
+        ps5_2_code, 
+        ps4_code,
+        ps5_1_status,
+        ps5_2_status,
+        ps4_status
+    };
+
     if (currentEditPsAccountId) {
         payload.ps5_1_order = document.getElementById('psEdit51Order').value;
         payload.ps5_2_order = document.getElementById('psEdit52Order').value;
@@ -5248,19 +5369,6 @@ async function savePsPlusAccount() {
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'خطأ أثناء حفظ الحساب');
-
-        // إذا كنا في وضع تعديل حساب ونريد حفظ التعديل على الطلبات المخصصة للحصص
-        if (currentEditPsAccountId) {
-            const o51 = document.getElementById('psEdit51Order').value.trim();
-            const o52 = document.getElementById('psEdit52Order').value.trim();
-            const o4 = document.getElementById('psEdit4Order').value.trim();
-            
-            // تحديث الحصص مباشرة بقاعدة البيانات عبر الـ PUT أو عبر تمرير قيم التسليم اليدوية
-            // لتسريع التطبيق سنقوم بإرسال طلب تحديث إضافي أو يمكن دمجها. دعنا ندمج التحديث في PUT بالخلفية لاحقاً إذا احتجنا، 
-            // لكن مؤقتاً سنقوم بتحديثها بشكل يدوي أو نعتمد أن PUT يغطي الحساب الأساسي فقط.
-            // دعنا نرسل تحديث الطلبات للحصص إلى مسار مخصص أو نجعل الـ PUT الأساسي يتقبل تحديث الحصص أيضاً!
-            // سنقوم بتحديث خادم server.js لتعديل الحصص في الـ PUT أيضاً لتفادي طلبات متعددة!
-        }
 
         toast(currentEditPsAccountId ? 'تم تعديل الحساب بنجاح!' : 'تم إضافة الحساب إلى المخزون بنجاح!', 'success');
         closePsPlusModal();
@@ -5299,18 +5407,21 @@ function openPsPlusDeliverModal(id, slot, email, type) {
     if (account) {
         const opt51 = select.querySelector('option[value="ps5_1"]');
         if (opt51) {
+            const label = account.ps5_1_status === 'unavailable' ? ' (غير مضاف للبيع)' : (account.ps5_1_status !== 'available' ? ' - تم التسليم' : '');
             opt51.disabled = account.ps5_1_status !== 'available' && slot !== 'ps5_1';
-            opt51.textContent = `PS5 (النسخة الأولى)${account.ps5_1_status !== 'available' ? ' - تم التسليم' : ''}`;
+            opt51.textContent = `PS5 (النسخة الأولى)${label}`;
         }
         const opt52 = select.querySelector('option[value="ps5_2"]');
         if (opt52) {
+            const label = account.ps5_2_status === 'unavailable' ? ' (غير مضاف للبيع)' : (account.ps5_2_status !== 'available' ? ' - تم التسليم' : '');
             opt52.disabled = account.ps5_2_status !== 'available' && slot !== 'ps5_2';
-            opt52.textContent = `PS5 (النسخة الثانية)${account.ps5_2_status !== 'available' ? ' - تم التسليم' : ''}`;
+            opt52.textContent = `PS5 (النسخة الثانية)${label}`;
         }
         const opt4 = select.querySelector('option[value="ps4"]');
         if (opt4) {
+            const label = account.ps4_status === 'unavailable' ? ' (غير مضاف للبيع)' : (account.ps4_status !== 'available' ? ' - تم التسليم' : '');
             opt4.disabled = account.ps4_status !== 'available' && slot !== 'ps4';
-            opt4.textContent = `PS4 (النسخة الوحيدة)${account.ps4_status !== 'available' ? ' - تم التسليم' : ''}`;
+            opt4.textContent = `PS4 (النسخة الوحيدة)${label}`;
         }
     }
     
@@ -5372,7 +5483,7 @@ async function confirmPsPlusDelivery() {
         const messageText = `مرحباً بك! تم تسليم طلبك بنجاح من متجر شوب ستور 🎮✨\n\n` +
                             `الإيميل : ${email}\n` + 
                             `الباسورد   ${passwordPlaceholder(email)}\n` +
-                            (vCode ? `كود التحقق:${vCode}\n` : '') +
+                            `كود التحقق:${vCode || 'لا يوجد'}\n` +
                             `نوع البلس : ( بلس ${type} ${slotName} )\n\n` + 
                             `تم تسليم ${slotName}  ✅\n` + 
                             `رقم الطلب : ${order_id}\n\n` +

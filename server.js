@@ -2547,7 +2547,7 @@ app.post('/api/ps-plus/accounts', authenticateUser, (req, res) => {
     if (req.user.role !== 'admin' && !req.user.can_add) {
         return res.status(403).json({ error: 'غير مصرح لك بإضافة الحسابات.' });
     }
-    const { email, password, plus_type, plus_duration, ps5_1_code, ps5_2_code, ps4_code } = req.body;
+    const { email, password, plus_type, plus_duration, ps5_1_code, ps5_2_code, ps4_code, ps5_1_status, ps5_2_status, ps4_status } = req.body;
     if (!email || !password || !plus_type || !plus_duration) {
         return res.status(400).json({ error: 'جميع الحقول (الإيميل، الباسورد، نوع البلس، مدة الاشتراك) مطلوبة.' });
     }
@@ -2555,8 +2555,21 @@ app.post('/api/ps-plus/accounts', authenticateUser, (req, res) => {
     const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     db.run(
-        "INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, ps5_1_code, ps5_2_code, ps4_code, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [email.trim(), password.trim(), plus_type.trim(), plus_duration.trim(), ps5_1_code ? ps5_1_code.trim() : '', ps5_2_code ? ps5_2_code.trim() : '', ps4_code ? ps4_code.trim() : '', req.user.username, createdAt],
+        "INSERT INTO ps_plus_accounts (email, password, plus_type, plus_duration, ps5_1_code, ps5_2_code, ps4_code, ps5_1_status, ps5_2_status, ps4_status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            email.trim(), 
+            password.trim(), 
+            plus_type.trim(), 
+            plus_duration.trim(), 
+            ps5_1_code ? ps5_1_code.trim() : '', 
+            ps5_2_code ? ps5_2_code.trim() : '', 
+            ps4_code ? ps4_code.trim() : '', 
+            ps5_1_status || 'available',
+            ps5_2_status || 'available',
+            ps4_status || 'available',
+            req.user.username, 
+            createdAt
+        ],
         function(err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
@@ -2575,7 +2588,7 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
         return res.status(403).json({ error: 'غير مصرح لك بتعديل بيانات الحسابات.' });
     }
     const { id } = req.params;
-    const { email, password, plus_type, plus_duration, ps5_1_order, ps5_2_order, ps4_order, ps5_1_code, ps5_2_code, ps4_code } = req.body;
+    const { email, password, plus_type, plus_duration, ps5_1_order, ps5_2_order, ps4_order, ps5_1_code, ps5_2_code, ps4_code, ps5_1_status, ps5_2_status, ps4_status } = req.body;
     if (!email || !password || !plus_type || !plus_duration) {
         return res.status(400).json({ error: 'جميع الحقول مطلوبة لتحديث البيانات.' });
     }
@@ -2584,9 +2597,9 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
     const o52 = ps5_2_order ? ps5_2_order.trim() : '';
     const o4 = ps4_order ? ps4_order.trim() : '';
 
-    const s51 = o51 ? 'delivered' : 'available';
-    const s52 = o52 ? 'delivered' : 'available';
-    const s4 = o4 ? 'delivered' : 'available';
+    const s51 = o51 ? 'delivered' : (ps5_1_status || 'available');
+    const s52 = o52 ? 'delivered' : (ps5_2_status || 'available');
+    const s4 = o4 ? 'delivered' : (ps4_status || 'available');
 
     db.run(
         `UPDATE ps_plus_accounts SET 
