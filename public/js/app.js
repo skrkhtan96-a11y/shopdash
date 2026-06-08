@@ -5072,7 +5072,7 @@ function renderPsPlusAccounts(accounts) {
         if (activeSlots > 0 && deliveredSlots === activeSlots) completedAccounts++;
     });
 
-    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts);
+    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts, accounts);
 
     const tbody = document.getElementById('psPlusTbody');
     if (!tbody) return;
@@ -5208,11 +5208,55 @@ function renderPsPlusAccounts(accounts) {
     }).join('');
 }
 
-function updatePsPlusKPIs(total, ps5, ps4, completed) {
+function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {
     document.getElementById('kpiPsTotalAccounts').textContent = total;
     document.getElementById('kpiPsAvailable5').textContent = ps5;
     document.getElementById('kpiPsAvailable4').textContent = ps4;
     document.getElementById('kpiPsCompleted').textContent = completed;
+
+    // Calculate stock by duration
+    const durationStocks = {};
+    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
+    standardDurations.forEach(d => durationStocks[d] = 0);
+
+    if (accounts) {
+        accounts.forEach(c => {
+            let availableSlots = 0;
+            if (c.ps5_1_status === 'available') availableSlots++;
+            if (c.ps5_2_status === 'available') availableSlots++;
+            if (c.ps4_status === 'available') availableSlots++;
+            
+            const dur = c.plus_duration || 'أخرى';
+            durationStocks[dur] = (durationStocks[dur] || 0) + availableSlots;
+        });
+    }
+
+    const container = document.getElementById('psStockByDurationContainer');
+    if (container) {
+        container.innerHTML = '';
+        Object.entries(durationStocks).forEach(([dur, count]) => {
+            if (count > 0 || standardDurations.includes(dur)) {
+                const badge = document.createElement('span');
+                badge.className = count > 0 ? 'pill pill-purple' : 'pill';
+                badge.style.fontSize = '10.5px';
+                badge.style.padding = '2px 6px';
+                badge.style.fontWeight = '600';
+                badge.style.border = '1px solid var(--border1)';
+                if (count === 0) {
+                    badge.style.background = 'var(--bg4)';
+                    badge.style.color = 'var(--text3)';
+                    badge.style.borderColor = 'var(--border2)';
+                    badge.style.opacity = '0.5';
+                } else {
+                    badge.style.background = 'rgba(157, 78, 221, 0.15)';
+                    badge.style.color = '#c77dff';
+                    badge.style.borderColor = 'rgba(157, 78, 221, 0.3)';
+                }
+                badge.innerHTML = `${dur}: <span style="font-weight:700;">${count}</span> نسخة`;
+                container.appendChild(badge);
+            }
+        });
+    }
 }
 
 function showPsPlusDetails(accountId) {
