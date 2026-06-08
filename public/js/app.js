@@ -316,7 +316,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'activity-logs'];
+const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'activity-logs'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -331,6 +331,7 @@ const PAGE_TITLES = {
     users: 'إدارة المستخدمين',
     certificates: 'إدارة تقارير الشهادات',
     'ps-plus': 'مخزون حسابات بلس',
+    'ps-plus-deliveries': 'تقرير تسليم بلس',
     'activity-logs': 'سجل النشاطات والعمليات'
 };
 
@@ -349,7 +350,7 @@ function toggleSidebar(open) {
 }
 
 function nav(name, updateHash = true) {
-    if (state.user && state.user.role === 'games_employee' && name !== 'ps-plus' && name !== 'activity-logs') {
+    if (state.user && state.user.role === 'games_employee' && name !== 'ps-plus' && name !== 'ps-plus-deliveries' && name !== 'activity-logs') {
         nav('ps-plus', true);
         return;
     }
@@ -405,6 +406,7 @@ function nav(name, updateHash = true) {
     if (name === 'users') loadUsers();
     if (name === 'certificates') loadCertificates();
     if (name === 'ps-plus') loadPsPlusAccounts();
+    if (name === 'ps-plus-deliveries') loadPsPlusDeliveries();
     if (name === 'activity-logs') loadActivityLogs();
     if (name === 'campaign-detail') {
         const storedName = sessionStorage.getItem('detail_campaign_name');
@@ -5274,6 +5276,163 @@ function showPsPlusDetails(accountId) {
 
 function closePsPlusDetailsModal() {
     document.getElementById('psPlusDetailsModal').classList.remove('open');
+}
+
+async function loadPsPlusDeliveries() {
+    try {
+        const response = await fetch('/api/ps-plus/accounts');
+        if (!response.ok) throw new Error('فشل جلب الحسابات للتقرير');
+        const data = await response.json();
+        state.psPlusAccounts = data;
+        renderPsPlusDeliveries(data);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderPsPlusDeliveries(accounts) {
+    if (!accounts) {
+        accounts = state.psPlusAccounts || [];
+    }
+
+    const tbody = document.getElementById('psPlusDeliveriesTbody');
+    if (!tbody) return;
+
+    // Build the list of delivered slots
+    const deliveries = [];
+    let totalSlots = 0;
+    let deliveredCount = 0;
+    let deliveredPs5 = 0;
+    let deliveredPs4 = 0;
+
+    // Gather unique usernames of delivery agents for the filter dropdown
+    const deliveryAgents = new Set();
+
+    accounts.forEach(acc => {
+        const slots = [
+            { key: 'ps5_1', name: 'PS5 (النسخة الأولى)', status: acc.ps5_1_status, order: acc.ps5_1_order, phone: acc.ps5_1_phone, delivered_by: acc.ps5_1_delivered_by, delivered_at: acc.ps5_1_delivered_at },
+            { key: 'ps5_2', name: 'PS5 (النسخة الثانية)', status: acc.ps5_2_status, order: acc.ps5_2_order, phone: acc.ps5_2_phone, delivered_by: acc.ps5_2_delivered_by, delivered_at: acc.ps5_2_delivered_at },
+            { key: 'ps4', name: 'PS4', status: acc.ps4_status, order: acc.ps4_order, phone: acc.ps4_phone, delivered_by: acc.ps4_delivered_by, delivered_at: acc.ps4_delivered_at }
+        ];
+
+        // active slots are those that are NOT 'unavailable'
+        let activeSlotsCount = 0;
+        let remSlotsCount = 0;
+        slots.forEach(s => {
+            if (s.status !== 'unavailable') {
+                activeSlotsCount++;
+                totalSlots++;
+                if (s.status === 'delivered') {
+                    deliveredCount++;
+                    if (s.key === 'ps4') deliveredPs4++;
+                    else deliveredPs5++;
+                } else {
+                    remSlotsCount++;
+                }
+            }
+        });
+
+        slots.forEach(s => {
+            if (s.status === 'delivered') {
+                if (s.delivered_by) deliveryAgents.add(s.delivered_by);
+                
+                // calculate remaining slots info text
+                let remainingInfo = '';
+                if (remSlotsCount === 0) {
+                    remainingInfo = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
+                } else {
+                    const remParts = [];
+                    const remPs5 = (acc.ps5_1_status === 'available' ? 1 : 0) + (acc.ps5_2_status === 'available' ? 1 : 0);
+                    const remPs4 = acc.ps4_status === 'available' ? 1 : 0;
+                    if (remPs5 > 0) remParts.push(remPs5 === 2 ? 'نسختي PS5' : 'نسخة PS5');
+                    if (remPs4 > 0) remParts.push('نسخة PS4');
+                    remainingInfo = `<span class="pill pill-amber">متبقي ${remParts.join(' + ')}</span>`;
+                }
+
+                deliveries.push({
+                    account: acc,
+                    slotKey: s.key,
+                    slotName: s.name,
+                    order: s.order || '-',
+                    phone: s.phone || '-',
+                    delivered_by: s.delivered_by || 'غير محدد',
+                    delivered_at: s.delivered_at || acc.created_at || '-', // Fallback to created_at if old delivery
+                    added_at: acc.created_at || '-',
+                    remainingInfo: remainingInfo
+                });
+            }
+        });
+    });
+
+    // Sort deliveries by delivered_at DESC
+    deliveries.sort((a, b) => new Date(b.delivered_at) - new Date(a.delivered_at));
+
+    // Update filter dropdown for users
+    const userFilter = document.getElementById('psdFilterUser');
+    if (userFilter) {
+        const currentSelected = userFilter.value;
+        userFilter.innerHTML = '<option value="">الكل</option>';
+        Array.from(deliveryAgents).sort().forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u;
+            opt.textContent = u;
+            if (u === currentSelected) opt.selected = true;
+            userFilter.appendChild(opt);
+        });
+    }
+
+    // Apply filters
+    const filterSlot = document.getElementById('psdFilterSlot')?.value || '';
+    const filterUser = document.getElementById('psdFilterUser')?.value || '';
+    const filterType = document.getElementById('psdFilterType')?.value || '';
+    const filterSearch = document.getElementById('psdFilterSearch')?.value.trim().toLowerCase() || '';
+
+    const filtered = deliveries.filter(d => {
+        if (filterSlot && d.slotKey !== filterSlot) return false;
+        if (filterUser && d.delivered_by !== filterUser) return false;
+        if (filterType && d.account.plus_type !== filterType) return false;
+        if (filterSearch) {
+            const emailMatch = d.account.email.toLowerCase().includes(filterSearch);
+            const orderMatch = d.order.toLowerCase().includes(filterSearch);
+            const phoneMatch = d.phone.toLowerCase().includes(filterSearch);
+            if (!emailMatch && !orderMatch && !phoneMatch) return false;
+        }
+        return true;
+    });
+
+    // Update KPI UI
+    document.getElementById('kpiDeliveredTotal').textContent = deliveredCount;
+    document.getElementById('kpiDeliveredPs5').textContent = deliveredPs5;
+    document.getElementById('kpiDeliveredPs4').textContent = deliveredPs4;
+    const percentage = totalSlots > 0 ? Math.round((deliveredCount / totalSlots) * 100) : 0;
+    document.getElementById('kpiDeliveredPercentage').textContent = `${percentage}%`;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11"><div class="empty"><i class="ti ti-report"></i><p>لا توجد نسخ مسلمة تطابق خيارات التصفية الحالية</p></div></td></tr>';
+        return;
+    }
+
+    const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_ps_details);
+
+    tbody.innerHTML = filtered.map((d, index) => {
+        const phoneHtml = d.phone !== '-' 
+            ? `<a href="https://wa.me/${d.phone.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--accent); text-decoration:none;"><i class="ti ti-brand-whatsapp"></i> ${escapeHtml(d.phone)}</a>` 
+            : '-';
+            
+        return `<tr>
+            <td style="color:var(--text3); font-size:10px">${index + 1}</td>
+            <td style="font-weight:600;" class="mono">${escapeHtml(canViewDetails ? d.account.email : maskEmail(d.account.email))}</td>
+            <td><span class="pill pill-blue">${d.slotName}</span></td>
+            <td><span class="pill pill-purple">${escapeHtml(d.account.plus_type)}</span></td>
+            <td><span class="mono">${escapeHtml(d.account.plus_duration)}</span></td>
+            <td class="mono" style="font-weight:600;">${escapeHtml(d.order)}</td>
+            <td>${phoneHtml}</td>
+            <td><span style="font-size:11.5px; font-weight:600; color:var(--text2)"><i class="ti ti-user" style="font-size:11px; opacity:0.7"></i> ${escapeHtml(d.delivered_by)}</span></td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${d.added_at}</td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${d.delivered_at}</td>
+            <td>${d.remainingInfo}</td>
+        </tr>`;
+    }).join('');
 }
 
 

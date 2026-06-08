@@ -223,6 +223,9 @@ db.serialize(() => {
             ps5_1_code TEXT,
             ps5_2_code TEXT,
             ps4_code TEXT,
+            ps5_1_delivered_at TEXT,
+            ps5_2_delivered_at TEXT,
+            ps4_delivered_at TEXT,
             created_at TEXT NOT NULL
         )
     `);
@@ -258,6 +261,9 @@ db.serialize(() => {
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_1_code TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_2_code TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps4_code TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_1_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_2_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps4_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {

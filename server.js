@@ -2603,44 +2603,77 @@ app.put('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
     const s52 = o52 ? 'delivered' : (ps5_2_status || 'available');
     const s4 = o4 ? 'delivered' : (ps4_status || 'available');
 
-    db.run(
-        `UPDATE ps_plus_accounts SET 
-            email = ?, 
-            password = ?, 
-            plus_type = ?, 
-            plus_duration = ?, 
-            ps5_1_order = ?, 
-            ps5_1_status = ?, 
-            ps5_2_order = ?, 
-            ps5_2_status = ?, 
-            ps4_order = ?, 
-            ps4_status = ?,
-            ps5_1_code = ?,
-            ps5_2_code = ?,
-            ps4_code = ?
-         WHERE id = ?`,
-        [
-            email.trim(), 
-            password.trim(), 
-            plus_type.trim(), 
-            plus_duration.trim(), 
-            o51, 
-            s51, 
-            o52, 
-            s52, 
-            o4, 
-            s4, 
-            ps5_1_code ? ps5_1_code.trim() : '',
-            ps5_2_code ? ps5_2_code.trim() : '',
-            ps4_code ? ps4_code.trim() : '',
-            id
-        ],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logActivity(req.user.username, 'UPDATE', 'ps_plus', `تم تحديث بيانات حساب بلس: ${email} (بلس ${plus_type} ${plus_duration})`).catch(console.error);
-            res.json({ success: true });
+    db.get("SELECT ps5_1_status, ps5_2_status, ps4_status, ps5_1_delivered_at, ps5_2_delivered_at, ps4_delivered_at FROM ps_plus_accounts WHERE id = ?", [id], (errGet, oldRow) => {
+        if (errGet || !oldRow) return res.status(500).json({ error: errGet ? errGet.message : 'الحساب غير موجود' });
+
+        const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+        let d51_at = oldRow.ps5_1_delivered_at;
+        if (s51 === 'delivered' && oldRow.ps5_1_status !== 'delivered') {
+            d51_at = nowStr;
+        } else if (s51 !== 'delivered') {
+            d51_at = null;
         }
-    );
+
+        let d52_at = oldRow.ps5_2_delivered_at;
+        if (s52 === 'delivered' && oldRow.ps5_2_status !== 'delivered') {
+            d52_at = nowStr;
+        } else if (s52 !== 'delivered') {
+            d52_at = null;
+        }
+
+        let d4_at = oldRow.ps4_delivered_at;
+        if (s4 === 'delivered' && oldRow.ps4_status !== 'delivered') {
+            d4_at = nowStr;
+        } else if (s4 !== 'delivered') {
+            d4_at = null;
+        }
+
+        db.run(
+            `UPDATE ps_plus_accounts SET 
+                email = ?, 
+                password = ?, 
+                plus_type = ?, 
+                plus_duration = ?, 
+                ps5_1_order = ?, 
+                ps5_1_status = ?, 
+                ps5_2_order = ?, 
+                ps5_2_status = ?, 
+                ps4_order = ?, 
+                ps4_status = ?,
+                ps5_1_code = ?,
+                ps5_2_code = ?,
+                ps4_code = ?,
+                ps5_1_delivered_at = ?,
+                ps5_2_delivered_at = ?,
+                ps4_delivered_at = ?
+             WHERE id = ?`,
+            [
+                email.trim(), 
+                password.trim(), 
+                plus_type.trim(), 
+                plus_duration.trim(), 
+                o51, 
+                s51, 
+                o52, 
+                s52, 
+                o4, 
+                s4, 
+                ps5_1_code ? ps5_1_code.trim() : '',
+                ps5_2_code ? ps5_2_code.trim() : '',
+                ps4_code ? ps4_code.trim() : '',
+                d51_at,
+                d52_at,
+                d4_at,
+                id
+            ],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                logActivity(req.user.username, 'UPDATE', 'ps_plus', `تم تحديث بيانات حساب بلس: ${email} (بلس ${plus_type} ${plus_duration})`).catch(console.error);
+                res.json({ success: true });
+            }
+        );
+    });
 });
 
 app.delete('/api/ps-plus/accounts/:id', authenticateUser, (req, res) => {
@@ -2686,8 +2719,9 @@ app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
             }
 
             // تنفيذ التحديث
-            const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered', ${slot}_delivered_by = ? WHERE id = ?`;
-            db.run(query, [orderClean, phone ? phone.trim() : '', req.user.username, id], function(errUpdate) {
+            const deliveredAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered', ${slot}_delivered_by = ?, ${slot}_delivered_at = ? WHERE id = ?`;
+            db.run(query, [orderClean, phone ? phone.trim() : '', req.user.username, deliveredAt, id], function(errUpdate) {
                 if (errUpdate) return res.status(500).json({ error: errUpdate.message });
                 db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errGet, accountRow) => {
                     const email = accountRow ? accountRow.email : 'غير معروف';

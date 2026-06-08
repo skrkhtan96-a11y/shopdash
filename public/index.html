@@ -471,6 +471,7 @@
         <div class="nav-item" onclick="nav('campaigns')"><i class="ti ti-speakerphone"></i> الحملات الإعلانية</div>
         <div class="nav-item" onclick="nav('certificates')"><i class="ti ti-certificate"></i> إدارة تقارير الشهادات</div>
         <div class="nav-item" onclick="nav('ps-plus')"><i class="ti ti-brand-playstation"></i> مخزون حسابات بلس</div>
+        <div class="nav-item" onclick="nav('ps-plus-deliveries')"><i class="ti ti-report"></i> تقرير تسليم بلس</div>
       </div>
 
       <div class="s-sep"></div>
@@ -1841,6 +1842,97 @@
                 <tr>
                   <td colspan="11">
                     <div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل مخزون حسابات بلس...</p></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: PLAYSTATION PLUS DELIVERIES REPORT -->
+      <div class="page pad" id="page-ps-plus-deliveries">
+        <!-- KPIs Row -->
+        <div class="kpi-grid" style="margin-bottom:14px">
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-circle-check"></i></div>
+            <div class="kpi-val" id="kpiDeliveredTotal" style="font-weight:700;">0</div>
+            <div class="kpi-label">إجمالي النسخ المسلمة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="ti ti-brand-playstation"></i></div>
+            <div class="kpi-val" id="kpiDeliveredPs5" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS5 المسلمة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-device-gamepad"></i></div>
+            <div class="kpi-val" id="kpiDeliveredPs4" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS4 المسلمة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon purple"><i class="ti ti-archive"></i></div>
+            <div class="kpi-val" id="kpiDeliveredPercentage" style="font-weight:700;">0%</div>
+            <div class="kpi-label">نسبة المبيعات / التسليم</div>
+          </div>
+        </div>
+
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">تقرير النسخ المسلمة من حسابات بلس المشتركة</div>
+            <div style="display:flex; gap:8px">
+              <button class="btn btn-sm btn-primary" onclick="loadPsPlusDeliveries()"><i class="ti ti-refresh"></i> تحديث التقرير</button>
+            </div>
+          </div>
+          
+          <div class="filter-bar" style="margin-bottom: 10px;">
+            <label><i class="ti ti-filter"></i> تصفية بحسب:</label>
+            
+            <label style="margin-right:4px">النسخة:</label>
+            <select id="psdFilterSlot" onchange="renderPsPlusDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">كافة النسخ</option>
+              <option value="ps5_1">PS5 (الأولى)</option>
+              <option value="ps5_2">PS5 (الثانية)</option>
+              <option value="ps4">PS4</option>
+            </select>
+
+            <label style="margin-right:8px">الموظف المسؤول:</label>
+            <select id="psdFilterUser" onchange="renderPsPlusDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">الكل</option>
+            </select>
+
+            <label style="margin-right:8px">النوع:</label>
+            <select id="psdFilterType" onchange="renderPsPlusDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">كافة الأنواع</option>
+              <option value="اساسي">اساسي (Essential)</option>
+              <option value="اضافي">اضافي (Extra)</option>
+              <option value="فاخر">فاخر (Deluxe)</option>
+            </select>
+            
+            <label style="margin-right:auto">بحث:</label>
+            <input type="text" id="psdFilterSearch" oninput="renderPsPlusDeliveries()" placeholder="رقم الطلب أو إيميل..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 200px;">
+          </div>
+          
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>الإيميل</th>
+                  <th>النسخة المسلمة</th>
+                  <th>نوع البلس</th>
+                  <th>مدة الاشتراك</th>
+                  <th>رقم الطلب</th>
+                  <th>رقم العميل</th>
+                  <th>الموظف المسؤول</th>
+                  <th>تاريخ الإضافة</th>
+                  <th>تاريخ التسليم</th>
+                  <th>المتبقي من الحساب</th>
+                </tr>
+              </thead>
+              <tbody id="psPlusDeliveriesTbody">
+                <tr>
+                  <td colspan="11">
+                    <div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل تقرير تسليم بلس...</p></div>
                   </td>
                 </tr>
               </tbody>
