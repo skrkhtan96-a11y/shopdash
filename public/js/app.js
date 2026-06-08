@@ -5236,24 +5236,37 @@ function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {
         container.innerHTML = '';
         Object.entries(durationStocks).forEach(([dur, count]) => {
             if (count > 0 || standardDurations.includes(dur)) {
-                const badge = document.createElement('span');
-                badge.className = count > 0 ? 'pill pill-purple' : 'pill';
-                badge.style.fontSize = '10.5px';
-                badge.style.padding = '2px 6px';
-                badge.style.fontWeight = '600';
-                badge.style.border = '1px solid var(--border1)';
-                if (count === 0) {
-                    badge.style.background = 'var(--bg4)';
-                    badge.style.color = 'var(--text3)';
-                    badge.style.borderColor = 'var(--border2)';
-                    badge.style.opacity = '0.5';
-                } else {
-                    badge.style.background = 'rgba(157, 78, 221, 0.15)';
-                    badge.style.color = '#c77dff';
-                    badge.style.borderColor = 'rgba(157, 78, 221, 0.3)';
-                }
-                badge.innerHTML = `${dur}: <span style="font-weight:700;">${count}</span> نسخة`;
-                container.appendChild(badge);
+                const card = document.createElement('div');
+                card.style.background = count > 0 ? 'rgba(157, 78, 221, 0.08)' : 'rgba(255, 255, 255, 0.01)';
+                card.style.border = count > 0 ? '1px solid rgba(157, 78, 221, 0.25)' : '1px dashed var(--border2)';
+                card.style.borderRadius = '8px';
+                card.style.padding = '8px 12px';
+                card.style.display = 'flex';
+                card.style.flexDirection = 'column';
+                card.style.alignItems = 'center';
+                card.style.justifyContent = 'center';
+                card.style.transition = 'all 0.2s ease';
+                card.style.opacity = count > 0 ? '1' : '0.35';
+                
+                card.onmouseover = () => {
+                    card.style.transform = 'translateY(-2px)';
+                    if (count > 0) {
+                        card.style.boxShadow = '0 4px 12px rgba(157, 78, 221, 0.15)';
+                        card.style.borderColor = 'rgba(157, 78, 221, 0.5)';
+                    }
+                };
+                card.onmouseout = () => {
+                    card.style.transform = 'none';
+                    card.style.boxShadow = 'none';
+                    card.style.borderColor = count > 0 ? 'rgba(157, 78, 221, 0.25)' : 'var(--border2)';
+                };
+
+                card.innerHTML = `
+                    <span style="font-size: 10px; color: var(--text3); font-weight: 500; margin-bottom: 2px;">${dur}</span>
+                    <span style="font-size: 15px; font-weight: 700; color: ${count > 0 ? '#c77dff' : 'var(--text3)'};">${count}</span>
+                    <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
+                `;
+                container.appendChild(card);
             }
         });
     }
@@ -5505,24 +5518,37 @@ function renderPsPlusDeliveries(accounts) {
         durationContainer.innerHTML = '';
         Object.entries(durationStocks).forEach(([dur, count]) => {
             if (count > 0 || standardDurations.includes(dur)) {
-                const badge = document.createElement('span');
-                badge.className = count > 0 ? 'pill pill-purple' : 'pill';
-                badge.style.fontSize = '10.5px';
-                badge.style.padding = '2px 6px';
-                badge.style.fontWeight = '600';
-                badge.style.border = '1px solid var(--border1)';
-                if (count === 0) {
-                    badge.style.background = 'var(--bg4)';
-                    badge.style.color = 'var(--text3)';
-                    badge.style.borderColor = 'var(--border2)';
-                    badge.style.opacity = '0.5';
-                } else {
-                    badge.style.background = 'rgba(157, 78, 221, 0.15)';
-                    badge.style.color = '#c77dff';
-                    badge.style.borderColor = 'rgba(157, 78, 221, 0.3)';
-                }
-                badge.innerHTML = `${dur}: <span style="font-weight:700;">${count}</span> نسخة`;
-                durationContainer.appendChild(badge);
+                const card = document.createElement('div');
+                card.style.background = count > 0 ? 'rgba(157, 78, 221, 0.08)' : 'rgba(255, 255, 255, 0.01)';
+                card.style.border = count > 0 ? '1px solid rgba(157, 78, 221, 0.25)' : '1px dashed var(--border2)';
+                card.style.borderRadius = '8px';
+                card.style.padding = '8px 12px';
+                card.style.display = 'flex';
+                card.style.flexDirection = 'column';
+                card.style.alignItems = 'center';
+                card.style.justifyContent = 'center';
+                card.style.transition = 'all 0.2s ease';
+                card.style.opacity = count > 0 ? '1' : '0.35';
+                
+                card.onmouseover = () => {
+                    card.style.transform = 'translateY(-2px)';
+                    if (count > 0) {
+                        card.style.boxShadow = '0 4px 12px rgba(157, 78, 221, 0.15)';
+                        card.style.borderColor = 'rgba(157, 78, 221, 0.5)';
+                    }
+                };
+                card.onmouseout = () => {
+                    card.style.transform = 'none';
+                    card.style.boxShadow = 'none';
+                    card.style.borderColor = count > 0 ? 'rgba(157, 78, 221, 0.25)' : 'var(--border2)';
+                };
+
+                card.innerHTML = `
+                    <span style="font-size: 10px; color: var(--text3); font-weight: 500; margin-bottom: 2px;">${dur}</span>
+                    <span style="font-size: 15px; font-weight: 700; color: ${count > 0 ? '#c77dff' : 'var(--text3)'};">${count}</span>
+                    <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
+                `;
+                durationContainer.appendChild(card);
             }
         });
     }
