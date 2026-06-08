@@ -5342,8 +5342,14 @@ function renderPsPlusDeliveries(accounts) {
                     remainingInfo = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
                 } else {
                     const remParts = [];
-                    const remPs5 = (acc.ps5_1_status === 'available' ? 1 : 0) + (acc.ps5_2_status === 'available' ? 1 : 0);
-                    const remPs4 = acc.ps4_status === 'available' ? 1 : 0;
+                    let remPs5 = 0;
+                    let remPs4 = 0;
+                    slots.forEach(sl => {
+                        if (sl.status !== 'delivered' && sl.status !== 'unavailable') {
+                            if (sl.key === 'ps4') remPs4++;
+                            else remPs5++;
+                        }
+                    });
                     if (remPs5 > 0) remParts.push(remPs5 === 2 ? 'نسختي PS5' : 'نسخة PS5');
                     if (remPs4 > 0) remParts.push('نسخة PS4');
                     remainingInfo = `<span class="pill pill-amber">متبقي ${remParts.join(' + ')}</span>`;
