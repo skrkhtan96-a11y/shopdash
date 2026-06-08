@@ -1464,6 +1464,10 @@ function updateExpensesDashboard() {
                 periodKey = 'شهري';
             } else if (p === '3 أشهر') {
                 periodKey = '3 أشهر';
+            } else if (p === '4 أشهر') {
+                periodKey = '4 أشهر';
+            } else if (p === '5 أشهر') {
+                periodKey = '5 أشهر';
             } else if (p === 'سنة') {
                 periodKey = 'سنة';
             }
@@ -1577,16 +1581,22 @@ const PS5_PRICING_CATALOG = {
     essential: {
         'شهري': { purchase: 34, selling: 23, selling_ps4: 15 },
         '3 أشهر': { purchase: 87, selling: 50, selling_ps4: 35 },
+        '4 أشهر': { purchase: 116, selling: 66, selling_ps4: 46 },
+        '5 أشهر': { purchase: 145, selling: 83, selling_ps4: 58 },
         'سنة': { purchase: 245, selling: 135, selling_ps4: 95 }
     },
     extra: {
         'شهري': { purchase: 52, selling: 37, selling_ps4: 25 },
         '3 أشهر': { purchase: 143, selling: 85, selling_ps4: 50 },
+        '4 أشهر': { purchase: 190, selling: 113, selling_ps4: 67 },
+        '5 أشهر': { purchase: 238, selling: 141, selling_ps4: 83 },
         'سنة': { purchase: 406, selling: 195, selling_ps4: 120 }
     },
     premium: {
         'شهري': { purchase: 61, selling: 48, selling_ps4: 35 },
         '3 أشهر': { purchase: 166, selling: 115, selling_ps4: 65 },
+        '4 أشهر': { purchase: 221, selling: 153, selling_ps4: 87 },
+        '5 أشهر': { purchase: 276, selling: 191, selling_ps4: 108 },
         'سنة': { purchase: 469, selling: 265, selling_ps4: 175 }
     }
 };
@@ -1622,6 +1632,10 @@ function handleProductPricingChange() {
         catalogPeriod = 'شهري';
     } else if (period === '3 أشهر') {
         catalogPeriod = '3 أشهر';
+    } else if (period === '4 أشهر') {
+        catalogPeriod = '4 أشهر';
+    } else if (period === '5 أشهر') {
+        catalogPeriod = '5 أشهر';
     } else if (period === 'سنة') {
         catalogPeriod = 'سنة';
     }
@@ -5216,25 +5230,32 @@ function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {
 
     // Calculate stock by duration
     const durationStocks = {};
-    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
-    standardDurations.forEach(d => durationStocks[d] = 0);
+    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '4 أشهر', '5 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
+    standardDurations.forEach(d => durationStocks[d] = { ps5: 0, ps4: 0, total: 0 });
 
     if (accounts) {
         accounts.forEach(c => {
-            let availableSlots = 0;
-            if (c.ps5_1_status === 'available') availableSlots++;
-            if (c.ps5_2_status === 'available') availableSlots++;
-            if (c.ps4_status === 'available') availableSlots++;
+            let ps5Slots = 0;
+            let ps4Slots = 0;
+            if (c.ps5_1_status === 'available') ps5Slots++;
+            if (c.ps5_2_status === 'available') ps5Slots++;
+            if (c.ps4_status === 'available') ps4Slots++;
             
             const dur = c.plus_duration || 'أخرى';
-            durationStocks[dur] = (durationStocks[dur] || 0) + availableSlots;
+            if (!durationStocks[dur]) {
+                durationStocks[dur] = { ps5: 0, ps4: 0, total: 0 };
+            }
+            durationStocks[dur].ps5 += ps5Slots;
+            durationStocks[dur].ps4 += ps4Slots;
+            durationStocks[dur].total += (ps5Slots + ps4Slots);
         });
     }
 
     const container = document.getElementById('psStockByDurationContainer');
     if (container) {
         container.innerHTML = '';
-        Object.entries(durationStocks).forEach(([dur, count]) => {
+        Object.entries(durationStocks).forEach(([dur, data]) => {
+            const count = data.total;
             if (count > 0 || standardDurations.includes(dur)) {
                 const card = document.createElement('div');
                 card.style.background = count > 0 ? 'rgba(157, 78, 221, 0.08)' : 'rgba(255, 255, 255, 0.01)';
@@ -5265,6 +5286,13 @@ function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {
                     <span style="font-size: 10px; color: var(--text3); font-weight: 500; margin-bottom: 2px;">${dur}</span>
                     <span style="font-size: 15px; font-weight: 700; color: ${count > 0 ? '#c77dff' : 'var(--text3)'};">${count}</span>
                     <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
+                    ${count > 0 ? `
+                    <span style="font-size: 8.5px; color: #72efdd; font-weight: 600; margin-top: 3px; display: flex; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px; width: 100%; justify-content: center;">
+                        <span>${data.ps5} PS5</span>
+                        <span style="color:var(--text3); opacity:0.3">|</span>
+                        <span>${data.ps4} PS4</span>
+                    </span>
+                    ` : ''}
                 `;
                 container.appendChild(card);
             }
@@ -5487,36 +5515,40 @@ function renderPsPlusDeliveries(accounts) {
 
     // Calculate stock by duration
     const durationStocks = {};
-    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
-    standardDurations.forEach(d => durationStocks[d] = 0);
+    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '4 أشهر', '5 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
+    standardDurations.forEach(d => durationStocks[d] = { ps5: 0, ps4: 0, total: 0 });
 
-    // If filtered, compute only from the accounts of visible deliveries
+    // Compute remaining stock from accounts that match active type or search filter
     let targetAccounts = accounts || [];
-    if (isFiltered) {
-        const seenIds = new Set();
-        targetAccounts = [];
-        filtered.forEach(d => {
-            if (!seenIds.has(d.account.id)) {
-                seenIds.add(d.account.id);
-                targetAccounts.push(d.account);
-            }
+    if (filterType || filterSearch) {
+        targetAccounts = targetAccounts.filter(c => {
+            if (filterType && c.plus_type !== filterType) return false;
+            if (filterSearch && !c.email.toLowerCase().includes(filterSearch)) return false;
+            return true;
         });
     }
 
     targetAccounts.forEach(c => {
-        let availableSlots = 0;
-        if (c.ps5_1_status === 'available') availableSlots++;
-        if (c.ps5_2_status === 'available') availableSlots++;
-        if (c.ps4_status === 'available') availableSlots++;
+        let ps5Slots = 0;
+        let ps4Slots = 0;
+        if (c.ps5_1_status === 'available') ps5Slots++;
+        if (c.ps5_2_status === 'available') ps5Slots++;
+        if (c.ps4_status === 'available') ps4Slots++;
         
         const dur = c.plus_duration || 'أخرى';
-        durationStocks[dur] = (durationStocks[dur] || 0) + availableSlots;
+        if (!durationStocks[dur]) {
+            durationStocks[dur] = { ps5: 0, ps4: 0, total: 0 };
+        }
+        durationStocks[dur].ps5 += ps5Slots;
+        durationStocks[dur].ps4 += ps4Slots;
+        durationStocks[dur].total += (ps5Slots + ps4Slots);
     });
 
     const durationContainer = document.getElementById('psdStockByDurationContainer');
     if (durationContainer) {
         durationContainer.innerHTML = '';
-        Object.entries(durationStocks).forEach(([dur, count]) => {
+        Object.entries(durationStocks).forEach(([dur, data]) => {
+            const count = data.total;
             if (count > 0 || standardDurations.includes(dur)) {
                 const card = document.createElement('div');
                 card.style.background = count > 0 ? 'rgba(157, 78, 221, 0.08)' : 'rgba(255, 255, 255, 0.01)';
@@ -5547,6 +5579,13 @@ function renderPsPlusDeliveries(accounts) {
                     <span style="font-size: 10px; color: var(--text3); font-weight: 500; margin-bottom: 2px;">${dur}</span>
                     <span style="font-size: 15px; font-weight: 700; color: ${count > 0 ? '#c77dff' : 'var(--text3)'};">${count}</span>
                     <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
+                    ${count > 0 ? `
+                    <span style="font-size: 8.5px; color: #72efdd; font-weight: 600; margin-top: 3px; display: flex; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px; width: 100%; justify-content: center;">
+                        <span>${data.ps5} PS5</span>
+                        <span style="color:var(--text3); opacity:0.3">|</span>
+                        <span>${data.ps4} PS4</span>
+                    </span>
+                    ` : ''}
                 `;
                 durationContainer.appendChild(card);
             }
