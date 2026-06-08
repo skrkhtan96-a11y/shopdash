@@ -5472,6 +5472,50 @@ function renderPsPlusDeliveries(accounts) {
         percentageLabel.textContent = isFiltered ? 'النسبة من إجمالي التسليمات' : 'نسبة التسليم من المخزون العام';
     }
 
+    // Calculate stock by duration
+    const durationStocks = {};
+    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
+    standardDurations.forEach(d => durationStocks[d] = 0);
+
+    if (accounts) {
+        accounts.forEach(c => {
+            let availableSlots = 0;
+            if (c.ps5_1_status === 'available') availableSlots++;
+            if (c.ps5_2_status === 'available') availableSlots++;
+            if (c.ps4_status === 'available') availableSlots++;
+            
+            const dur = c.plus_duration || 'أخرى';
+            durationStocks[dur] = (durationStocks[dur] || 0) + availableSlots;
+        });
+    }
+
+    const durationContainer = document.getElementById('psdStockByDurationContainer');
+    if (durationContainer) {
+        durationContainer.innerHTML = '';
+        Object.entries(durationStocks).forEach(([dur, count]) => {
+            if (count > 0 || standardDurations.includes(dur)) {
+                const badge = document.createElement('span');
+                badge.className = count > 0 ? 'pill pill-purple' : 'pill';
+                badge.style.fontSize = '10.5px';
+                badge.style.padding = '2px 6px';
+                badge.style.fontWeight = '600';
+                badge.style.border = '1px solid var(--border1)';
+                if (count === 0) {
+                    badge.style.background = 'var(--bg4)';
+                    badge.style.color = 'var(--text3)';
+                    badge.style.borderColor = 'var(--border2)';
+                    badge.style.opacity = '0.5';
+                } else {
+                    badge.style.background = 'rgba(157, 78, 221, 0.15)';
+                    badge.style.color = '#c77dff';
+                    badge.style.borderColor = 'rgba(157, 78, 221, 0.3)';
+                }
+                badge.innerHTML = `${dur}: <span style="font-weight:700;">${count}</span> نسخة`;
+                durationContainer.appendChild(badge);
+            }
+        });
+    }
+
     if (filtered.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11"><div class="empty"><i class="ti ti-report"></i><p>لا توجد نسخ مسلمة تطابق خيارات التصفية الحالية</p></div></td></tr>';
         return;
