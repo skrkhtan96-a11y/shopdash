@@ -5400,12 +5400,27 @@ function renderPsPlusDeliveries(accounts) {
         return true;
     });
 
-    // Update KPI UI
-    document.getElementById('kpiDeliveredTotal').textContent = deliveredCount;
-    document.getElementById('kpiDeliveredPs5').textContent = deliveredPs5;
-    document.getElementById('kpiDeliveredPs4').textContent = deliveredPs4;
-    const percentage = totalSlots > 0 ? Math.round((deliveredCount / totalSlots) * 100) : 0;
-    document.getElementById('kpiDeliveredPercentage').textContent = `${percentage}%`;
+    // Update KPI UI with filtered quantities
+    const filteredTotal = filtered.length;
+    const filteredPs5 = filtered.filter(d => d.slotKey === 'ps5_1' || d.slotKey === 'ps5_2').length;
+    const filteredPs4 = filtered.filter(d => d.slotKey === 'ps4').length;
+
+    document.getElementById('kpiDeliveredTotal').textContent = filteredTotal;
+    document.getElementById('kpiDeliveredPs5').textContent = filteredPs5;
+    document.getElementById('kpiDeliveredPs4').textContent = filteredPs4;
+
+    // Calculate percentage based on whether any filter is active
+    const isFiltered = filterSlot || filterUser || filterType || filterSearch;
+    const percentageVal = isFiltered 
+        ? (deliveries.length > 0 ? Math.round((filteredTotal / deliveries.length) * 100) : 0)
+        : (totalSlots > 0 ? Math.round((deliveredCount / totalSlots) * 100) : 0);
+
+    document.getElementById('kpiDeliveredPercentage').textContent = `${percentageVal}%`;
+
+    const percentageLabel = document.getElementById('kpiDeliveredPercentageLabel');
+    if (percentageLabel) {
+        percentageLabel.textContent = isFiltered ? 'النسبة من إجمالي التسليمات' : 'نسبة التسليم من المخزون العام';
+    }
 
     if (filtered.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11"><div class="empty"><i class="ti ti-report"></i><p>لا توجد نسخ مسلمة تطابق خيارات التصفية الحالية</p></div></td></tr>';
