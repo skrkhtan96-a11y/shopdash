@@ -5477,17 +5477,28 @@ function renderPsPlusDeliveries(accounts) {
     const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
     standardDurations.forEach(d => durationStocks[d] = 0);
 
-    if (accounts) {
-        accounts.forEach(c => {
-            let availableSlots = 0;
-            if (c.ps5_1_status === 'available') availableSlots++;
-            if (c.ps5_2_status === 'available') availableSlots++;
-            if (c.ps4_status === 'available') availableSlots++;
-            
-            const dur = c.plus_duration || 'أخرى';
-            durationStocks[dur] = (durationStocks[dur] || 0) + availableSlots;
+    // If filtered, compute only from the accounts of visible deliveries
+    let targetAccounts = accounts || [];
+    if (isFiltered) {
+        const seenIds = new Set();
+        targetAccounts = [];
+        filtered.forEach(d => {
+            if (!seenIds.has(d.account.id)) {
+                seenIds.add(d.account.id);
+                targetAccounts.push(d.account);
+            }
         });
     }
+
+    targetAccounts.forEach(c => {
+        let availableSlots = 0;
+        if (c.ps5_1_status === 'available') availableSlots++;
+        if (c.ps5_2_status === 'available') availableSlots++;
+        if (c.ps4_status === 'available') availableSlots++;
+        
+        const dur = c.plus_duration || 'أخرى';
+        durationStocks[dur] = (durationStocks[dur] || 0) + availableSlots;
+    });
 
     const durationContainer = document.getElementById('psdStockByDurationContainer');
     if (durationContainer) {
