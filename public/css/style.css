@@ -69,16 +69,24 @@ body {
 }
 
 .sidebar {
-  width: 224px;
-  background: var(--bg2);
-  border-left: 1px solid var(--border);
+  width: 260px;
+  background: rgba(17, 21, 32, 0.82);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-left: 1px solid var(--border2);
+  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  position: sticky;
+  position: fixed;
   top: 0;
+  right: -280px;
   height: 100vh;
-  flex-shrink: 0;
+  z-index: 1000;
   overflow-y: auto;
+  transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sidebar.open {
+  right: 0;
 }
 
 .content {
@@ -178,20 +186,24 @@ body {
   cursor: pointer;
   color: var(--text2);
   font-size: 13px;
-  transition: all .15s;
-  border-right: 2px solid transparent;
-  margin: 1px 0;
+  transition: all .25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-right: 3px solid transparent;
+  margin: 2px 8px;
+  border-radius: var(--r);
 }
 
 .nav-item:hover {
   color: var(--text);
-  background: var(--bg3);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(-4px);
 }
 
 .nav-item.active {
   color: var(--accent);
   background: var(--accent3);
   border-right-color: var(--accent);
+  font-weight: 600;
+  transform: translateX(-4px);
 }
 
 .nav-item i {
@@ -1103,13 +1115,19 @@ textarea {
 }
 
 .sidebar-overlay {
-  display: none;
   position: fixed;
   inset: 0;
-  background: rgba(5, 7, 12, 0.65);
+  background: rgba(5, 7, 12, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 990;
-  backdrop-filter: blur(5px);
-  animation: fFadeIn 0.2s ease-out;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.sidebar-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-close {
@@ -1138,39 +1156,19 @@ textarea {
   to { opacity: 1; }
 }
 
-@media (max-width: 880px) {
-  .menu-toggle {
-    display: inline-flex;
-  }
-  
-  .sidebar {
-    position: fixed;
-    top: 0;
-    right: -260px;
-    height: 100vh;
-    z-index: 1000;
-    width: 260px;
-    background: rgba(17, 21, 32, 0.95);
-    backdrop-filter: blur(25px);
-    border-left: 1px solid var(--border2);
-    box-shadow: -5px 0 25px rgba(0,0,0,0.5);
-    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-  }
-  
-  .sidebar.open {
-    right: 0;
-  }
-  
-  .sidebar-close {
-    display: inline-flex;
-  }
-  
-  .s-logo {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+.menu-toggle {
+  display: inline-flex;
+}
+
+.sidebar-close {
+  display: inline-flex;
+}
+
+.s-logo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
   .charts-row {
     grid-template-columns: 1fr;

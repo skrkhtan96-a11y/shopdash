@@ -361,10 +361,10 @@ function toggleSidebar(open) {
     if (!sidebar || !overlay) return;
     if (open) {
         sidebar.classList.add('open');
-        overlay.style.display = 'block';
+        overlay.classList.add('open');
     } else {
         sidebar.classList.remove('open');
-        overlay.style.display = 'none';
+        overlay.classList.remove('open');
     }
 }
 
