@@ -195,6 +195,13 @@ function applyRoleBasedPermissions() {
     if (clearExpensesBtn) {
         clearExpensesBtn.style.display = (role === 'employee' || role === 'games_employee') ? 'none' : 'inline-block';
     }
+
+    // زر حذف مخزون المنتجات متاح فقط للذين لديهم صلاحية حذف أو دور مدير
+    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const clearStockBtn = document.getElementById('btnClearStockBtn');
+    if (clearStockBtn) {
+        clearStockBtn.style.display = canDelete ? 'inline-block' : 'none';
+    }
 }
 
 async function handleLogout() {
