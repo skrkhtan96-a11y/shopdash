@@ -1532,7 +1532,10 @@
           
           <!-- لوحة المصروفات -->
           <div class="import-panel" style="margin-bottom:0">
-            <div class="import-panel-title"><i class="ti ti-receipt" style="color:var(--red)"></i> 1. استيراد المصروفات والرواتب (Excel)</div>
+            <div class="import-panel-title" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+              <span><i class="ti ti-receipt" style="color:var(--red)"></i> 1. استيراد المصروفات والرواتب (Excel)</span>
+              <button class="btn btn-xs" onclick="downloadImportTemplate('expense')" style="font-size:10px; padding:3px 6px; border-color:rgba(224,85,85,0.3); color:var(--red); background:rgba(224,85,85,0.05); cursor:pointer;"><i class="ti ti-download"></i> تحميل النموذج</button>
+            </div>
             <div class="import-panel-sub">قم بإدراج ملف Excel يحتوي على أعمدة: البيان، المبلغ، الفئة، التاريخ.</div>
             <div class="import-zone" id="iz-exp" style="padding:22px">
               <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'expense')" id="if-exp">
@@ -1549,7 +1552,10 @@
 
           <!-- لوحة مبيعات سلة -->
           <div class="import-panel" style="margin-bottom:0">
-            <div class="import-panel-title"><i class="ti ti-shopping-cart" style="color:var(--green)"></i> 2. استيراد مبيعات وطلبات سلة (Excel)</div>
+            <div class="import-panel-title" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+              <span><i class="ti ti-shopping-cart" style="color:var(--green)"></i> 2. استيراد مبيعات وطلبات سلة (Excel)</span>
+              <button class="btn btn-xs" onclick="downloadImportTemplate('sales')" style="font-size:10px; padding:3px 6px; border-color:rgba(61,186,126,0.3); color:var(--green); background:rgba(61,186,126,0.05); cursor:pointer;"><i class="ti ti-download"></i> تحميل النموذج</button>
+            </div>
             <div class="import-panel-sub">اسحب ملف "تقرير مبيعات المنتجات" أو "تقرير الطلبات" المصدر من متجر سلة.</div>
             <div class="import-zone" id="iz-sales" style="padding:22px">
               <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'sales')" id="if-sales">
@@ -1566,7 +1572,10 @@
 
           <!-- لوحة تسويات المحفظة -->
           <div class="import-panel" style="margin-bottom:0">
-            <div class="import-panel-title"><i class="ti ti-wallet" style="color:var(--blue)"></i> 3. استيراد تسويات المحفظة (Excel)</div>
+            <div class="import-panel-title" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+              <span><i class="ti ti-wallet" style="color:var(--blue)"></i> 3. استيراد تسويات المحفظة (Excel)</span>
+              <button class="btn btn-xs" onclick="downloadImportTemplate('wallet')" style="font-size:10px; padding:3px 6px; border-color:rgba(24,178,176,0.3); color:var(--blue); background:rgba(24,178,176,0.05); cursor:pointer;"><i class="ti ti-download"></i> تحميل النموذج</button>
+            </div>
             <div class="import-panel-sub">اسحب ملف كشف حساب "المحفظة والمدفوعات" المصدر من متجر سلة.</div>
             <div class="import-zone" id="iz-wallet" style="padding:22px">
               <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'wallet')" id="if-wallet">
@@ -1583,8 +1592,11 @@
 
           <!-- لوحة استيراد المنتجات والمخزون -->
           <div class="import-panel" style="margin-bottom:0">
-            <div class="import-panel-title"><i class="ti ti-box" style="color:var(--accent)"></i> 4. استيراد المنتجات والمخزون (Excel)</div>
-            <div class="import-panel-sub">اسحب ملف إكسل للمنتجات يحتوي على الأعمدة: اسم المنتج، المخزون الافتتاحي، سعر التكلفة، سعر البيع.</div>
+            <div class="import-panel-title" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+              <span><i class="ti ti-box" style="color:var(--accent)"></i> 4. استيراد المنتجات والمخزون (Excel)</span>
+              <button class="btn btn-xs" onclick="downloadImportTemplate('products')" style="font-size:10px; padding:3px 6px; border-color:rgba(157,78,221,0.3); color:var(--accent); background:rgba(157,78,221,0.05); cursor:pointer;"><i class="ti ti-download"></i> تحميل النموذج</button>
+            </div>
+            <div class="import-panel-sub">اسحب ملف إكسل للمنتجات يحتوي على الأعمدة: المنتج، الكمية المتبقية، سعر بيع المفرد (ر.س)، سعر التكلفة (ر.س).</div>
             <div class="import-zone" id="iz-products" style="padding:22px">
               <input type="file" accept=".xlsx,.xls,.csv" onchange="handleImport(event,'products')" id="if-products">
               <div style="display:flex;flex-direction:column;align-items:center;gap:6px">

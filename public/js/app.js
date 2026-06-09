@@ -2610,9 +2610,9 @@ async function handleImport(ev, type) {
 
             for (let r of rows) {
                 const prodName = cleanProductName(String(getValue(r, ['اسم المنتج', 'المنتج', 'الاسم', 'اسم', 'Product Name', 'Product', 'name', 'Name'])).trim());
-                const stockOffset = parseInt(getValue(r, ['الكمية الافتتاحية', 'المخزون الافتتاحي', 'الكمية', 'المخزون', 'العدد', 'الرصيد', 'Quantity', 'Stock', 'Initial Stock', 'qty', 'count'])) || 0;
-                const cost = parseFloat(getValue(r, ['سعر التكلفة', 'سعر الشراء', 'التكلفة', 'سعر التكلفه', 'شراء', 'Cost', 'Purchase Cost', 'purchase_price'])) || 0;
-                const price = parseFloat(getValue(r, ['سعر البيع', 'سعر البيع المقدر', 'البيع', 'بيع', 'Price', 'Selling Price', 'selling_price'])) || 0;
+                const stockOffset = parseInt(getValue(r, ['الكمية المتبقية', 'الكمية الافتتاحية', 'المخزون الافتتاحي', 'الكمية', 'المخزون', 'العدد', 'الرصيد', 'Quantity', 'Stock', 'Initial Stock', 'qty', 'count'])) || 0;
+                const cost = parseFloat(getValue(r, ['سعر التكلفة (ر.س)', 'سعر التكلفة', 'سعر الشراء', 'التكلفة', 'سعر التكلفه', 'شراء', 'Cost', 'Purchase Cost', 'purchase_price'])) || 0;
+                const price = parseFloat(getValue(r, ['سعر بيع المفرد (ر.س)', 'سعر بيع المفرد', 'سعر البيع', 'سعر البيع المقدر', 'البيع', 'بيع', 'Price', 'Selling Price', 'selling_price'])) || 0;
 
                 if (prodName) {
                     parsedProducts.push({
@@ -7992,6 +7992,55 @@ function renderGamesDeliveries(accounts) {
             <td>${d.remainingInfo}</td>
         </tr>`;
     }).join('');
+}
+
+// دالة توليد وتنزيل ملفات إكسل فارغة للهيكلة المطلوبة لكل نوع استيراد
+function downloadImportTemplate(type) {
+    let headers = [];
+    let filename = '';
+    let sheetName = '';
+    let data = [];
+
+    if (type === 'expense') {
+        headers = ['التاريخ', 'البيان', 'المبلغ', 'الفئة', 'النوع', 'ملاحظات'];
+        data = [
+            { 'التاريخ': '2026-06-01', 'البيان': 'فاتورة سيرفر VPS', 'المبلغ': 150.00, 'الفئة': 'مصروف تشغيلي', 'النوع': 'مصروف', 'ملاحظات': 'تجديد شهري للاستضافة' }
+        ];
+        filename = 'نموذج_استيراد_المصروفات.xlsx';
+        sheetName = 'المصروفات';
+    } else if (type === 'sales') {
+        headers = ['رقم الطلب', 'تاريخ الطلب', 'إجمالي الطلب', 'اسم العميل', 'اسم المنتج', 'الكمية', 'طريقة الدفع', 'حالة الطلب'];
+        data = [
+            { 'رقم الطلب': '1000264', 'تاريخ الطلب': '2026-06-01', 'إجمالي الطلب': 230.00, 'اسم العميل': 'محمد أحمد', 'اسم المنتج': 'بلس إكسترا 12 شهر PS5 (حصة 1)', 'الكمية': 1, 'طريقة الدفع': 'mada', 'حالة الطلب': 'completed' }
+        ];
+        filename = 'نموذج_استيراد_مبيعات_سلة.xlsx';
+        sheetName = 'مبيعات سلة';
+    } else if (type === 'wallet') {
+        headers = ['رقم العملية', 'المبلغ الإجمالي', 'مبلغ العمولة', 'المبلغ المستحق', 'تاريخ الاستحقاق', 'الحالة'];
+        data = [
+            { 'رقم العملية': 'TXN1000921', 'المبلغ الإجمالي': 100.00, 'مبلغ العمولة': 2.50, 'المبلغ المستحق': 97.50, 'تاريخ الاستحقاق': '2026-06-02', 'الحالة': 'مدفوعة' }
+        ];
+        filename = 'نموذج_استيراد_كشف_المحفظة.xlsx';
+        sheetName = 'تسويات المحفظة';
+    } else if (type === 'products') {
+        headers = ['المنتج', 'الكمية المتبقية', 'سعر بيع المفرد (ر.س)', 'سعر التكلفة (ر.س)', 'ملاحظات'];
+        data = [
+            { 'المنتج': 'بلس إكسترا 12 شهر', 'الكمية المتبقية': 15, 'سعر بيع المفرد (ر.س)': 230.00, 'سعر التكلفة (ر.س)': 150.00, 'ملاحظات': 'المخزون الحالي' }
+        ];
+        filename = 'نموذج_استيراد_مخزون_المنتجات.xlsx';
+        sheetName = 'مخزون المنتجات';
+    }
+
+    try {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(data, { header: headers });
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, filename);
+        toast('تم تحميل الملف المصدري الفارغ بنجاح', 'ok');
+    } catch (e) {
+        console.error(e);
+        toast('فشل إنشاء ملف إكسل', 'err');
+    }
 }
 
 
