@@ -148,6 +148,13 @@ async function init() {
             navUsers.style.display = state.user.role === 'admin' ? 'flex' : 'none';
         }
 
+        // إظهار رابط المبيعات الخارجية بناء على صلاحية المستخدم
+        const navExtSales = document.getElementById('nav-external-sales');
+        if (navExtSales) {
+            const hasAccess = state.user.role === 'admin' || !!state.user.can_view_external_sales;
+            navExtSales.style.display = hasAccess ? 'flex' : 'none';
+        }
+
         // تطبيق الصلاحيات والقيود بناء على الدور المحاسبي
         applyRoleBasedPermissions();
 
@@ -365,10 +372,11 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
+    'external-sales': 'المبيعات الخارجية',
     campaigns: 'الحملات الإعلانية',
     'campaign-detail': 'تفاصيل الحملة الإعلانية',
     'salla-orders': 'طلبات سلة',
@@ -451,6 +459,7 @@ function nav(name, updateHash = true) {
 
     if (name === 'overview') renderOverview();
     if (name === 'expenses') renderExp();
+    if (name === 'external-sales') loadExternalSales();
     if (name === 'campaigns') renderCampaigns();
     if (name === 'salla-orders') renderOrders();
     if (name === 'salla-carts') renderCarts();
@@ -3215,6 +3224,7 @@ function renderUsers(users) {
         if (user.role === 'admin' || user.can_deliver) perms.push('<span class="pill pill-green" style="font-size: 8.5px; padding: 1px 3px;">✓تسليم</span>');
         if (user.role === 'admin' || user.can_view_ps_details) perms.push('<span class="pill pill-purple" style="font-size: 8.5px; padding: 1px 3px;">🔑تفاصيل بلس</span>');
         if (user.role === 'admin' || user.can_view_games_details) perms.push('<span class="pill pill-blue" style="font-size: 8.5px; padding: 1px 3px;">🔑تفاصيل ألعاب</span>');
+        if (user.role === 'admin' || user.can_view_external_sales) perms.push('<span class="pill pill-accent" style="font-size: 8.5px; padding: 1px 3px;">💵مبيعات خارجية</span>');
 
         tr.innerHTML = `
             <td>${user.id}</td>
@@ -3254,6 +3264,7 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
         document.getElementById('uCanDeliver').checked = user.role === 'admin' || !!user.can_deliver;
         document.getElementById('uCanViewPsDetails').checked = user.role === 'admin' || (user.can_view_ps_details !== undefined ? !!user.can_view_ps_details : true);
         document.getElementById('uCanViewGamesDetails').checked = user.role === 'admin' || (user.can_view_games_details !== undefined ? !!user.can_view_games_details : true);
+        document.getElementById('uCanViewExternalSales').checked = user.role === 'admin' || (user.can_view_external_sales !== undefined ? !!user.can_view_external_sales : true);
     } else {
         // Defaults for new users
         document.getElementById('uCanAdd').checked = true;
@@ -3262,6 +3273,7 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
         document.getElementById('uCanDeliver').checked = true;
         document.getElementById('uCanViewPsDetails').checked = true;
         document.getElementById('uCanViewGamesDetails').checked = true;
+        document.getElementById('uCanViewExternalSales').checked = true;
     }
     
     togglePermissionsSection(role);
@@ -3327,11 +3339,12 @@ async function saveUser() {
     const can_deliver = document.getElementById('uCanDeliver').checked ? 1 : 0;
     const can_view_ps_details = document.getElementById('uCanViewPsDetails').checked ? 1 : 0;
     const can_view_games_details = document.getElementById('uCanViewGamesDetails').checked ? 1 : 0;
+    const can_view_external_sales = document.getElementById('uCanViewExternalSales').checked ? 1 : 0;
 
     const url = currentEditUserId ? `/api/users/${currentEditUserId}` : '/api/users';
     const method = currentEditUserId ? 'PUT' : 'POST';
     
-    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details };
+    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, can_view_external_sales };
     if (password) body.password = password;
     
     try {
@@ -8190,6 +8203,151 @@ function downloadImportTemplate(type) {
     } catch (e) {
         console.error(e);
         toast('فشل إنشاء ملف إكسل', 'err');
+    }
+}
+
+// ══════════════════════════════════════════════
+//  EXTERNAL SALES FUNCTIONS
+// ══════════════════════════════════════════════
+let stateExternalSales = [];
+
+async function loadExternalSales() {
+    try {
+        const res = await fetch('/api/external-sales');
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'فشل جلب المبيعات الخارجية');
+        }
+        const data = await res.json();
+        stateExternalSales = data.sales || [];
+        
+        // تحديث بطاقات الإحصائيات الفورية
+        const stats = data.stats || { total: 0, wathiqa: 0, najm: 0, qutaibi: 0, kuraimi: 0 };
+        document.getElementById('extKpiTotal').textContent = stats.total.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+        document.getElementById('extKpiWathiqa').textContent = stats.wathiqa.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+        document.getElementById('extKpiNajm').textContent = stats.najm.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+        document.getElementById('extKpiQutaibi').textContent = stats.qutaibi.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+        document.getElementById('extKpiKuraimi').textContent = stats.kuraimi.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+
+        renderExternalSales();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderExternalSales() {
+    const tbody = document.getElementById('externalSalesTbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const filterBank = document.getElementById('extFilterBank')?.value || '';
+    const searchVal = document.getElementById('extSearch')?.value.trim().toLowerCase() || '';
+
+    const filtered = stateExternalSales.filter(item => {
+        if (filterBank && item.bank_account !== filterBank) return false;
+        if (searchVal) {
+            const prodMatch = (item.product_name || '').toLowerCase().includes(searchVal);
+            const custMatch = (item.customer_name || '').toLowerCase().includes(searchVal);
+            const refMatch = (item.transfer_reference || '').toLowerCase().includes(searchVal);
+            if (!prodMatch && !custMatch && !refMatch) return false;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11"><div style="text-align:center; padding:15px; color:var(--text3)"><i class="ti ti-info-circle" style="font-size:16px;"></i> لا توجد مبيعات خارجية مسجلة تطابق التصفية.</div></td></tr>';
+        return;
+    }
+
+    filtered.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        
+        let actions = '';
+        if (item.customer_phone) {
+            const phoneDigits = item.customer_phone.replace(/[^0-9]/g, '');
+            actions += `<a href="https://wa.me/${phoneDigits}" target="_blank" class="btn btn-sm btn-green" style="background:#25d366; border-color:#25d366; color:#fff; display:inline-flex; align-items:center; gap:4px; padding:3px 6px; font-size:10px; margin-left:4px;"><i class="ti ti-brand-whatsapp"></i> واتساب</a>`;
+        }
+        if (state.user && state.user.role === 'admin') {
+            actions += `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent; padding:3px 6px; font-size:10px;" onclick="deleteExternalSale(${item.id})"><i class="ti ti-trash"></i> حذف</button>`;
+        }
+        if (!actions) actions = '-';
+
+        const bankColor = item.bank_account === 'حساب الوثيقة' ? '#9d4edd' : item.bank_account === 'حساب نجم' ? '#ff9e00' : item.bank_account === 'حساب القطيبي' ? '#3dba7e' : '#5b9bd6';
+
+        tr.innerHTML = `
+            <td style="color:var(--text3); font-size:11px">${index + 1}</td>
+            <td style="font-weight:600; color:var(--text)">${escapeHtml(item.product_name)}</td>
+            <td class="mono">${item.quantity}</td>
+            <td class="mono" style="font-weight:600; color:#fff">${(item.amount || 0).toFixed(2)} ر.س</td>
+            <td><span class="pill" style="background:${bankColor}15; color:${bankColor}; border:1px solid ${bankColor}33; font-weight:600;">${escapeHtml(item.bank_account)}</span></td>
+            <td class="mono" style="font-weight:600; color:var(--accent)">${escapeHtml(item.transfer_reference || '-')}</td>
+            <td>${escapeHtml(item.customer_name || '-')} ${item.customer_phone ? `<span style="font-size:10px; color:var(--text3)">(${escapeHtml(item.customer_phone)})</span>` : ''}</td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${item.created_at}</td>
+            <td><span style="font-size:11px; color:var(--text2)"><i class="ti ti-user" style="font-size:10px;"></i> ${escapeHtml(item.created_by)}</span></td>
+            <td style="color:var(--text2); font-size:11px">${escapeHtml(item.notes || '-')}</td>
+            <td>${actions}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function saveExternalSale(event) {
+    event.preventDefault();
+    const product_name = document.getElementById('extProductName').value.trim();
+    const quantity = parseInt(document.getElementById('extQuantity').value) || 1;
+    const amount = parseFloat(document.getElementById('extAmount').value);
+    const bank_account = document.getElementById('extBankAccount').value;
+    const transfer_reference = document.getElementById('extReference').value.trim();
+    const customer_name = document.getElementById('extCustomerName').value.trim();
+    const customer_phone = document.getElementById('extCustomerPhone').value.trim();
+    const notes = document.getElementById('extNotes').value.trim();
+
+    if (!product_name || !amount || !bank_account) {
+        toast('يرجى تعبئة كافة الحقول المطلوبة', 'error');
+        return;
+    }
+
+    // التحقق من تكرار رقم المرجع محلياً لمنع الأخطاء الفورية
+    if (transfer_reference && stateExternalSales.some(s => s.transfer_reference === transfer_reference)) {
+        toast('رقم المرجع أو الحوالة هذا تم إدخاله مسبقاً!', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/external-sales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, status: 'delivered'
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'فشل حفظ المبيعة الخارجية');
+        }
+
+        toast('تم تسجيل المبيعة الخارجية بنجاح', 'ok');
+        document.getElementById('extSaleForm').reset();
+        document.getElementById('extQuantity').value = 1; // reset default
+        await loadExternalSales();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function deleteExternalSale(id) {
+    if (!confirm('هل أنت متأكد من حذف هذه المبيعة الخارجية نهائياً؟')) return;
+    try {
+        const res = await fetch(`/api/external-sales/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'فشل حذف المبيعة');
+        }
+        toast('تم حذف المبيعة بنجاح', 'ok');
+        await loadExternalSales();
+    } catch (e) {
+        toast(e.message, 'error');
     }
 }
 

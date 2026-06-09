@@ -24,7 +24,7 @@ const authenticateUser = (req, res, next) => {
         return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.' });
     }
     db.get(
-        `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details, u.can_view_games_details FROM sessions s 
+        `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details, u.can_view_games_details, u.can_view_external_sales FROM sessions s 
          JOIN users u ON s.user_id = u.id 
          WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
         [token],
@@ -60,7 +60,7 @@ app.use((req, res, next) => {
             return res.redirect('/login.html');
         }
         db.get(
-            `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details, u.can_view_games_details FROM sessions s 
+            `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details, u.can_view_games_details, u.can_view_external_sales FROM sessions s 
              JOIN users u ON s.user_id = u.id 
              WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
             [token],
@@ -227,7 +227,7 @@ app.get('/api/activity-logs', authenticateUser, (req, res) => {
 
 // 6. Manage users: Get all users (Admin only)
 app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
-    db.all("SELECT id, username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
+    db.all("SELECT id, username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, can_view_external_sales, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
@@ -235,7 +235,7 @@ app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
 
 // 7. Manage users: Add user manually (Admin only)
 app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
-    const { username, email, password, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details } = req.body;
+    const { username, email, password, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, can_view_external_sales } = req.body;
     if (!username || !email || !password || !role) {
         return res.status(400).json({ error: 'يرجى تقديم كافة حقول البيانات للمستخدم الجديد.' });
     }
@@ -249,10 +249,11 @@ app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
     const cDeliver = can_deliver !== undefined ? (can_deliver ? 1 : 0) : 1;
     const cViewPsDetails = can_view_ps_details !== undefined ? (can_view_ps_details ? 1 : 0) : 1;
     const cViewGamesDetails = can_view_games_details !== undefined ? (can_view_games_details ? 1 : 0) : 1;
+    const cViewExternalSales = can_view_external_sales !== undefined ? (can_view_external_sales ? 1 : 0) : 1;
 
     db.run(
-        "INSERT INTO users (username, email, password, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [username.trim(), email.trim().toLowerCase(), hashedPassword, role, cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, cViewGamesDetails, createdAt],
+        "INSERT INTO users (username, email, password, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, can_view_external_sales, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [username.trim(), email.trim().toLowerCase(), hashedPassword, role, cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, cViewGamesDetails, cViewExternalSales, createdAt],
         function(err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
@@ -269,7 +270,7 @@ app.post('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
 // 8. Manage users: Edit user role (Admin only)
 app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) => {
     const { id } = req.params;
-    const { role, username, email, password, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details } = req.body;
+    const { role, username, email, password, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, can_view_external_sales } = req.body;
     
     if (!role) {
         return res.status(400).json({ error: 'يرجى تحديد دور المستخدم.' });
@@ -281,12 +282,13 @@ app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) =
     const cDeliver = can_deliver !== undefined ? (can_deliver ? 1 : 0) : 1;
     const cViewPsDetails = can_view_ps_details !== undefined ? (can_view_ps_details ? 1 : 0) : 1;
     const cViewGamesDetails = can_view_games_details !== undefined ? (can_view_games_details ? 1 : 0) : 1;
+    const cViewExternalSales = can_view_external_sales !== undefined ? (can_view_external_sales ? 1 : 0) : 1;
 
     if (password) {
         const hashedPassword = hashPassword(password);
         db.run(
-            "UPDATE users SET role = ?, username = ?, email = ?, password = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ?, can_view_ps_details = ?, can_view_games_details = ? WHERE id = ?",
-            [role, username.trim(), email.trim().toLowerCase(), hashedPassword, cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, cViewGamesDetails, id],
+            "UPDATE users SET role = ?, username = ?, email = ?, password = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ?, can_view_ps_details = ?, can_view_games_details = ?, can_view_external_sales = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), hashedPassword, cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, cViewGamesDetails, cViewExternalSales, id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
@@ -295,8 +297,8 @@ app.put('/api/users/:id', authenticateUser, requireRole(['admin']), (req, res) =
         );
     } else {
         db.run(
-            "UPDATE users SET role = ?, username = ?, email = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ?, can_view_ps_details = ?, can_view_games_details = ? WHERE id = ?",
-            [role, username.trim(), email.trim().toLowerCase(), cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, cViewGamesDetails, id],
+            "UPDATE users SET role = ?, username = ?, email = ?, can_add = ?, can_edit = ?, can_delete = ?, can_deliver = ?, can_view_ps_details = ?, can_view_games_details = ?, can_view_external_sales = ? WHERE id = ?",
+            [role, username.trim(), email.trim().toLowerCase(), cAdd, cEdit, cDelete, cDeliver, cViewPsDetails, cViewGamesDetails, cViewExternalSales, id],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 logActivity(req.user.username, 'UPDATE', 'users', `تم تحديث بيانات المستخدم: ${username} برتبة ${role}`).catch(console.error);
@@ -3203,6 +3205,100 @@ app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
             logActivity(req.user.username, 'IMPORT', 'ps_plus', `تم استيراد/تحديث ${count} حساب بلس من ملف Excel`).catch(console.error);
             res.json({ success: true, count });
         });
+    });
+});
+
+// ── 3.7. مسارات المبيعات الخارجية المبسطة ──
+app.get('/api/external-sales', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_external_sales) {
+        return res.status(403).json({ error: 'غير مصرح لك باستعراض المبيعات الخارجية.' });
+    }
+
+    db.all("SELECT * FROM external_sales ORDER BY created_at DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        // حساب إجمالي الأموال لكل حساب بنكي بشكل مستقل وإجمالي العمليات
+        const stats = {
+            total: 0,
+            wathiqa: 0,
+            najm: 0,
+            qutaibi: 0,
+            kuraimi: 0
+        };
+
+        rows.forEach(r => {
+            const amt = parseFloat(r.amount) || 0;
+            stats.total += amt;
+            if (r.bank_account === 'حساب الوثيقة') stats.wathiqa += amt;
+            else if (r.bank_account === 'حساب نجم') stats.najm += amt;
+            else if (r.bank_account === 'حساب القطيبي') stats.qutaibi += amt;
+            else if (r.bank_account === 'حساب الكريمي') stats.kuraimi += amt;
+        });
+
+        res.json({ sales: rows, stats });
+    });
+});
+
+app.post('/api/external-sales', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_external_sales) {
+        return res.status(403).json({ error: 'غير مصرح لك بإدخال مبيعات خارجية.' });
+    }
+
+    const { product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes } = req.body;
+    
+    if (!product_name || !amount || !bank_account) {
+        return res.status(400).json({ error: 'حقول اسم المنتج، المبلغ، والحساب البنكي مطلوبة.' });
+    }
+
+    // حساب التوقيت بنظام السعودية 12 ساعة لتخزينه
+    const utcDate = new Date();
+    const saudiDate = new Date(utcDate.getTime() + (3 * 60 * 60 * 1000));
+    
+    const yyyy = saudiDate.getUTCFullYear();
+    const mm = String(saudiDate.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(saudiDate.getUTCDate()).padStart(2, '0');
+    
+    let hours = saudiDate.getUTCHours();
+    const minutes = String(saudiDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(saudiDate.getUTCSeconds()).padStart(2, '0');
+    
+    const ampm = hours >= 12 ? 'م' : 'ص';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const hh = String(hours).padStart(2, '0');
+    
+    const saudiTimeStr = `${yyyy}-${mm}-${dd} ${hh}:${minutes}:${seconds} ${ampm}`;
+
+    db.run(
+        `INSERT INTO external_sales (product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, created_by, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            product_name.trim(),
+            parseInt(quantity) || 1,
+            parseFloat(amount),
+            bank_account.trim(),
+            customer_name ? customer_name.trim() : null,
+            customer_phone ? customer_phone.trim() : null,
+            transfer_reference ? transfer_reference.trim() : null,
+            status || 'delivered',
+            notes ? notes.trim() : null,
+            req.user.username,
+            saudiTimeStr
+        ],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(req.user.username, 'ADD', 'external_sales', `تم تسجيل مبيعة خارجية: ${product_name} بمبلغ ${amount} ر.س محولة إلى ${bank_account}`).catch(console.error);
+            res.json({ success: true, id: this.lastID });
+        }
+    );
+});
+
+app.delete('/api/external-sales/:id', authenticateUser, requireRole(['admin']), (req, res) => {
+    const { id } = req.params;
+    db.run("DELETE FROM external_sales WHERE id = ?", [id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        logActivity(req.user.username, 'DELETE', 'external_sales', `تم حذف مبيعة خارجية معرف: ${id}`).catch(console.error);
+        res.json({ success: true });
     });
 });
 

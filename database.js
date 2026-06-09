@@ -287,6 +287,24 @@ db.serialize(() => {
         )
     `);
 
+    // 17. جدول المبيعات الخارجية المبسطة
+    db.run(`
+        CREATE TABLE IF NOT EXISTS external_sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_name TEXT NOT NULL,
+            quantity INTEGER DEFAULT 1,
+            amount REAL NOT NULL,
+            bank_account TEXT NOT NULL,
+            customer_name TEXT,
+            customer_phone TEXT,
+            transfer_reference TEXT,
+            status TEXT DEFAULT 'delivered',
+            notes TEXT,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    `);
+
 
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
@@ -299,6 +317,7 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN can_deliver INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_view_ps_details INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_view_games_details INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_external_sales INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
 
     // ترقية جدول حسابات البلس لإضافة اسم المستخدم الذي قام بإضافة الحساب
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN created_by TEXT", (err) => { /* تجاهل الخطأ */ });
