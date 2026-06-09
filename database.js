@@ -272,6 +272,22 @@ db.serialize(() => {
         )
     `);
 
+    // 16. جدول المنتجات وإدارة المخزون المستقلة
+    db.run(`
+        CREATE TABLE IF NOT EXISTS inventory_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_name TEXT UNIQUE NOT NULL,
+            sku TEXT,
+            quantity INTEGER DEFAULT 0,
+            cost REAL DEFAULT 0,
+            price REAL DEFAULT 0,
+            category TEXT DEFAULT 'عام',
+            notes TEXT,
+            created_at TEXT NOT NULL
+        )
+    `);
+
+
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });

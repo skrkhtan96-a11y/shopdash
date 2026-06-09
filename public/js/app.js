@@ -305,8 +305,14 @@ async function loadLocalData() {
 // تحميل تسويات جرد المخزون يدوياً
 async function loadAdjustments() {
     try {
-        const res = await fetch('/api/products/adjustments');
-        state.adjustments = await res.json();
+        const res = await fetch('/api/inventory/products');
+        state.inventoryProducts = await res.json();
+        state.adjustments = (state.inventoryProducts || []).map(ip => ({
+            product_name: ip.product_name,
+            stock_offset: ip.quantity,
+            cost: ip.cost,
+            price: ip.price
+        }));
     } catch (e) {
         console.error('فشل جلب تسويات جرد المخزون:', e);
     }
@@ -1169,32 +1175,36 @@ function renderProducts() {
         }
     });
 
-    // 2.5. تجميع المنتجات من تسويات الجرد اليدوية المسجلة (حتى لو لم يكن لها مبيعات أو مشتريات)
-    state.adjustments.forEach(a => {
-        const name = (a.product_name || '').trim();
-        if (name) {
-            if (!map[name]) {
-                map[name] = { name, soldCount: 0, totalRevenue: 0, purchasedCount: 0, avgCost: 0, sellingPrice: 0 };
-            }
-            if (a.cost > 0) map[name].avgCost = a.cost;
-            if (a.price > 0) map[name].sellingPrice = a.price;
-        }
-    });
-
-    // 3. احتساب المخزون الفعلي بالتكامل مع تسويات الجرد اليدوية
-    let prods = Object.values(map).map(p => {
-        const adj = state.adjustments.find(a => a.product_name === p.name) || { stock_offset: 0, cost: 0, price: 0 };
+    // 3. احتساب المخزون الفعلي بالتكامل مع المنتجات المستقلة
+    let prods = (state.inventoryProducts || []).map(p => {
+        let purchased = 0;
+        let sold = 0;
         
-        const currentStock = p.purchasedCount - p.soldCount + adj.stock_offset;
-        const avgCost = adj.cost > 0 ? adj.cost : p.avgCost;
-        const sellingPrice = adj.price > 0 ? adj.price : p.sellingPrice;
+        state.expenses.forEach(e => {
+            if (e.cat === 'شراء منتجات' && e.product_name) {
+                const name = e.product_name.trim();
+                const qty = e.quantity || 0;
+                if (name === p.product_name) purchased += qty;
+            }
+        });
+        
+        sallaOrders.forEach(o => {
+            (o.items || []).forEach(it => {
+                if ((it.name || '').trim() === p.product_name) sold += it.quantity || 1;
+            });
+        });
         
         return {
-            ...p,
-            currentStock,
-            avgCost,
-            sellingPrice,
-            stock_offset: adj.stock_offset
+            id: p.id,
+            name: p.product_name,
+            sku: p.sku || '-',
+            currentStock: p.quantity,
+            purchasedCount: purchased,
+            soldCount: sold,
+            avgCost: p.cost,
+            sellingPrice: p.price,
+            totalRevenue: sold * p.price,
+            notes: p.notes || ''
         };
     });
 
@@ -1254,8 +1264,8 @@ function renderProducts() {
         prods = prods.filter(p => p.currentStock < 0);
     }
 
-    // الفرز: مبيعات أعلى أولاً
-    prods.sort((a, b) => b.soldCount - a.soldCount);
+    // الفرز: كمية المخزون أعلى أولاً
+    prods.sort((a, b) => b.currentStock - a.currentStock);
     
     // 3.7. احتساب إجمالي قيمة المخزون الحالي المتبقي والقطع والمنتجات
     let totalStockValue = 0;
@@ -1270,9 +1280,9 @@ function renderProducts() {
     const prodKPIs = document.getElementById('prodKPIs');
     if (prodKPIs) {
         prodKPIs.innerHTML = `
-            <div class="kpi k-accent"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">إجمالي قيمة المخزون المتبقي</div><div class="kpi-val accent">${fmt(totalStockValue)} ر.س</div><div class="kpi-sub">بناءً على التكلفة الفعلية</div></div>
+            <div class="kpi k-accent"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">إجمالي قيمة المخزون الحالي</div><div class="kpi-val accent">${fmt(totalStockValue)} ر.س</div><div class="kpi-sub">بناءً على التكلفة الفعلية</div></div>
             <div class="kpi k-green"><i class="ti ti-box kpi-ico"></i><div class="kpi-label">إجمالي القطع المتوفرة</div><div class="kpi-val green">${totalStockQty.toLocaleString('ar-SA')}</div><div class="kpi-sub">قطعة متوفرة للبيع</div></div>
-            <div class="kpi k-blue"><i class="ti ti-tag kpi-ico"></i><div class="kpi-label">عدد المنتجات النشطة</div><div class="kpi-val blue">${prods.length.toLocaleString('ar-SA')}</div><div class="kpi-sub">صنفاً مسجلاً في النظام</div></div>
+            <div class="kpi k-blue"><i class="ti ti-tag kpi-ico"></i><div class="kpi-label">عدد الأصناف بالمخزون</div><div class="kpi-val blue">${prods.length.toLocaleString('ar-SA')}</div><div class="kpi-sub">منتجاً مسجلاً بشكل مستقل</div></div>
         `;
     }
     
@@ -1286,12 +1296,11 @@ function renderProducts() {
     if (!body) return;
     
     if (!prods.length) {
-        body.innerHTML = '<tr><td colspan="9"><div class="empty"><i class="ti ti-box"></i><p>لا توجد منتجات مسجلة في المشتريات أو المبيعات</p></div></td></tr>';
+        body.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-box"></i><p>لا توجد منتجات مسجلة في المخزون</p></div></td></tr>';
         return;
     }
 
     body.innerHTML = prods.map((p, i) => {
-        // تحديد فئة المخزون ولونه
         let stockClass = 'pill-green';
         let stockLabel = `${p.currentStock.toLocaleString('ar-SA')} قطعة`;
         
@@ -1303,28 +1312,23 @@ function renderProducts() {
             stockLabel = `منخفض (${p.currentStock.toLocaleString('ar-SA')})`;
         }
 
-        // حساب سعر البيع الفعلي أو المقدر
-        const sellPrice = p.sellingPrice > 0 ? p.sellingPrice : (p.soldCount > 0 ? (p.totalRevenue / p.soldCount) : 0);
-
-        // هل للمنتج تسوية مخزنة؟
-        const hasAdjustment = state.adjustments.some(a => a.product_name === p.name);
-
         return `<tr>
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
             <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;" title="${escapeHtml(p.name)}">${p.name}</td>
+            <td style="font-family:var(--mono);font-size:11px;">${p.sku}</td>
             <td><span class="pill ${stockClass}" style="font-weight:600">${stockLabel}</span></td>
             <td style="font-family:var(--mono)">${p.purchasedCount.toLocaleString('ar-SA')}</td>
             <td style="font-family:var(--mono)">${p.soldCount.toLocaleString('ar-SA')}</td>
             <td><span class="mono red">${p.avgCost > 0 ? fmt(p.avgCost) : '-'}</span></td>
-            <td><span class="mono green">${sellPrice > 0 ? fmt(sellPrice) : '-'}</span></td>
+            <td><span class="mono green">${p.sellingPrice > 0 ? fmt(p.sellingPrice) : '-'}</span></td>
             <td><span class="mono green" style="font-weight:700">${fmt(p.totalRevenue)}</span></td>
             <td>
                 <div style="display:flex; gap:6px; align-items:center;">
-                    <button style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent3); color: var(--accent); cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="openJardModal('${escapeHtml(p.name)}')">
-                        <i class="ti ti-settings"></i> جرد وتسوية
+                    <button style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent3); color: var(--accent); cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="openJardModalById(${p.id})">
+                        <i class="ti ti-settings"></i> تعديل وجرد
                     </button>
-                    ${canDelete && hasAdjustment ? `
-                    <button style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--red); background: rgba(224, 85, 85, 0.1); color: var(--red); cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="deleteJard('${escapeHtml(p.name)}')">
+                    ${canDelete ? `
+                    <button style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--red); background: rgba(224, 85, 85, 0.1); color: var(--red); cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="deleteInventoryProduct(${p.id}, '${escapeHtml(p.name)}')">
                         <i class="ti ti-trash"></i> حذف
                     </button>
                     ` : ''}
@@ -1821,90 +1825,75 @@ function closeDetailsModal() {
     document.getElementById('detailsModal').classList.remove('open');
 }
 
-// دالة فتح نافذة جرد وتسوية المخزون
 let currentJardProduct = '';
+let currentJardProductId = null;
+
 function openJardModal(productName) {
+    const prod = (state.inventoryProducts || []).find(p => p.product_name === productName);
+    openJardModalById(prod ? prod.id : null);
+}
+
+function openJardModalById(id) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
     if (currentUserRole === 'employee') {
         toast('عذراً، ليس لديك صلاحية للقيام بالجرد وتسوية المخزون.', 'error');
         return;
     }
     
-    currentJardProduct = productName;
+    currentJardProductId = id;
     const nameEl = document.getElementById('jProductName');
     const inputEl = document.getElementById('jProductNameInput');
     const calcRow = document.getElementById('jCalcStockRow');
     const titleEl = document.querySelector('#jardModal .modal-title');
+    const skuEl = document.getElementById('jSKU');
     
-    if (productName) {
-        // تعديل جرد لمنتج موجود
-        titleEl.innerHTML = `<i class="ti ti-box" style="color:var(--accent)"></i> جرد وتسوية مخزون المنتج`;
+    const p = (state.inventoryProducts || []).find(x => x.id === id);
+    currentJardProduct = p ? p.product_name : '';
+    
+    if (p) {
+        titleEl.innerHTML = `<i class="ti ti-box" style="color:var(--accent)"></i> تعديل وجرد المنتج`;
         nameEl.style.display = 'block';
         inputEl.style.display = 'none';
-        nameEl.textContent = productName;
+        nameEl.textContent = p.product_name;
         calcRow.style.display = 'flex';
+        if (skuEl) skuEl.value = p.sku || '';
         
-        // حساب المخزون التلقائي الحالي
         let purchased = 0;
         let sold = 0;
-        
         state.expenses.forEach(e => {
             if (e.cat === 'شراء منتجات' && e.product_name) {
                 const name = e.product_name.trim();
                 const qty = e.quantity || 0;
-                const isPs5Plus = name.includes('بلس') && name.includes('PS5');
-                
-                if (isPs5Plus) {
-                    const numPackages = qty / 3;
-                    if (name === productName) {
-                        purchased += Math.round(numPackages * 2);
-                    } else if (name.replace('PS5', 'PS4') === productName) {
-                        purchased += Math.round(numPackages * 1);
-                    }
-                } else {
-                    if (name === productName) {
-                        purchased += qty;
-                    }
-                }
+                if (name === p.product_name) purchased += qty;
             }
         });
-        
         sallaOrders.forEach(o => {
             (o.items || []).forEach(it => {
-                if ((it.name || '').trim() === productName) {
-                    sold += it.quantity || 1;
-                }
+                if ((it.name || '').trim() === p.product_name) sold += it.quantity || 1;
             });
         });
         
-        const calcStock = purchased - sold;
-        document.getElementById('jCalcStock').textContent = `${calcStock} قطعة`;
-        
-        // إيجاد التسوية المخزنة إن وجدت لتعبئة الحقول
-        const adj = state.adjustments.find(a => a.product_name === productName) || { stock_offset: 0, cost: 0, price: 0 };
-        
-        document.getElementById('jStockOffset').value = adj.stock_offset !== 0 ? adj.stock_offset : '';
-        document.getElementById('jCost').value = adj.cost > 0 ? adj.cost : '';
-        document.getElementById('jPrice').value = adj.price > 0 ? adj.price : '';
+        document.getElementById('jCalcStock').textContent = `${purchased - sold} قطعة`;
+        document.getElementById('jStockOffset').value = p.quantity;
+        document.getElementById('jCost').value = p.cost > 0 ? p.cost : '';
+        document.getElementById('jPrice').value = p.price > 0 ? p.price : '';
     } else {
-        // إضافة منتج يدوي جديد بالكامل للمخزون
         titleEl.innerHTML = `<i class="ti ti-plus" style="color:var(--accent)"></i> إضافة منتج جديد للمخزون`;
         nameEl.style.display = 'none';
         inputEl.style.display = 'block';
         inputEl.value = '';
         calcRow.style.display = 'none';
+        if (skuEl) skuEl.value = '';
         
         document.getElementById('jStockOffset').value = '';
         document.getElementById('jCost').value = '';
         document.getElementById('jPrice').value = '';
     }
-
-    // إظهار أو إخفاء زر حذف التسوية بالنافذة المنبثقة
-    const hasAdj = state.adjustments.some(a => a.product_name === productName);
+    
     const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
     const deleteModalBtn = document.getElementById('deleteJardModalBtn');
     if (deleteModalBtn) {
-        deleteModalBtn.style.display = (productName && hasAdj && canDelete) ? 'inline-block' : 'none';
+        deleteModalBtn.style.display = (id && canDelete) ? 'inline-block' : 'none';
     }
     
     document.getElementById('jardModal').classList.add('open');
@@ -1916,7 +1905,7 @@ function closeJardModal() {
 
 async function saveJard() {
     let productName = currentJardProduct;
-    if (!productName) {
+    if (!currentJardProductId) {
         productName = document.getElementById('jProductNameInput').value.trim();
     }
     
@@ -1925,30 +1914,47 @@ async function saveJard() {
         return;
     }
     
-    const stockOffset = parseInt(document.getElementById('jStockOffset').value) || 0;
+    const sku = document.getElementById('jSKU')?.value.trim() || '';
+    const quantity = parseInt(document.getElementById('jStockOffset').value) || 0;
     const cost = parseFloat(document.getElementById('jCost').value) || 0;
     const price = parseFloat(document.getElementById('jPrice').value) || 0;
     
     try {
-        const res = await fetch('/api/products/adjustments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                product_name: productName,
-                stock_offset: stockOffset,
-                cost: cost,
-                price: price
-            })
-        });
+        let res;
+        if (currentJardProductId) {
+            res = await fetch(`/api/inventory/products/${currentJardProductId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_name: productName,
+                    sku: sku,
+                    quantity: quantity,
+                    cost: cost,
+                    price: price
+                })
+            });
+        } else {
+            res = await fetch('/api/inventory/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_name: productName,
+                    sku: sku,
+                    quantity: quantity,
+                    cost: cost,
+                    price: price
+                })
+            });
+        }
         
         const data = await res.json();
-        if (data.success) {
-            toast('تم حفظ المنتج وتسوية المخزون بنجاح!', 'ok');
+        if (data.success || res.ok) {
+            toast('تم حفظ المنتج وتحديث المخزون بنجاح!', 'ok');
             closeJardModal();
             await loadAdjustments();
             renderProducts();
         } else {
-            toast('فشل حفظ تسوية المخزون', 'err');
+            toast(data.error || 'فشل حفظ المنتج', 'err');
         }
     } catch (e) {
         console.error('خطأ أثناء حفظ الجرد:', e);
@@ -1956,54 +1962,50 @@ async function saveJard() {
     }
 }
 
-// دالة حذف تسوية منتج معين
-async function deleteJard(productName) {
+async function deleteInventoryProduct(id, name) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
-    if (!confirm(`هل أنت متأكد من حذف تسوية وأسعار المنتج "${productName}"؟ سيتم إعادة احتساب المخزون والأسعار آلياً.`)) return;
+    if (!confirm(`هل أنت متأكد من حذف المنتج "${name}" نهائياً من المخزون؟`)) return;
     
     try {
-        const res = await fetch('/api/products/adjustments', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ product_name: productName })
-        });
-        const data = await res.json();
-        if (data.success) {
-            toast('تم حذف تسوية المنتج بنجاح', 'ok');
-            await loadAdjustments();
-            renderProducts();
-        } else {
-            toast('فشل حذف تسوية المنتج', 'err');
-        }
-    } catch (e) {
-        console.error(e);
-        toast('خطأ اتصال بالسيرفر لحذف التسوية', 'err');
-    }
-}
-
-// دالة حذف تسوية المنتج من النافذة المنبثقة
-async function deleteJardFromModal() {
-    if (!currentJardProduct) return;
-    closeJardModal();
-    await deleteJard(currentJardProduct);
-}
-
-// دالة تصفير وحذف جميع تسويات المخزون
-async function clearAllStock() {
-    if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
-    if (!confirm('تحذير: هل أنت متأكد من حذف وتصفير جميع تسويات وجرد المخزون والأسعار المخصصة؟ لا يمكن التراجع عن هذا الإجراء!')) return;
-    
-    try {
-        const res = await fetch('/api/products/adjustments/clear', {
+        const res = await fetch(`/api/inventory/products/${id}`, {
             method: 'DELETE'
         });
         const data = await res.json();
         if (data.success) {
-            toast('تم تصفير وحذف جميع تسويات المخزون بنجاح', 'ok');
+            toast('تم حذف المنتج من المخزون بنجاح', 'ok');
             await loadAdjustments();
             renderProducts();
         } else {
-            toast('فشل تصفير تسويات المخزون', 'err');
+            toast('فشل حذف المنتج', 'err');
+        }
+    } catch (e) {
+        console.error(e);
+        toast('خطأ اتصال بالسيرفر لحذف المنتج', 'err');
+    }
+}
+
+async function deleteJardFromModal() {
+    if (!currentJardProductId) return;
+    closeJardModal();
+    await deleteInventoryProduct(currentJardProductId, currentJardProduct);
+}
+
+// دالة تصفير وحذف جميع أصناف المخزون
+async function clearAllStock() {
+    if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (!confirm('تحذير: هل أنت متأكد من حذف وتصفير جميع أصناف المخزون؟ لا يمكن التراجع عن هذا الإجراء!')) return;
+    
+    try {
+        const res = await fetch('/api/inventory/products/clear', {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+            toast('تم تصفير وحذف جميع أصناف المخزون بنجاح', 'ok');
+            await loadAdjustments();
+            renderProducts();
+        } else {
+            toast('فشل تصفير المخزون', 'err');
         }
     } catch (e) {
         console.error(e);
@@ -2738,7 +2740,7 @@ async function handleImport(ev, type) {
             }
 
             if (parsedProducts.length > 0) {
-                const response = await fetch('/api/products/adjustments/bulk', {
+                const response = await fetch('/api/inventory/products/bulk', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ products: parsedProducts })

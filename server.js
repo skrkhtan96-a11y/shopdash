@@ -1989,6 +1989,154 @@ app.delete('/api/products/adjustments/clear', authenticateUser, (req, res) => {
     });
 });
 
+// ── 3.2. مسارات إدارة المنتجات والمخزون المستقلة (inventory_products) ──
+app.get('/api/inventory/products', authenticateUser, (req, res) => {
+    db.all("SELECT * FROM inventory_products ORDER BY id DESC", [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows);
+    });
+});
+
+app.post('/api/inventory/products', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_add) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية إضافة منتجات للمخزون.' });
+    }
+    const { product_name, sku, quantity, cost, price, category, notes } = req.body;
+    if (!product_name) {
+        return res.status(400).json({ error: 'اسم المنتج مطلوب.' });
+    }
+    const dateStr = new Date().toISOString().split('T')[0];
+    db.run(
+        "INSERT INTO inventory_products (product_name, sku, quantity, cost, price, category, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            product_name.trim(),
+            sku ? sku.trim() : null,
+            parseInt(quantity) || 0,
+            parseFloat(cost) || 0,
+            parseFloat(price) || 0,
+            category ? category.trim() : 'عام',
+            notes ? notes.trim() : null,
+            dateStr
+        ],
+        function (err) {
+            if (err) {
+                if (err.message.includes('UNIQUE')) {
+                    return res.status(400).json({ error: 'المنتج مسجل بالفعل في المخزون.' });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+            logActivity(req.user.username, 'ADD', 'inventory_products', `تم إضافة منتج جديد: ${product_name} للمخزون`).catch(console.error);
+            res.json({ success: true, id: this.lastID });
+        }
+    );
+});
+
+app.put('/api/inventory/products/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل منتجات المخزون.' });
+    }
+    const { id } = req.params;
+    const { product_name, sku, quantity, cost, price, category, notes } = req.body;
+    if (!product_name) {
+        return res.status(400).json({ error: 'اسم المنتج مطلوب.' });
+    }
+    db.run(
+        "UPDATE inventory_products SET product_name = ?, sku = ?, quantity = ?, cost = ?, price = ?, category = ?, notes = ? WHERE id = ?",
+        [
+            product_name.trim(),
+            sku ? sku.trim() : null,
+            parseInt(quantity) || 0,
+            parseFloat(cost) || 0,
+            parseFloat(price) || 0,
+            category ? category.trim() : 'عام',
+            notes ? notes.trim() : null,
+            id
+        ],
+        function (err) {
+            if (err) {
+                if (err.message.includes('UNIQUE')) {
+                    return res.status(400).json({ error: 'الاسم الجديد للمنتج مستخدم بالفعل.' });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+            logActivity(req.user.username, 'UPDATE', 'inventory_products', `تم تعديل بيانات منتج المخزون: ${product_name}`).catch(console.error);
+            res.json({ success: true });
+        }
+    );
+});
+
+app.delete('/api/inventory/products/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف منتجات المخزون.' });
+    }
+    const { id } = req.params;
+    
+    db.get("SELECT product_name FROM inventory_products WHERE id = ?", [id], (err, row) => {
+        if (err || !row) {
+            return res.status(404).json({ error: 'المنتج غير موجود.' });
+        }
+        const name = row.product_name;
+        db.run("DELETE FROM inventory_products WHERE id = ?", [id], function (err) {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            logActivity(req.user.username, 'DELETE', 'inventory_products', `تم حذف المنتج ${name} من المخزون`).catch(console.error);
+            res.json({ success: true });
+        });
+    });
+});
+
+app.post('/api/inventory/products/clear', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تفريغ المخزون.' });
+    }
+    db.run("DELETE FROM inventory_products", [], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        logActivity(req.user.username, 'CLEAR', 'inventory_products', `تم تفريغ وحذف كافة منتجات المخزون المستقل`).catch(console.error);
+        res.json({ success: true });
+    });
+});
+
+app.post('/api/inventory/products/bulk', authenticateUser, (req, res) => {
+    const { products } = req.body;
+    if (!products || !Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ error: 'يرجى تقديم مصفوفة منتجات صالحة.' });
+    }
+    const dateStr = new Date().toISOString().split('T')[0];
+    db.serialize(() => {
+        const stmt = db.prepare(`
+            INSERT INTO inventory_products (product_name, quantity, cost, price, category, created_at) 
+            VALUES (?, ?, ?, ?, 'عام', ?)
+            ON CONFLICT(product_name) DO UPDATE SET 
+                quantity = excluded.quantity,
+                cost = CASE WHEN excluded.cost > 0 THEN excluded.cost ELSE cost END,
+                price = CASE WHEN excluded.price > 0 THEN excluded.price ELSE price END
+        `);
+        products.forEach(p => {
+            stmt.run([
+                String(p.product_name).trim(),
+                parseInt(p.stock_offset) || 0,
+                parseFloat(p.cost) || 0,
+                parseFloat(p.price) || 0,
+                dateStr
+            ]);
+        });
+        stmt.finalize((err) => {
+            if (err) {
+                console.error('خطأ أثناء استيراد المنتجات للمخزون المستقل:', err.message);
+                return res.status(500).json({ error: 'فشل حفظ المنتجات في قاعدة البيانات.' });
+            }
+            logActivity(req.user.username, 'IMPORT', 'inventory_products', `تم استيراد وتحديث ${products.length} منتج في المخزون المستقل`).catch(console.error);
+            res.json({ success: true, count: products.length });
+        });
+    });
+});
+
+
 
 // ── 4. مسارات الأرشفة الشهرية (SQLite) ──
 

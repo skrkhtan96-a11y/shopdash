@@ -266,19 +266,26 @@
         <div id="jProductName" style="font-weight:600; color:#fff; margin-top:2px;">-</div>
         <input type="text" id="jProductNameInput" placeholder="اكتب اسم المنتج بالكامل هنا..." style="width:100%; margin-top:6px; display:none;">
       </div>
+
+      <div class="form-row full" id="jSKURow">
+        <div class="form-group">
+          <label class="form-label">رمز المنتج (SKU)</label>
+          <input type="text" id="jSKU" placeholder="أدخل رمز المنتج (اختياري)">
+        </div>
+      </div>
       
       <div id="jCalcStockRow" style="background:rgba(24, 178, 176, 0.04); border:1px solid rgba(24, 178, 176, 0.15); border-radius:var(--r); padding:10px 12px; margin-bottom:14px; display:flex; justify-content:space-between; font-size:11px;">
         <div>
-          <span style="color:var(--text2)">المحسوب آلياً (مشتريات - مبيعات):</span>
+          <span style="color:var(--text2)">المحسوب آلياً من سلة (مشتريات - مبيعات):</span>
           <div id="jCalcStock" class="mono accent" style="font-weight:600; font-size:12px; margin-top:2px;">0 قطعة</div>
         </div>
       </div>
 
       <div class="form-row full">
         <div class="form-group">
-          <label class="form-label">رصيد التسوية / الرصيد الافتتاحي اليدوي (قطعة)</label>
-          <input type="number" id="jStockOffset" placeholder="أدخل المخزون المضاف يدوياً (مثال: +10 أو -3)">
-          <span style="font-size:9px; color:var(--text3); margin-top:2px;">* الرصيد الافتتاحي هو قيمة تضاف للمخزون المحسوب (موجبة للزيادة أو سالبة للخصم وجرد العجز).</span>
+          <label class="form-label">كمية المخزون الفعلية (قطعة)</label>
+          <input type="number" id="jStockOffset" placeholder="أدخل كمية المخزون المتوفرة حالياً">
+          <span style="font-size:9px; color:var(--text3); margin-top:2px;">* يمثل الرصيد الفعلي للمنتج المتوفر في مستودعك للبيع.</span>
         </div>
       </div>
       
@@ -1326,13 +1333,14 @@
                 <tr>
                   <th>#</th>
                   <th>اسم المنتج بالكامل</th>
+                  <th>الرمز (SKU)</th>
                   <th>المخزون الحالي</th>
                   <th>الكمية المشتراة</th>
                   <th>الكمية المباعة</th>
                   <th>سعر التكلفة (ر.س)</th>
                   <th>سعر البيع (ر.س)</th>
                   <th>إجمالي المبيعات (ر.س)</th>
-                  <th style="width:100px">العمليات</th>
+                  <th style="width:140px">العمليات</th>
                 </tr>
               </thead>
               <tbody id="prodBody"></tbody>
