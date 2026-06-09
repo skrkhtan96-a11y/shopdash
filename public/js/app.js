@@ -3135,12 +3135,14 @@ function togglePermissionsSection(role) {
     document.getElementById('uCanDelete').disabled = isAdmin;
     document.getElementById('uCanDeliver').disabled = isAdmin;
     document.getElementById('uCanViewPsDetails').disabled = isAdmin;
+    document.getElementById('uCanViewGamesDetails').disabled = isAdmin;
     if (isAdmin) {
         document.getElementById('uCanAdd').checked = true;
         document.getElementById('uCanEdit').checked = true;
         document.getElementById('uCanDelete').checked = true;
         document.getElementById('uCanDeliver').checked = true;
         document.getElementById('uCanViewPsDetails').checked = true;
+        document.getElementById('uCanViewGamesDetails').checked = true;
     }
 }
 
