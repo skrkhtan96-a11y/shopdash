@@ -109,6 +109,7 @@ db.serialize(() => {
             can_delete INTEGER DEFAULT 1,
             can_deliver INTEGER DEFAULT 1,
             can_view_ps_details INTEGER DEFAULT 1,
+            can_view_games_details INTEGER DEFAULT 1,
             created_at TEXT NOT NULL
         )
     `);

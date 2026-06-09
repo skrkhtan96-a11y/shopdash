@@ -3060,6 +3060,7 @@ function renderUsers(users) {
         if (user.role === 'admin' || user.can_delete) perms.push('<span class="pill pill-red" style="font-size: 8.5px; padding: 1px 3px;">✖حذف</span>');
         if (user.role === 'admin' || user.can_deliver) perms.push('<span class="pill pill-green" style="font-size: 8.5px; padding: 1px 3px;">✓تسليم</span>');
         if (user.role === 'admin' || user.can_view_ps_details) perms.push('<span class="pill pill-purple" style="font-size: 8.5px; padding: 1px 3px;">🔑تفاصيل بلس</span>');
+        if (user.role === 'admin' || user.can_view_games_details) perms.push('<span class="pill pill-blue" style="font-size: 8.5px; padding: 1px 3px;">🔑تفاصيل ألعاب</span>');
 
         tr.innerHTML = `
             <td>${user.id}</td>
@@ -3098,6 +3099,7 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
         document.getElementById('uCanDelete').checked = user.role === 'admin' || !!user.can_delete;
         document.getElementById('uCanDeliver').checked = user.role === 'admin' || !!user.can_deliver;
         document.getElementById('uCanViewPsDetails').checked = user.role === 'admin' || (user.can_view_ps_details !== undefined ? !!user.can_view_ps_details : true);
+        document.getElementById('uCanViewGamesDetails').checked = user.role === 'admin' || (user.can_view_games_details !== undefined ? !!user.can_view_games_details : true);
     } else {
         // Defaults for new users
         document.getElementById('uCanAdd').checked = true;
@@ -3105,6 +3107,7 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
         document.getElementById('uCanDelete').checked = true;
         document.getElementById('uCanDeliver').checked = true;
         document.getElementById('uCanViewPsDetails').checked = true;
+        document.getElementById('uCanViewGamesDetails').checked = true;
     }
     
     togglePermissionsSection(role);
@@ -3167,11 +3170,12 @@ async function saveUser() {
     const can_delete = document.getElementById('uCanDelete').checked ? 1 : 0;
     const can_deliver = document.getElementById('uCanDeliver').checked ? 1 : 0;
     const can_view_ps_details = document.getElementById('uCanViewPsDetails').checked ? 1 : 0;
+    const can_view_games_details = document.getElementById('uCanViewGamesDetails').checked ? 1 : 0;
 
     const url = currentEditUserId ? `/api/users/${currentEditUserId}` : '/api/users';
     const method = currentEditUserId ? 'PUT' : 'POST';
     
-    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details };
+    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details };
     if (password) body.password = password;
     
     try {
