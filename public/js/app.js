@@ -5114,7 +5114,13 @@ function renderPsPlusAccounts(accounts) {
             if (filterStock === 'has_ps4' && remPs4 === 0) return false;
             if (filterStock === 'empty' && (remPs5 > 0 || remPs4 > 0)) return false;
         }
-        if (filterSearch && !c.email.toLowerCase().includes(filterSearch)) return false;
+        if (filterSearch) {
+            const emailMatch = c.email.toLowerCase().includes(filterSearch);
+            const order51Match = (c.ps5_1_order || '').toLowerCase().includes(filterSearch);
+            const order52Match = (c.ps5_2_order || '').toLowerCase().includes(filterSearch);
+            const order4Match = (c.ps4_order || '').toLowerCase().includes(filterSearch);
+            if (!emailMatch && !order51Match && !order52Match && !order4Match) return false;
+        }
         return true;
     });
 
