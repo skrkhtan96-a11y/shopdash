@@ -1269,6 +1269,12 @@ function renderProducts() {
         `;
     }
     
+    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const clearBtn = document.getElementById('clearAllStockBtn');
+    if (clearBtn) {
+        clearBtn.style.display = canDelete ? 'inline-block' : 'none';
+    }
+
     const body = document.getElementById('prodBody');
     if (!body) return;
     
@@ -1293,6 +1299,9 @@ function renderProducts() {
         // حساب سعر البيع الفعلي أو المقدر
         const sellPrice = p.sellingPrice > 0 ? p.sellingPrice : (p.soldCount > 0 ? (p.totalRevenue / p.soldCount) : 0);
 
+        // هل للمنتج تسوية مخزنة؟
+        const hasAdjustment = state.adjustments.some(a => a.product_name === p.name);
+
         return `<tr>
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
             <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;" title="${escapeHtml(p.name)}">${p.name}</td>
@@ -1303,9 +1312,16 @@ function renderProducts() {
             <td><span class="mono green">${sellPrice > 0 ? fmt(sellPrice) : '-'}</span></td>
             <td><span class="mono green" style="font-weight:700">${fmt(p.totalRevenue)}</span></td>
             <td>
-                <button style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent3); color: var(--accent); cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="openJardModal('${escapeHtml(p.name)}')">
-                    <i class="ti ti-settings"></i> جرد وتسوية
-                </button>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <button style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent3); color: var(--accent); cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="openJardModal('${escapeHtml(p.name)}')">
+                        <i class="ti ti-settings"></i> جرد وتسوية
+                    </button>
+                    ${canDelete && hasAdjustment ? `
+                    <button style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--red); background: rgba(224, 85, 85, 0.1); color: var(--red); cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="deleteJard('${escapeHtml(p.name)}')">
+                        <i class="ti ti-trash"></i> حذف
+                    </button>
+                    ` : ''}
+                </div>
             </td>
         </tr>`;
     }).join('');
@@ -1875,6 +1891,14 @@ function openJardModal(productName) {
         document.getElementById('jCost').value = '';
         document.getElementById('jPrice').value = '';
     }
+
+    // إظهار أو إخفاء زر حذف التسوية بالنافذة المنبثقة
+    const hasAdj = state.adjustments.some(a => a.product_name === productName);
+    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const deleteModalBtn = document.getElementById('deleteJardModalBtn');
+    if (deleteModalBtn) {
+        deleteModalBtn.style.display = (productName && hasAdj && canDelete) ? 'inline-block' : 'none';
+    }
     
     document.getElementById('jardModal').classList.add('open');
 }
@@ -1922,6 +1946,61 @@ async function saveJard() {
     } catch (e) {
         console.error('خطأ أثناء حفظ الجرد:', e);
         toast('خطأ اتصال بالسيرفر لحفظ الجرد', 'err');
+    }
+}
+
+// دالة حذف تسوية منتج معين
+async function deleteJard(productName) {
+    if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (!confirm(`هل أنت متأكد من حذف تسوية وأسعار المنتج "${productName}"؟ سيتم إعادة احتساب المخزون والأسعار آلياً.`)) return;
+    
+    try {
+        const res = await fetch('/api/products/adjustments', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ product_name: productName })
+        });
+        const data = await res.json();
+        if (data.success) {
+            toast('تم حذف تسوية المنتج بنجاح', 'ok');
+            await loadAdjustments();
+            renderProducts();
+        } else {
+            toast('فشل حذف تسوية المنتج', 'err');
+        }
+    } catch (e) {
+        console.error(e);
+        toast('خطأ اتصال بالسيرفر لحذف التسوية', 'err');
+    }
+}
+
+// دالة حذف تسوية المنتج من النافذة المنبثقة
+async function deleteJardFromModal() {
+    if (!currentJardProduct) return;
+    closeJardModal();
+    await deleteJard(currentJardProduct);
+}
+
+// دالة تصفير وحذف جميع تسويات المخزون
+async function clearAllStock() {
+    if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (!confirm('تحذير: هل أنت متأكد من حذف وتصفير جميع تسويات وجرد المخزون والأسعار المخصصة؟ لا يمكن التراجع عن هذا الإجراء!')) return;
+    
+    try {
+        const res = await fetch('/api/products/adjustments/clear', {
+            method: 'DELETE'
+        });
+        const data = await res.json();
+        if (data.success) {
+            toast('تم تصفير وحذف جميع تسويات المخزون بنجاح', 'ok');
+            await loadAdjustments();
+            renderProducts();
+        } else {
+            toast('فشل تصفير تسويات المخزون', 'err');
+        }
+    } catch (e) {
+        console.error(e);
+        toast('خطأ اتصال بالسيرفر لتصفير المخزون', 'err');
     }
 }
 

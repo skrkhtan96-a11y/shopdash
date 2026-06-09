@@ -293,9 +293,12 @@
         </div>
       </div>
       
-      <div class="modal-foot">
-        <button class="btn" onclick="closeJardModal()">إلغاء</button>
-        <button class="btn btn-primary" onclick="saveJard()"><i class="ti ti-check"></i> حفظ تسوية الجرد</button>
+      <div class="modal-foot" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+        <button class="btn btn-red" id="deleteJardModalBtn" style="display:none; background:rgba(224, 85, 85, 0.1); border-color:var(--red); color:var(--red); cursor:pointer;" onclick="deleteJardFromModal()"><i class="ti ti-trash"></i> حذف التسوية</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" onclick="closeJardModal()">إلغاء</button>
+          <button class="btn btn-primary" onclick="saveJard()"><i class="ti ti-check"></i> حفظ تسوية الجرد</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1311,6 +1314,7 @@
               </select>
               <button class="btn btn-sm" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد من Excel</button>
               <button class="btn btn-sm btn-primary" onclick="openJardModal('')"><i class="ti ti-plus"></i> إضافة منتج يدوي</button>
+              <button class="btn btn-sm" id="clearAllStockBtn" onclick="clearAllStock()" style="display:none; background:rgba(224,85,85,0.1); border-color:var(--red); color:var(--red);"><i class="ti ti-trash"></i> تصفير المخزون اليدوي</button>
             </div>
           </div>
           <div class="chart-card-full" style="border:none;background:transparent;padding:0;margin-bottom:14px">

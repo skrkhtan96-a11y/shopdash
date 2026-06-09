@@ -1957,6 +1957,39 @@ app.post('/api/products/adjustments/bulk', (req, res) => {
     });
 });
 
+// حذف/تصفير تسوية منتج معين
+app.delete('/api/products/adjustments', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف المخزون.' });
+    }
+    const { product_name } = req.body;
+    if (!product_name) {
+        return res.status(400).json({ error: 'اسم المنتج مطلوب لحذف تسويته.' });
+    }
+    db.run("DELETE FROM product_adjustments WHERE product_name = ?", [product_name], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        logActivity(req.user.username, 'DELETE', 'product_adjustments', `تم حذف تسوية المنتج: ${product_name}`).catch(console.error);
+        res.json({ success: true, changes: this.changes });
+    });
+});
+
+// تصفير وحذف جميع تسويات المخزون
+app.delete('/api/products/adjustments/clear', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف المخزون.' });
+    }
+    db.run("DELETE FROM product_adjustments", [], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        logActivity(req.user.username, 'CLEAR', 'product_adjustments', `تم حذف وتصفير جميع تسويات المخزون`).catch(console.error);
+        res.json({ success: true, changes: this.changes });
+    });
+});
+
+
 // ── 4. مسارات الأرشفة الشهرية (SQLite) ──
 
 // جلب الأرشيفات
