@@ -5465,6 +5465,7 @@ function showPsPlusDetails(accountId) {
     document.getElementById('psdPs5_1_Order').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_order || 'لا يوجد');
     document.getElementById('psdPs5_1_Phone').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_phone || 'لا يوجد');
     document.getElementById('psdPs5_1_DeliveredBy').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_delivered_by || 'غير محدد');
+    document.getElementById('psdPs5_1_DeliveredAt').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_delivered_at || 'غير محدد');
 
     // PS5 2
     const p52StatusEl = document.getElementById('psdPs5_2_Status');
@@ -5479,6 +5480,7 @@ function showPsPlusDetails(accountId) {
     document.getElementById('psdPs5_2_Order').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_order || 'لا يوجد');
     document.getElementById('psdPs5_2_Phone').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_phone || 'لا يوجد');
     document.getElementById('psdPs5_2_DeliveredBy').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_delivered_by || 'غير محدد');
+    document.getElementById('psdPs5_2_DeliveredAt').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_delivered_at || 'غير محدد');
 
     // PS4
     const p4StatusEl = document.getElementById('psdPs4_Status');
@@ -5493,6 +5495,7 @@ function showPsPlusDetails(accountId) {
     document.getElementById('psdPs4_Order').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_order || 'لا يوجد');
     document.getElementById('psdPs4_Phone').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_phone || 'لا يوجد');
     document.getElementById('psdPs4_DeliveredBy').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_delivered_by || 'غير محدد');
+    document.getElementById('psdPs4_DeliveredAt').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_delivered_at || 'غير محدد');
 
     document.getElementById('psPlusDetailsModal').classList.add('open');
 }
