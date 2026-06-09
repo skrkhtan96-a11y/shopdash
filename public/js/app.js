@@ -12,6 +12,38 @@ const fmt = n => (parseFloat(n) || 0).toLocaleString('ar-SA', { minimumFractionD
 const fmtDate = d => d ? new Date(d.split('T')[0] + 'T00:00:00').toLocaleDateString('ar-SA') : '-';
 const arMonth = k => { const [y, m] = k.split('-'); return AR_MONTHS[parseInt(m) - 1] + ' ' + y; };
 
+function formatToSaudiTime(dateStr) {
+    if (!dateStr || dateStr === '-' || dateStr === 'غير محدد') return dateStr;
+    try {
+        let isoStr = dateStr;
+        if (!dateStr.includes('Z') && !dateStr.includes('+')) {
+            isoStr = dateStr.replace(' ', 'T') + 'Z';
+        }
+        const date = new Date(isoStr);
+        if (isNaN(date.getTime())) return dateStr;
+        
+        // Convert to Saudi Arabia Time (UTC+3)
+        const saudiDate = new Date(date.getTime() + (3 * 60 * 60 * 1000));
+        
+        const yyyy = saudiDate.getUTCFullYear();
+        const mm = String(saudiDate.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(saudiDate.getUTCDate()).padStart(2, '0');
+        
+        let hours = saudiDate.getUTCHours();
+        const minutes = String(saudiDate.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(saudiDate.getUTCSeconds()).padStart(2, '0');
+        
+        const ampm = hours >= 12 ? 'م' : 'ص';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 hour should be 12
+        const hh = String(hours).padStart(2, '0');
+        
+        return `${yyyy}-${mm}-${dd} ${hh}:${minutes}:${seconds} ${ampm}`;
+    } catch (e) {
+        return dateStr;
+    }
+}
+
 const cleanProductName = name => {
     if (!name) return '';
     let cleaned = name.trim();
@@ -5465,7 +5497,7 @@ function showPsPlusDetails(accountId) {
     document.getElementById('psdPs5_1_Order').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_order || 'لا يوجد');
     document.getElementById('psdPs5_1_Phone').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_phone || 'لا يوجد');
     document.getElementById('psdPs5_1_DeliveredBy').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_delivered_by || 'غير محدد');
-    document.getElementById('psdPs5_1_DeliveredAt').textContent = c.ps5_1_status === 'unavailable' ? '-' : (c.ps5_1_delivered_at || 'غير محدد');
+    document.getElementById('psdPs5_1_DeliveredAt').textContent = c.ps5_1_status === 'unavailable' ? '-' : (formatToSaudiTime(c.ps5_1_delivered_at) || 'غير محدد');
 
     // PS5 2
     const p52StatusEl = document.getElementById('psdPs5_2_Status');
@@ -5480,7 +5512,7 @@ function showPsPlusDetails(accountId) {
     document.getElementById('psdPs5_2_Order').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_order || 'لا يوجد');
     document.getElementById('psdPs5_2_Phone').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_phone || 'لا يوجد');
     document.getElementById('psdPs5_2_DeliveredBy').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_delivered_by || 'غير محدد');
-    document.getElementById('psdPs5_2_DeliveredAt').textContent = c.ps5_2_status === 'unavailable' ? '-' : (c.ps5_2_delivered_at || 'غير محدد');
+    document.getElementById('psdPs5_2_DeliveredAt').textContent = c.ps5_2_status === 'unavailable' ? '-' : (formatToSaudiTime(c.ps5_2_delivered_at) || 'غير محدد');
 
     // PS4
     const p4StatusEl = document.getElementById('psdPs4_Status');
@@ -5495,7 +5527,7 @@ function showPsPlusDetails(accountId) {
     document.getElementById('psdPs4_Order').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_order || 'لا يوجد');
     document.getElementById('psdPs4_Phone').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_phone || 'لا يوجد');
     document.getElementById('psdPs4_DeliveredBy').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_delivered_by || 'غير محدد');
-    document.getElementById('psdPs4_DeliveredAt').textContent = c.ps4_status === 'unavailable' ? '-' : (c.ps4_delivered_at || 'غير محدد');
+    document.getElementById('psdPs4_DeliveredAt').textContent = c.ps4_status === 'unavailable' ? '-' : (formatToSaudiTime(c.ps4_delivered_at) || 'غير محدد');
 
     document.getElementById('psPlusDetailsModal').classList.add('open');
 }
@@ -5754,8 +5786,8 @@ function renderPsPlusDeliveries(accounts) {
             <td class="mono" style="font-weight:600;">${escapeHtml(d.order)}</td>
             <td>${phoneHtml}</td>
             <td><span style="font-size:11.5px; font-weight:600; color:var(--text2)"><i class="ti ti-user" style="font-size:11px; opacity:0.7"></i> ${escapeHtml(d.delivered_by)}</span></td>
-            <td style="font-size:11px; color:var(--text3)" class="mono">${d.added_at}</td>
-            <td style="font-size:11px; color:var(--text3)" class="mono">${d.delivered_at}</td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${formatToSaudiTime(d.added_at)}</td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${formatToSaudiTime(d.delivered_at)}</td>
             <td>${d.remainingInfo}</td>
         </tr>`;
     }).join('');
@@ -8105,8 +8137,8 @@ function renderGamesDeliveries(accounts) {
             <td class="mono" style="font-weight:600;">${escapeHtml(d.slot.order_number)}</td>
             <td>${phoneHtml}</td>
             <td><span style="font-size:11.5px; font-weight:600; color:var(--text2)"><i class="ti ti-user" style="font-size:11px; opacity:0.7"></i> ${escapeHtml(d.slot.delivered_by)}</span></td>
-            <td style="font-size:11px; color:var(--text3)" class="mono">${d.account.created_at}</td>
-            <td style="font-size:11px; color:var(--text3)" class="mono">${d.slot.delivered_at}</td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${formatToSaudiTime(d.account.created_at)}</td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${formatToSaudiTime(d.slot.delivered_at)}</td>
             <td>${d.remainingInfo}</td>
         </tr>`;
     }).join('');
