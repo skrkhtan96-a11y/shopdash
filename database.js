@@ -300,6 +300,7 @@ db.serialize(() => {
             transfer_reference TEXT,
             status TEXT DEFAULT 'delivered',
             notes TEXT,
+            country TEXT,
             created_by TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
@@ -309,6 +310,9 @@ db.serialize(() => {
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });
+    
+    // ترقية جدول المبيعات الخارجية لإضافة عمود الدولة
+    db.run("ALTER TABLE external_sales ADD COLUMN country TEXT", (err) => { /* تجاهل الخطأ */ });
     
     // ترقية جدول المستخدمين لإضافة صلاحيات التحكم بمخزون الحسابات بلس والألعاب
     db.run("ALTER TABLE users ADD COLUMN can_add INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });

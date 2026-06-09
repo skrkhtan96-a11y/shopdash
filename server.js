@@ -3244,7 +3244,7 @@ app.post('/api/external-sales', authenticateUser, (req, res) => {
         return res.status(403).json({ error: 'غير مصرح لك بإدخال مبيعات خارجية.' });
     }
 
-    const { product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes } = req.body;
+    const { product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, country } = req.body;
     
     if (!product_name || !amount || !bank_account) {
         return res.status(400).json({ error: 'حقول اسم المنتج، المبلغ، والحساب البنكي مطلوبة.' });
@@ -3270,8 +3270,8 @@ app.post('/api/external-sales', authenticateUser, (req, res) => {
     const saudiTimeStr = `${yyyy}-${mm}-${dd} ${hh}:${minutes}:${seconds} ${ampm}`;
 
     db.run(
-        `INSERT INTO external_sales (product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, created_by, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO external_sales (product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, country, created_by, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             product_name.trim(),
             parseInt(quantity) || 1,
@@ -3282,12 +3282,13 @@ app.post('/api/external-sales', authenticateUser, (req, res) => {
             transfer_reference ? transfer_reference.trim() : null,
             status || 'delivered',
             notes ? notes.trim() : null,
+            country ? country.trim() : null,
             req.user.username,
             saudiTimeStr
         ],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity(req.user.username, 'ADD', 'external_sales', `تم تسجيل مبيعة خارجية: ${product_name} بمبلغ ${amount} ر.س محولة إلى ${bank_account}`).catch(console.error);
+            logActivity(req.user.username, 'ADD', 'external_sales', `تم تسجيل مبيعة خارجية: ${product_name} بمبلغ ${amount} ر.س محولة إلى ${bank_account} - الدولة: ${country || 'غير محددة'}`).catch(console.error);
             res.json({ success: true, id: this.lastID });
         }
     );

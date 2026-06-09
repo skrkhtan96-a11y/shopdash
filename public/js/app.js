@@ -8315,6 +8315,7 @@ function renderExternalSales() {
             <td class="mono">${item.quantity}</td>
             <td class="mono" style="font-weight:600; color:#fff">${(item.amount || 0).toFixed(2)} ر.س</td>
             <td><span class="pill" style="background:${bankColor}15; color:${bankColor}; border:1px solid ${bankColor}33; font-weight:600;">${escapeHtml(item.bank_account)}</span></td>
+            <td><span class="pill" style="background:rgba(255,255,255,0.05); color:var(--text2); border:1px solid var(--border2); font-size:11px;">${escapeHtml(item.country || 'غير محددة')}</span></td>
             <td class="mono" style="font-weight:600; color:var(--accent)">${escapeHtml(item.transfer_reference || '-')}</td>
             <td>${escapeHtml(item.customer_name || '-')} ${item.customer_phone ? `<span style="font-size:10px; color:var(--text3)">(${escapeHtml(item.customer_phone)})</span>` : ''}</td>
             <td style="font-size:11px; color:var(--text3)" class="mono">${item.created_at}</td>
@@ -8332,6 +8333,7 @@ async function saveExternalSale(event) {
     const quantity = parseInt(document.getElementById('extQuantity').value) || 1;
     const amount = parseFloat(document.getElementById('extAmount').value);
     const bank_account = document.getElementById('extBankAccount').value;
+    const country = document.getElementById('extCountry').value.trim();
     const transfer_reference = document.getElementById('extReference').value.trim();
     const customer_name = document.getElementById('extCustomerName').value.trim();
     const customer_phone = document.getElementById('extCustomerPhone').value.trim();
@@ -8353,7 +8355,7 @@ async function saveExternalSale(event) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, status: 'delivered'
+                product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, country, status: 'delivered'
             })
         });
 
@@ -8365,6 +8367,8 @@ async function saveExternalSale(event) {
         toast('تم تسجيل المبيعة الخارجية بنجاح', 'ok');
         document.getElementById('extSaleForm').reset();
         document.getElementById('extQuantity').value = 1; // reset default
+        document.getElementById('extCountry').value = '';
+        document.getElementById('selectedCountryLabel').textContent = 'اختر الدولة...';
         await loadExternalSales();
     } catch (e) {
         toast(e.message, 'error');
@@ -8384,6 +8388,80 @@ async function deleteExternalSale(id) {
     } catch (e) {
         toast(e.message, 'error');
     }
+}
+
+// ══════════════════════════════════════════════
+//  SEARCHABLE COUNTRY DROPDOWN HELPERS
+// ══════════════════════════════════════════════
+const ARAB_COUNTRIES = ['العراق', 'سوريا', 'مصر', 'السعودية', 'اليمن', 'عمان', 'الإمارات', 'قطر', 'البحرين', 'الكويت', 'الأردن', 'لبنان', 'فلسطين', 'السودان', 'ليبيا', 'تونس', 'الجزائر', 'المغرب', 'موريتانيا', 'الصومال', 'جيبوتي', 'جزر القمر'];
+
+function toggleCountryDropdown(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('extCountryMenu');
+    if (!menu) return;
+    const isHidden = menu.style.display === 'none';
+    
+    if (isHidden) {
+        menu.style.display = 'block';
+        document.getElementById('extCountrySearch').value = '';
+        filterCountries();
+        document.getElementById('extCountrySearch').focus();
+        
+        const closeDropdown = (e) => {
+            const dropdownContainer = document.getElementById('extCountryDropdown');
+            if (dropdownContainer && !dropdownContainer.contains(e.target)) {
+                menu.style.display = 'none';
+                document.removeEventListener('click', closeDropdown);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeDropdown), 0);
+    } else {
+        menu.style.display = 'none';
+    }
+}
+
+function filterCountries() {
+    const query = document.getElementById('extCountrySearch').value.trim().toLowerCase();
+    const listContainer = document.getElementById('extCountryOptionsList');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '';
+    
+    const filtered = ARAB_COUNTRIES.filter(country => country.toLowerCase().includes(query));
+    
+    if (filtered.length === 0) {
+        listContainer.innerHTML = '<div style="font-size:11px; padding:6px; color:var(--text3); text-align:center;">لا توجد نتائج</div>';
+        return;
+    }
+    
+    filtered.forEach(country => {
+        const div = document.createElement('div');
+        div.className = 'dropdown-opt-item';
+        div.style.padding = '6px 10px';
+        div.style.fontSize = '12px';
+        div.style.color = 'var(--text)';
+        div.style.cursor = 'pointer';
+        div.style.borderRadius = '4px';
+        div.style.transition = 'background 0.2s';
+        div.textContent = country;
+        
+        div.onmouseover = () => { div.style.background = 'rgba(255, 255, 255, 0.05)'; };
+        div.onmouseout = () => { div.style.background = 'transparent'; };
+        
+        div.onclick = (e) => {
+            e.stopPropagation();
+            selectCountry(country);
+        };
+        
+        listContainer.appendChild(div);
+    });
+}
+
+function selectCountry(country) {
+    document.getElementById('extCountry').value = country;
+    document.getElementById('selectedCountryLabel').textContent = country;
+    document.getElementById('selectedCountryLabel').style.color = 'var(--text)';
+    document.getElementById('extCountryMenu').style.display = 'none';
 }
 
 

@@ -1739,6 +1739,22 @@
                 <option value="حساب الكريمي">🏦 حساب الكريمي</option>
               </select>
             </div>
+            <div class="form-group" style="margin-bottom:0; position:relative;">
+              <label class="form-label" style="font-size:10px;">دولة المبيعات</label>
+              <div class="searchable-dropdown" id="extCountryDropdown" style="position:relative; width:100%;">
+                <div class="searchable-dropdown-selected" onclick="toggleCountryDropdown(event)" style="padding: 6px 10px; font-size: 12px; height: 31px; background:var(--bg3); border:1px solid var(--border2); color:var(--text); border-radius:var(--r1); display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;">
+                  <span id="selectedCountryLabel">اختر الدولة...</span>
+                  <i class="ti ti-chevron-down" style="font-size:10px; color:var(--text3)"></i>
+                </div>
+                <div class="searchable-dropdown-menu" id="extCountryMenu" style="display:none; position:absolute; bottom:100%; right:0; left:0; background:rgba(21, 26, 43, 0.95); backdrop-filter:blur(10px); border:1px solid var(--border); border-radius:var(--r1); z-index:1000; box-shadow:0 -8px 24px rgba(0,0,0,0.5); padding:6px; max-height:200px; margin-bottom:4px;">
+                  <input type="text" id="extCountrySearch" placeholder="بحث عن دولة..." oninput="filterCountries()" onclick="event.stopPropagation()" style="width:100%; padding:6px 10px; font-size:11px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); border-radius:4px; margin-bottom:6px; outline:none;">
+                  <div class="searchable-dropdown-options" id="extCountryOptionsList" style="display:flex; flex-direction:column; gap:2px; max-height:140px; overflow-y:auto;">
+                    <!-- ستعرض الدول هنا ديناميكياً -->
+                  </div>
+                </div>
+              </div>
+              <input type="hidden" id="extCountry" value="">
+            </div>
             <div class="form-group" style="margin-bottom:0">
               <label class="form-label" style="font-size:10px;">رقم الحوالة / المرجع</label>
               <input type="text" id="extReference" placeholder="مثال: TR-984328" style="padding: 6px 10px; font-size: 12px;">
@@ -1784,6 +1800,7 @@
                   <th>الكمية</th>
                   <th>المبلغ</th>
                   <th>الحساب المستلم</th>
+                  <th>الدولة</th>
                   <th>رقم المرجع/الحوالة</th>
                   <th>اسم العميل</th>
                   <th>تاريخ الإدخال</th>
