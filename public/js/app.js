@@ -316,7 +316,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'activity-logs'];
+const PAGES = ['overview', 'expenses', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -332,6 +332,8 @@ const PAGE_TITLES = {
     certificates: 'إدارة تقارير الشهادات',
     'ps-plus': 'مخزون حسابات بلس',
     'ps-plus-deliveries': 'تقرير تسليم بلس',
+    games: 'مخزون حسابات الألعاب',
+    'games-deliveries': 'تقرير تسليم الألعاب',
     'activity-logs': 'سجل النشاطات والعمليات'
 };
 
@@ -407,6 +409,8 @@ function nav(name, updateHash = true) {
     if (name === 'certificates') loadCertificates();
     if (name === 'ps-plus') loadPsPlusAccounts();
     if (name === 'ps-plus-deliveries') loadPsPlusDeliveries();
+    if (name === 'games') loadGamesAccounts();
+    if (name === 'games-deliveries') loadGamesDeliveries();
     if (name === 'activity-logs') loadActivityLogs();
     if (name === 'campaign-detail') {
         const storedName = sessionStorage.getItem('detail_campaign_name');
@@ -7237,7 +7241,744 @@ function downloadReportPDF() {
     };
 
     // تشغيل التحميل
+    // تشغيل التحميل
     html2pdf().set(opt).from(element).save();
+}
+
+// ══════════════════════════════════════════════
+//  GAMES ACCOUNTS & DELIVERIES LOGIC
+// ══════════════════════════════════════════════
+let gameModalSlots = [];
+let currentEditGameAccountId = null;
+
+async function loadGamesAccounts() {
+    try {
+        const response = await fetch('/api/games/accounts');
+        if (!response.ok) throw new Error('فشل جلب حسابات الألعاب');
+        const data = await response.json();
+        state.gamesAccounts = data;
+        renderGamesAccounts(data);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderGamesAccounts(accounts) {
+    if (!accounts) {
+        accounts = state.gamesAccounts || [];
+    }
+
+    const canAdd = state.user && (state.user.role === 'admin' || !!state.user.can_add);
+    const addBtn = document.getElementById('gameAddManualBtn');
+    if (addBtn) addBtn.style.display = canAdd ? '' : 'none';
+
+    // Calculate total KPIs
+    let totalAccounts = accounts.length;
+    let availablePs5 = 0;
+    let availablePs4 = 0;
+    let completedAccounts = 0;
+
+    accounts.forEach(c => {
+        let activeSlots = 0;
+        let deliveredSlots = 0;
+        c.slots.forEach(s => {
+            activeSlots++;
+            if (s.status === 'available') {
+                if (s.slot_type === 'PS5') availablePs5++;
+                else availablePs4++;
+            } else if (s.status === 'delivered') {
+                deliveredSlots++;
+            }
+        });
+        if (activeSlots > 0 && deliveredSlots === activeSlots) completedAccounts++;
+    });
+
+    updateGamesKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts, accounts);
+
+    const tbody = document.getElementById('gamesTbody');
+    if (!tbody) return;
+
+    if (accounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><i class="ti ti-device-gamepad-2"></i><p>لا توجد حسابات ألعاب مسجلة حالياً</p></div></td></tr>';
+        return;
+    }
+
+    const filterStock = document.getElementById('gamesFilterStock')?.value || '';
+    const filterSearch = document.getElementById('gamesFilterSearch')?.value.trim().toLowerCase() || '';
+
+    // Apply filters
+    const filtered = accounts.filter(c => {
+        if (filterStock) {
+            let remPs5 = 0;
+            let remPs4 = 0;
+            c.slots.forEach(s => {
+                if (s.status === 'available') {
+                    if (s.slot_type === 'PS5') remPs5++;
+                    else remPs4++;
+                }
+            });
+            if (filterStock === 'has_any' && remPs5 === 0 && remPs4 === 0) return false;
+            if (filterStock === 'has_ps5' && remPs5 === 0) return false;
+            if (filterStock === 'has_ps4' && remPs4 === 0) return false;
+            if (filterStock === 'empty' && (remPs5 > 0 || remPs4 > 0)) return false;
+        }
+        if (filterSearch) {
+            const gameMatch = c.game_name.toLowerCase().includes(filterSearch);
+            const emailMatch = c.email.toLowerCase().includes(filterSearch);
+            const orderMatch = c.slots.some(s => (s.order_number || '').toLowerCase().includes(filterSearch));
+            if (!gameMatch && !emailMatch && !orderMatch) return false;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><i class="ti ti-device-gamepad-2"></i><p>لا توجد حسابات تطابق خيارات التصفية الحالية</p></div></td></tr>';
+        return;
+    }
+
+    const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit);
+    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const canDeliver = state.user && (state.user.role === 'admin' || !!state.user.can_deliver);
+    const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_games_details);
+
+    tbody.innerHTML = filtered.map((c, i) => {
+        // Count total and delivered slots per type
+        let ps5Total = 0, ps5Delivered = 0;
+        let ps4Total = 0, ps4Delivered = 0;
+        
+        c.slots.forEach(s => {
+            if (s.slot_type === 'PS5') {
+                ps5Total++;
+                if (s.status === 'delivered') ps5Delivered++;
+            } else {
+                ps4Total++;
+                if (s.status === 'delivered') ps4Delivered++;
+            }
+        });
+
+        const ps5Available = ps5Total - ps5Delivered;
+        const ps4Available = ps4Total - ps4Delivered;
+
+        let ps5Cell = `<span class="dim" style="font-size:11px;color:var(--txt-faint);"><i class="ti ti-ban"></i> غير متوفر</span>`;
+        if (ps5Total > 0) {
+            if (ps5Available > 0) {
+                ps5Cell = `<div style="display:flex; flex-direction:column; gap:4px; align-items:start;">
+                    <span style="font-size:11px; font-weight:600; color:#c77dff">${ps5Available} من أصل ${ps5Total} متاحة</span>
+                    ${canDeliver ? `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); openNextGameDeliverModal(${c.id}, 'PS5')"><i class="ti ti-brand-whatsapp"></i> تسليم PS5</button>` : ''}
+                </div>`;
+            } else {
+                ps5Cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم تسليم الكل (${ps5Total})</span>`;
+            }
+        }
+
+        let ps4Cell = `<span class="dim" style="font-size:11px;color:var(--txt-faint);"><i class="ti ti-ban"></i> غير متوفر</span>`;
+        if (ps4Total > 0) {
+            if (ps4Available > 0) {
+                ps4Cell = `<div style="display:flex; flex-direction:column; gap:4px; align-items:start;">
+                    <span style="font-size:11px; font-weight:600; color:#72efdd">${ps4Available} من أصل ${ps4Total} متاحة</span>
+                    ${canDeliver ? `<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); openNextGameDeliverModal(${c.id}, 'PS4')"><i class="ti ti-brand-whatsapp"></i> تسليم PS4</button>` : ''}
+                </div>`;
+            } else {
+                ps4Cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم تسليم الكل (${ps4Total})</span>`;
+            }
+        }
+
+        let overallStatus = '';
+        const totalSlots = c.slots.length;
+        const totalDelivered = c.slots.filter(s => s.status === 'delivered').length;
+
+        if (totalSlots === 0) {
+            overallStatus = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">بدون نسخ</span>';
+        } else if (totalDelivered === totalSlots) {
+            overallStatus = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
+        } else if (totalDelivered === 0) {
+            overallStatus = `<span class="pill pill-blue">متبقي ${ps5Available} PS5 | ${ps4Available} PS4</span>`;
+        } else {
+            overallStatus = `<span class="pill pill-amber">متبقي ${ps5Available} PS5 | ${ps4Available} PS4</span>`;
+        }
+
+        return `<tr onclick="if(${canViewDetails}) { showGameDetails(${c.id}) } else { toast('ليس لديك صلاحية عرض تفاصيل حسابات الألعاب', 'error') }" style="${canViewDetails ? 'cursor:pointer' : 'cursor:default'}" title="${canViewDetails ? 'انقر لعرض كامل التفاصيل والمسؤولين' : 'لا تملك صلاحية لعرض التفاصيل'}">
+            <td style="color:var(--text3);font-size:10px">${i + 1}</td>
+            <td style="font-weight:700; color:var(--text2);">${escapeHtml(c.game_name)}</td>
+            <td style="font-weight:600;" class="mono">${escapeHtml(canViewDetails ? c.email : maskEmail(c.email))}</td>
+            <td class="mono">${escapeHtml(canViewDetails ? c.password : '••••••••')}</td>
+            <td><span style="font-size:11.5px;font-weight:600;color:var(--text2)"><i class="ti ti-user" style="font-size:11px;opacity:0.7"></i> ${escapeHtml(c.created_by || 'غير محدد')}</span></td>
+            <td>${ps5Cell}</td>
+            <td>${ps4Cell}</td>
+            <td>${overallStatus}</td>
+            <td>
+                <div style="display:flex; gap:6px" onclick="event.stopPropagation();">
+                    ${canEdit ? `<button class="btn btn-xs" onclick="editGameAccount(${c.id})"><i class="ti ti-edit"></i> تعديل</button>` : ''}
+                    ${canDelete ? `<button class="btn btn-xs btn-danger" onclick="deleteGameAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function updateGamesKPIs(total, ps5, ps4, completed, accounts) {
+    document.getElementById('kpiGamesTotalAccounts').textContent = total;
+    document.getElementById('kpiGamesAvailable5').textContent = ps5;
+    document.getElementById('kpiGamesAvailable4').textContent = ps4;
+    document.getElementById('kpiGamesCompleted').textContent = completed;
+
+    // Calculate stock by game name
+    const gameStocks = {};
+    if (accounts) {
+        accounts.forEach(c => {
+            const name = c.game_name;
+            if (!gameStocks[name]) {
+                gameStocks[name] = { ps5: 0, ps4: 0, total: 0 };
+            }
+            c.slots.forEach(s => {
+                if (s.status === 'available') {
+                    if (s.slot_type === 'PS5') gameStocks[name].ps5++;
+                    else gameStocks[name].ps4++;
+                    gameStocks[name].total++;
+                }
+            });
+        });
+    }
+
+    const container = document.getElementById('gamesStockByGameContainer');
+    if (container) {
+        container.innerHTML = '';
+        const entries = Object.entries(gameStocks).filter(([_, data]) => data.total > 0);
+        if (entries.length === 0) {
+            container.innerHTML = '<span style="font-size:11px; color:var(--text3)">لا يوجد مخزون متاح حالياً.</span>';
+            return;
+        }
+        entries.forEach(([name, data]) => {
+            const card = document.createElement('div');
+            card.style.background = 'rgba(157, 78, 221, 0.08)';
+            card.style.border = '1px solid rgba(157, 78, 221, 0.25)';
+            card.style.borderRadius = '8px';
+            card.style.padding = '8px 12px';
+            card.style.display = 'flex';
+            card.style.flexDirection = 'column';
+            card.style.alignItems = 'center';
+            card.style.justifyContent = 'center';
+            card.style.transition = 'all 0.2s ease';
+
+            card.onmouseover = () => {
+                card.style.transform = 'translateY(-2px)';
+                card.style.boxShadow = '0 4px 12px rgba(157, 78, 221, 0.15)';
+                card.style.borderColor = 'rgba(157, 78, 221, 0.5)';
+            };
+            card.onmouseout = () => {
+                card.style.transform = 'none';
+                card.style.boxShadow = 'none';
+                card.style.borderColor = 'rgba(157, 78, 221, 0.25)';
+            };
+
+            card.innerHTML = `
+                <span style="font-size: 10px; color: var(--text3); font-weight: 600; text-align:center; margin-bottom: 2px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; width:100%;" title="${escapeHtml(name)}">${name}</span>
+                <span style="font-size: 15px; font-weight: 700; color: #c77dff;">${data.total}</span>
+                <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
+                <span style="font-size: 8.5px; color: #72efdd; font-weight: 600; margin-top: 3px; display: flex; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px; width: 100%; justify-content: center;">
+                    <span>${data.ps5} PS5</span>
+                    <span style="color:var(--text3); opacity:0.3">|</span>
+                    <span>${data.ps4} PS4</span>
+                </span>
+            `;
+            container.appendChild(card);
+        });
+    }
+}
+
+function openGameAccountModal() {
+    currentEditGameAccountId = null;
+    document.getElementById('gameAccountModalTitle').innerHTML = `<i class="ti ti-device-gamepad-2" style="color:var(--accent)"></i> إضافة حساب لعبة جديد`;
+    document.getElementById('gameName').value = '';
+    document.getElementById('gameEmail').value = '';
+    document.getElementById('gamePassword').value = '';
+    
+    gameModalSlots = [];
+    renderGameModalSlots();
+    
+    document.getElementById('gameAccountModal').style.display = 'flex';
+}
+
+function closeGameAccountModal() {
+    document.getElementById('gameAccountModal').style.display = 'none';
+}
+
+function addGameSlotRow(type = 'PS5', index = null, code = '', id = null) {
+    if (!index) {
+        const sameTypeSlots = gameModalSlots.filter(s => s.slot_type === type);
+        index = sameTypeSlots.length + 1;
+    }
+    gameModalSlots.push({ id, slot_type: type, slot_index: index, code });
+    renderGameModalSlots();
+}
+
+function removeGameSlotRow(idx) {
+    gameModalSlots.splice(idx, 1);
+    const typeCounts = { PS5: 0, PS4: 0 };
+    gameModalSlots.forEach(s => {
+        typeCounts[s.slot_type]++;
+        s.slot_index = typeCounts[s.slot_type];
+    });
+    renderGameModalSlots();
+}
+
+function updateGameSlotType(idx, val) {
+    gameModalSlots[idx].slot_type = val;
+    const typeCounts = { PS5: 0, PS4: 0 };
+    gameModalSlots.forEach(s => {
+        typeCounts[s.slot_type]++;
+        s.slot_index = typeCounts[s.slot_type];
+    });
+    renderGameModalSlots();
+}
+
+function updateGameSlotCode(idx, val) {
+    gameModalSlots[idx].code = val;
+}
+
+function renderGameModalSlots() {
+    const container = document.getElementById('gameSlotsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    if (gameModalSlots.length === 0) {
+        container.innerHTML = '<div style="text-align:center; font-size:11px; color:var(--text3); padding:10px 0;">لا توجد نسخ مضافة حالياً. اضغط على زر "إضافة نسخة" بالأعلى.</div>';
+        return;
+    }
+    
+    gameModalSlots.forEach((s, idx) => {
+        const div = document.createElement('div');
+        div.style.display = 'grid';
+        div.style.gridTemplateColumns = '100px 80px 1fr 40px';
+        div.style.gap = '8px';
+        div.style.alignItems = 'center';
+        div.style.background = 'var(--surface-3)';
+        div.style.padding = '6px';
+        div.style.borderRadius = '6px';
+        div.style.border = '1px solid var(--border3)';
+        
+        div.innerHTML = `
+            <select style="padding:4px; font-size:11px; background:var(--bg3); border-radius:4px; border:1px solid var(--border3); color:var(--text);" onchange="updateGameSlotType(${idx}, this.value)">
+                <option value="PS5" ${s.slot_type === 'PS5' ? 'selected' : ''}>PS5</option>
+                <option value="PS4" ${s.slot_type === 'PS4' ? 'selected' : ''}>PS4</option>
+            </select>
+            <span style="font-size:11.5px; color:var(--text2); font-weight:600; text-align:center;">نسخة (${s.slot_index})</span>
+            <input type="text" placeholder="كود التحقق (اختياري)" value="${escapeHtml(s.code || '')}" style="padding:4px 8px; font-size:11.5px; background:var(--bg3); border-radius:4px; border:1px solid var(--border3); color:var(--text);" oninput="updateGameSlotCode(${idx}, this.value)">
+            <button class="btn btn-xs btn-danger" onclick="removeGameSlotRow(${idx})" style="padding:4px;"><i class="ti ti-trash"></i></button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+async function saveGameAccount() {
+    const game_name = document.getElementById('gameName').value.trim();
+    const email = document.getElementById('gameEmail').value.trim();
+    const password = document.getElementById('gamePassword').value.trim();
+
+    if (!game_name || !email || !password) {
+        toast('جميع حقول الحساب مطلوبة', 'error');
+        return;
+    }
+
+    const payload = { email, password, game_name, slots: gameModalSlots };
+
+    try {
+        const url = currentEditGameAccountId ? `/api/games/accounts/${currentEditGameAccountId}` : '/api/games/accounts';
+        const method = currentEditGameAccountId ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const resData = await response.json();
+        if (!response.ok) throw new Error(resData.error || 'فشل حفظ حساب اللعبة');
+
+        toast(currentEditGameAccountId ? 'تم تحديث حساب اللعبة بنجاح' : 'تم إضافة حساب اللعبة بنجاح', 'success');
+        closeGameAccountModal();
+        loadGamesAccounts();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function editGameAccount(id) {
+    const acc = (state.gamesAccounts || []).find(c => c.id === id);
+    if (!acc) return;
+
+    currentEditGameAccountId = id;
+    document.getElementById('gameAccountModalTitle').innerHTML = `<i class="ti ti-device-gamepad-2" style="color:var(--accent)"></i> تعديل حساب اللعبة: ${escapeHtml(acc.game_name)}`;
+    document.getElementById('gameName').value = acc.game_name;
+    document.getElementById('gameEmail').value = acc.email;
+    document.getElementById('gamePassword').value = acc.password;
+
+    gameModalSlots = acc.slots.map(s => ({ ...s }));
+    renderGameModalSlots();
+
+    document.getElementById('gameAccountModal').style.display = 'flex';
+}
+
+async function deleteGameAccount(id) {
+    if (!confirm('هل أنت متأكد من حذف حساب اللعبة هذا نهائياً؟ سيتم حذف جميع النسخ والتسليمات المرتبطة به.')) return;
+    try {
+        const response = await fetch(`/api/games/accounts/${id}`, { method: 'DELETE' });
+        const resData = await response.json();
+        if (!response.ok) throw new Error(resData.error || 'فشل حذف الحساب');
+
+        toast('تم حذف حساب اللعبة بنجاح', 'success');
+        loadGamesAccounts();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function openNextGameDeliverModal(accountId, slotType) {
+    const acc = (state.gamesAccounts || []).find(c => c.id === accountId);
+    if (!acc) return;
+
+    // Find the first available slot of this type
+    const nextSlot = acc.slots.find(s => s.slot_type === slotType && s.status === 'available');
+    if (!nextSlot) {
+        toast(`لا توجد نسخ متاحة حالياً من نوع ${slotType}`, 'error');
+        return;
+    }
+
+    openGameDeliverModal(acc.id, nextSlot.id, acc.email, acc.game_name, slotType, nextSlot.slot_index);
+}
+
+function openGameDeliverModal(accountId, slotId, email, gameName, slotType, slotIndex) {
+    document.getElementById('gameDeliverSlotId').value = slotId;
+    document.getElementById('gameDeliverShowName').textContent = gameName;
+    document.getElementById('gameDeliverShowEmail').textContent = email;
+    document.getElementById('gameDeliverShowSlotInfo').textContent = `${slotType} (نسخة ${slotIndex})`;
+    document.getElementById('gameDeliverOrderId').value = '';
+    document.getElementById('gameDeliverCustomerPhone').value = '';
+
+    document.getElementById('gameDeliverModal').style.display = 'flex';
+}
+
+function closeGameDeliverModal() {
+    document.getElementById('gameDeliverModal').style.display = 'none';
+}
+
+async function confirmGameSlotDelivery() {
+    const slot_id = document.getElementById('gameDeliverSlotId').value;
+    const order_number = document.getElementById('gameDeliverOrderId').value.trim();
+    const phone = document.getElementById('gameDeliverCustomerPhone').value.trim();
+
+    if (!slot_id || !order_number) {
+        toast('يرجى تحديد النسخة وإدخال رقم الطلب لتأكيد التسليم', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/games/slots/deliver', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slot_id, order_number, phone })
+        });
+
+        const resData = await response.json();
+        if (!response.ok) throw new Error(resData.error || 'فشل تسليم نسخة اللعبة');
+
+        toast('تم تسليم نسخة اللعبة وتحديث حالتها بنجاح', 'success');
+        closeGameDeliverModal();
+        
+        // Find corresponding account to generate WhatsApp message
+        let email = '', gameName = '', slotText = '', password = '', verificationCode = '';
+        (state.gamesAccounts || []).forEach(acc => {
+            const found = acc.slots.find(s => s.id == slot_id);
+            if (found) {
+                email = acc.email;
+                gameName = acc.game_name;
+                slotText = `${found.slot_type} (النسخة رقم ${found.slot_index})`;
+                password = acc.password;
+                verificationCode = found.code || 'لا يوجد كود إضافي مفعل حالياً';
+            }
+        });
+
+        // WhatsApp redirect
+        if (phone) {
+            const cleanPhone = phone.replace(/[^0-9]/g, '');
+            const msg = `أهلاً بك عميلنا العزيز من متجر شوب ستور 🎮\n\nتم تسليم طلبك الخاص بلعبة:\n*${gameName}*\n\nالنسخة المخصصة لك: *${slotText}*\n\nتفاصيل الحساب:\nإيميل: \`${email}\`\nباسورد: \`${password}\`\nكود التحقق: \`${verificationCode}\`\n\nطريقة الاستخدام:\n1- أضف الحساب كحساب جديد في جهازك.\n2- قم بتنزيل اللعبة واللعب بحسابك الشخصي.\n3- لا تغير أي معلومات أو بيانات داخل الحساب لضمان عدم توقف الضمان.\n\nنتمنى لك وقتاً ممتعاً! ❤️`;
+            const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
+            window.open(waUrl, '_blank');
+        }
+
+        loadGamesAccounts();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function showGameDetails(id) {
+    const acc = (state.gamesAccounts || []).find(c => c.id === id);
+    if (!acc) return;
+
+    document.getElementById('gdetShowName').textContent = acc.game_name;
+    document.getElementById('gdetShowEmail').textContent = acc.email;
+    document.getElementById('gdetShowPassword').textContent = acc.password;
+
+    const listContainer = document.getElementById('gdetSlotsList');
+    listContainer.innerHTML = '';
+
+    if (acc.slots.length === 0) {
+        listContainer.innerHTML = '<div style="text-align:center; font-size:11.5px; color:var(--text3); padding:10px 0;">لا توجد نسخ مضافة في هذا الحساب بعد.</div>';
+    } else {
+        acc.slots.forEach(s => {
+            const row = document.createElement('div');
+            row.style.background = 'var(--surface-2)';
+            row.style.border = '1px solid var(--border2)';
+            row.style.borderRadius = '6px';
+            row.style.padding = '8px';
+            row.style.marginBottom = '6px';
+            row.style.fontSize = '11.5px';
+            row.style.display = 'flex';
+            row.style.flexDirection = 'column';
+            row.style.gap = '4px';
+
+            let statusPill = '';
+            if (s.status === 'available') {
+                statusPill = `<span class="pill pill-blue">متاحة للبيع</span>`;
+            } else {
+                statusPill = `<span class="pill pill-green">تم التسليم للطلب (${escapeHtml(s.order_number)})</span>`;
+            }
+
+            row.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:700; color:var(--accent); font-size:12px;">${s.slot_type} (نسخة ${s.slot_index})</span>
+                    ${statusPill}
+                </div>
+                ${s.code ? `<div><strong>كود تحقق النسخة:</strong> <span class="mono" style="background:var(--bg3); padding:1px 4px; border-radius:3px;">${escapeHtml(s.code)}</span></div>` : ''}
+                ${s.status === 'delivered' ? `
+                    <div style="border-top:1px solid rgba(255,255,255,0.03); padding-top:4px; margin-top:2px; display:grid; grid-template-columns:1fr 1fr; gap:4px; color:var(--text3)">
+                        <div>الموظف: <strong>${escapeHtml(s.delivered_by || 'غير محدد')}</strong></div>
+                        <div>التاريخ: <strong>${escapeHtml(s.delivered_at || '-')}</strong></div>
+                        <div style="grid-column: span 2">رقم جوال العميل: <strong>${escapeHtml(s.phone || '-')}</strong></div>
+                    </div>
+                ` : ''}
+            `;
+            listContainer.appendChild(row);
+        });
+    }
+
+    document.getElementById('gameDetailsModal').style.display = 'flex';
+}
+
+function closeGameDetailsModal() {
+    document.getElementById('gameDetailsModal').style.display = 'none';
+}
+
+async function loadGamesDeliveries() {
+    try {
+        const response = await fetch('/api/games/accounts');
+        if (!response.ok) throw new Error('فشل جلب حسابات الألعاب لتقرير التسليم');
+        const data = await response.json();
+        state.gamesAccounts = data;
+        renderGamesDeliveries(data);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderGamesDeliveries(accounts) {
+    if (!accounts) {
+        accounts = state.gamesAccounts || [];
+    }
+
+    const tbody = document.getElementById('gamesDeliveriesTbody');
+    if (!tbody) return;
+
+    // Gather deliveries
+    const deliveries = [];
+    let totalSlotsCount = 0;
+    let deliveredCount = 0;
+    let deliveredPs5 = 0;
+    let deliveredPs4 = 0;
+    const deliveryAgents = new Set();
+
+    accounts.forEach(acc => {
+        acc.slots.forEach(s => {
+            totalSlotsCount++;
+            if (s.status === 'delivered') {
+                deliveredCount++;
+                if (s.slot_type === 'PS5') deliveredPs5++;
+                else deliveredPs4++;
+                
+                if (s.delivered_by) deliveryAgents.add(s.delivered_by);
+
+                // Calculate remaining available slots on this account
+                let remainingInfo = '';
+                const availableSlots = acc.slots.filter(sl => sl.status === 'available');
+                if (availableSlots.length === 0) {
+                    remainingInfo = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
+                } else {
+                    const avPs5 = availableSlots.filter(sl => sl.slot_type === 'PS5').length;
+                    const avPs4 = availableSlots.filter(sl => sl.slot_type === 'PS4').length;
+                    remainingInfo = `<span class="pill pill-amber">متبقي ${avPs5} PS5 | ${avPs4} PS4</span>`;
+                }
+
+                deliveries.push({
+                    account: acc,
+                    slot: s,
+                    remainingInfo: remainingInfo
+                });
+            }
+        });
+    });
+
+    // Sort deliveries by delivered_at DESC
+    deliveries.sort((a, b) => new Date(b.slot.delivered_at) - new Date(a.slot.delivered_at));
+
+    // Update agents filter dropdown
+    const userFilter = document.getElementById('gamesdFilterUser');
+    if (userFilter) {
+        const currentSelected = userFilter.value;
+        userFilter.innerHTML = '<option value="">الكل</option>';
+        Array.from(deliveryAgents).sort().forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u;
+            opt.textContent = u;
+            if (u === currentSelected) opt.selected = true;
+            userFilter.appendChild(opt);
+        });
+    }
+
+    // Apply filters
+    const filterSlotType = document.getElementById('gamesdFilterSlotType')?.value || '';
+    const filterUser = document.getElementById('gamesdFilterUser')?.value || '';
+    const filterSearch = document.getElementById('gamesdFilterSearch')?.value.trim().toLowerCase() || '';
+
+    const filtered = deliveries.filter(d => {
+        if (filterSlotType && d.slot.slot_type !== filterSlotType) return false;
+        if (filterUser && d.slot.delivered_by !== filterUser) return false;
+        if (filterSearch) {
+            const gameMatch = d.account.game_name.toLowerCase().includes(filterSearch);
+            const emailMatch = d.account.email.toLowerCase().includes(filterSearch);
+            const orderMatch = (d.slot.order_number || '').toLowerCase().includes(filterSearch);
+            const phoneMatch = (d.slot.phone || '').toLowerCase().includes(filterSearch);
+            if (!gameMatch && !emailMatch && !orderMatch && !phoneMatch) return false;
+        }
+        return true;
+    });
+
+    // Update KPIs
+    const filteredTotal = filtered.length;
+    const filteredPs5 = filtered.filter(d => d.slot.slot_type === 'PS5').length;
+    const filteredPs4 = filtered.filter(d => d.slot.slot_type === 'PS4').length;
+
+    document.getElementById('kpiGamesDeliveredTotal').textContent = filteredTotal;
+    document.getElementById('kpiGamesDeliveredPs5').textContent = filteredPs5;
+    document.getElementById('kpiGamesDeliveredPs4').textContent = filteredPs4;
+
+    const isFiltered = filterSlotType || filterUser || filterSearch;
+    const percentageVal = isFiltered 
+        ? (deliveries.length > 0 ? Math.round((filteredTotal / deliveries.length) * 100) : 0)
+        : (totalSlotsCount > 0 ? Math.round((deliveredCount / totalSlotsCount) * 100) : 0);
+
+    document.getElementById('kpiGamesDeliveredPercentage').textContent = `${percentageVal}%`;
+    const percentageLabel = document.getElementById('kpiGamesDeliveredPercentageLabel');
+    if (percentageLabel) {
+        percentageLabel.textContent = isFiltered ? 'النسبة من إجمالي التسليمات' : 'نسبة التسليم من المخزون العام';
+    }
+
+    // Update stocks by game on deliveries page
+    const durationContainer = document.getElementById('gamesdStockByGameContainer');
+    if (durationContainer) {
+        durationContainer.innerHTML = '';
+        const gameStocks = {};
+        
+        // Compute from accounts matching filter type or search filter
+        let targetAccounts = accounts || [];
+        if (filterSearch) {
+            targetAccounts = targetAccounts.filter(c => {
+                const gameMatch = c.game_name.toLowerCase().includes(filterSearch);
+                const emailMatch = c.email.toLowerCase().includes(filterSearch);
+                return gameMatch || emailMatch;
+            });
+        }
+
+        targetAccounts.forEach(c => {
+            const name = c.game_name;
+            if (!gameStocks[name]) {
+                gameStocks[name] = { ps5: 0, ps4: 0, total: 0 };
+            }
+            c.slots.forEach(s => {
+                if (s.status === 'available') {
+                    if (s.slot_type === 'PS5') gameStocks[name].ps5++;
+                    else gameStocks[name].ps4++;
+                    gameStocks[name].total++;
+                }
+            });
+        });
+
+        const entries = Object.entries(gameStocks).filter(([_, data]) => data.total > 0);
+        if (entries.length === 0) {
+            durationContainer.innerHTML = '<span style="font-size:11px; color:var(--text3)">لا يوجد مخزون متبقي.</span>';
+        } else {
+            entries.forEach(([name, data]) => {
+                const card = document.createElement('div');
+                card.style.background = 'rgba(157, 78, 221, 0.08)';
+                card.style.border = '1px solid rgba(157, 78, 221, 0.25)';
+                card.style.borderRadius = '8px';
+                card.style.padding = '8px 12px';
+                card.style.display = 'flex';
+                card.style.flexDirection = 'column';
+                card.style.alignItems = 'center';
+                card.style.justifyContent = 'center';
+                card.style.transition = 'all 0.2s ease';
+
+                card.onmouseover = () => {
+                    card.style.transform = 'translateY(-2px)';
+                    card.style.boxShadow = '0 4px 12px rgba(157, 78, 221, 0.15)';
+                    card.style.borderColor = 'rgba(157, 78, 221, 0.5)';
+                };
+                card.onmouseout = () => {
+                    card.style.transform = 'none';
+                    card.style.boxShadow = 'none';
+                    card.style.borderColor = 'rgba(157, 78, 221, 0.25)';
+                };
+
+                card.innerHTML = `
+                    <span style="font-size: 10px; color: var(--text3); font-weight: 600; text-align:center; margin-bottom: 2px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; width:100%;" title="${escapeHtml(name)}">${name}</span>
+                    <span style="font-size: 15px; font-weight: 700; color: #c77dff;">${data.total}</span>
+                    <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
+                    <span style="font-size: 8.5px; color: #72efdd; font-weight: 600; margin-top: 3px; display: flex; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px; width: 100%; justify-content: center;">
+                        <span>${data.ps5} PS5</span>
+                        <span style="color:var(--text3); opacity:0.3">|</span>
+                        <span>${data.ps4} PS4</span>
+                    </span>
+                `;
+                durationContainer.appendChild(card);
+            });
+        }
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><i class="ti ti-report"></i><p>لا توجد نسخ مسلمة تطابق خيارات التصفية الحالية</p></div></td></tr>';
+        return;
+    }
+
+    const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_games_details);
+
+    tbody.innerHTML = filtered.map((d, index) => {
+        const phoneHtml = d.slot.phone
+            ? `<a href="https://wa.me/${d.slot.phone.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--accent); text-decoration:none;"><i class="ti ti-brand-whatsapp"></i> ${escapeHtml(d.slot.phone)}</a>` 
+            : '-';
+            
+        return `<tr>
+            <td style="color:var(--text3); font-size:10px">${index + 1}</td>
+            <td style="font-weight:700; color:var(--text2);">${escapeHtml(d.account.game_name)}</td>
+            <td style="font-weight:600;" class="mono">${escapeHtml(canViewDetails ? d.account.email : maskEmail(d.account.email))}</td>
+            <td><span class="pill pill-blue">${d.slot.slot_type} (نسخة ${d.slot.slot_index})</span></td>
+            <td class="mono" style="font-weight:600;">${escapeHtml(d.slot.order_number)}</td>
+            <td>${phoneHtml}</td>
+            <td><span style="font-size:11.5px; font-weight:600; color:var(--text2)"><i class="ti ti-user" style="font-size:11px; opacity:0.7"></i> ${escapeHtml(d.slot.delivered_by)}</span></td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${d.account.created_at}</td>
+            <td style="font-size:11px; color:var(--text3)" class="mono">${d.slot.delivered_at}</td>
+            <td>${d.remainingInfo}</td>
+        </tr>`;
+    }).join('');
 }
 
 

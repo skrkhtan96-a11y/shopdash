@@ -230,6 +230,35 @@ db.serialize(() => {
         )
     `);
 
+    // 14.5 جدول مخزون حسابات الألعاب
+    db.run(`
+        CREATE TABLE IF NOT EXISTS game_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            game_name TEXT NOT NULL,
+            created_by TEXT,
+            created_at TEXT NOT NULL
+        )
+    `);
+
+    // 14.6 جدول نسخ/سلوتات الألعاب
+    db.run(`
+        CREATE TABLE IF NOT EXISTS game_slots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            slot_type TEXT NOT NULL, -- 'PS5' or 'PS4'
+            slot_index INTEGER NOT NULL,
+            status TEXT DEFAULT 'available', -- 'available' or 'delivered'
+            code TEXT,
+            order_number TEXT,
+            phone TEXT,
+            delivered_by TEXT,
+            delivered_at TEXT,
+            FOREIGN KEY(account_id) REFERENCES game_accounts(id) ON DELETE CASCADE
+        )
+    `);
+
     // 15. جدول سجل النشاطات (Activity Logs)
     db.run(`
         CREATE TABLE IF NOT EXISTS activity_logs (
@@ -246,12 +275,13 @@ db.serialize(() => {
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });
     
-    // ترقية جدول المستخدمين لإضافة صلاحيات التحكم بمخزون الحسابات بلس
+    // ترقية جدول المستخدمين لإضافة صلاحيات التحكم بمخزون الحسابات بلس والألعاب
     db.run("ALTER TABLE users ADD COLUMN can_add INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_edit INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_delete INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_deliver INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_view_ps_details INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_games_details INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
 
     // ترقية جدول حسابات البلس لإضافة اسم المستخدم الذي قام بإضافة الحساب
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN created_by TEXT", (err) => { /* تجاهل الخطأ */ });

@@ -474,6 +474,8 @@
         <div class="nav-item" onclick="nav('certificates')"><i class="ti ti-certificate"></i> إدارة تقارير الشهادات</div>
         <div class="nav-item" onclick="nav('ps-plus')"><i class="ti ti-brand-playstation"></i> مخزون حسابات بلس</div>
         <div class="nav-item" onclick="nav('ps-plus-deliveries')"><i class="ti ti-report"></i> تقرير تسليم بلس</div>
+        <div class="nav-item" onclick="nav('games')"><i class="ti ti-device-gamepad-2"></i> مخزون الألعاب</div>
+        <div class="nav-item" onclick="nav('games-deliveries')"><i class="ti ti-report"></i> تقرير تسليم الألعاب</div>
       </div>
 
       <div class="s-sep"></div>
@@ -1969,6 +1971,189 @@
         </div>
       </div>
 
+      <!-- PAGE: GAMES STOCK -->
+      <div class="page pad" id="page-games" style="display:none;">
+        <!-- KPIs Row -->
+        <div class="kpi-grid" style="margin-bottom:14px">
+          <div class="kpi-card">
+            <div class="kpi-icon purple"><i class="ti ti-device-gamepad-2"></i></div>
+            <div class="kpi-val" id="kpiGamesTotalAccounts" style="font-weight:700;">0</div>
+            <div class="kpi-label">إجمالي حسابات الألعاب</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="ti ti-brand-playstation"></i></div>
+            <div class="kpi-val" id="kpiGamesAvailable5" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS5 المتاحة للبيع</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-device-gamepad"></i></div>
+            <div class="kpi-val" id="kpiGamesAvailable4" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS4 المتاحة للبيع</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-circle-check"></i></div>
+            <div class="kpi-val" id="kpiGamesCompleted" style="font-weight:700;">0</div>
+            <div class="kpi-label">الحسابات المكتملة تسليمها</div>
+          </div>
+        </div>
+
+        <!-- Stocks by Game Name Row -->
+        <div id="gamesStockByGameRow" style="background:var(--bg3); padding:16px; border-radius:var(--r1); border:1px solid var(--border1); margin-bottom:14px;">
+          <div style="font-size:12px; font-weight:600; color:var(--text2); display:flex; align-items:center; gap:6px; margin-bottom:12px;">
+            <i class="ti ti-chart-pie" style="color:var(--accent); font-size:15px"></i>
+            <span>المخزون المتبقي والمتاح حالياً للبيع حسب اللعبة</span>
+          </div>
+          <div id="gamesStockByGameContainer" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:10px; width:100%;">
+            <span style="font-size:11px; color:var(--text3)">جاري الحساب...</span>
+          </div>
+        </div>
+
+        <!-- Games Accounts Table -->
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">إدارة مخزون حسابات الألعاب المشتركة (PS5 / PS4)</div>
+            <div style="display:flex; gap:8px">
+              <button class="btn btn-sm btn-primary" onclick="loadGamesAccounts()"><i class="ti ti-refresh"></i> تحديث الحسابات</button>
+              <button class="btn btn-sm btn-success" id="gameAddManualBtn" onclick="openGameAccountModal()"><i class="ti ti-plus"></i> إضافة حساب لعبة يدوي</button>
+            </div>
+          </div>
+
+          <div class="filter-bar" style="margin-bottom: 10px;">
+            <label><i class="ti ti-filter"></i> تصفية بحسب:</label>
+            
+            <label style="margin-right:8px">حالة المخزون:</label>
+            <select id="gamesFilterStock" onchange="renderGamesAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">الكل (حالة المخزون)</option>
+              <option value="has_any">به نسخ متاحة (أي نسخة)</option>
+              <option value="has_ps5">به نسخ PS5 متاحة</option>
+              <option value="has_ps4">به نسخ PS4 متاحة</option>
+              <option value="empty">مكتمل التسليم (نفذت الكمية)</option>
+            </select>
+            
+            <label style="margin-right:auto">بحث:</label>
+            <input type="text" id="gamesFilterSearch" oninput="renderGamesAccounts()" placeholder="ابحث بالإيميل، اسم اللعبة أو رقم الطلب..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 220px;">
+          </div>
+
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:40px">#</th>
+                  <th>اسم اللعبة</th>
+                  <th>الإيميل</th>
+                  <th>الباسورد</th>
+                  <th>اسم الموظف</th>
+                  <th>النسخ المتاحة (PS5)</th>
+                  <th>النسخ المتاحة (PS4)</th>
+                  <th>حالة الحساب</th>
+                  <th style="width:130px">العمليات</th>
+                </tr>
+              </thead>
+              <tbody id="gamesTbody">
+                <tr>
+                  <td colspan="9">
+                    <div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل حسابات الألعاب...</p></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: GAMES DELIVERIES -->
+      <div class="page pad" id="page-games-deliveries" style="display:none;">
+        <!-- KPIs Row -->
+        <div class="kpi-grid" style="margin-bottom:14px">
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-circle-check"></i></div>
+            <div class="kpi-val" id="kpiGamesDeliveredTotal" style="font-weight:700;">0</div>
+            <div class="kpi-label">إجمالي النسخ المسلمة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="ti ti-brand-playstation"></i></div>
+            <div class="kpi-val" id="kpiGamesDeliveredPs5" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS5 المسلمة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-device-gamepad"></i></div>
+            <div class="kpi-val" id="kpiGamesDeliveredPs4" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS4 المسلمة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon purple"><i class="ti ti-archive"></i></div>
+            <div class="kpi-val" id="kpiGamesDeliveredPercentage" style="font-weight:700;">0%</div>
+            <div class="kpi-label" id="kpiGamesDeliveredPercentageLabel">نسبة التسليم من المخزون العام</div>
+          </div>
+        </div>
+
+        <!-- Stocks by Game Row -->
+        <div id="gamesdStockByGameRow" style="background:var(--bg3); padding:16px; border-radius:var(--r1); border:1px solid var(--border1); margin-bottom:14px;">
+          <div style="font-size:12px; font-weight:600; color:var(--text2); display:flex; align-items:center; gap:6px; margin-bottom:12px;">
+            <i class="ti ti-chart-pie" style="color:var(--accent); font-size:15px"></i>
+            <span>المخزون المتبقي والمتاح حالياً للبيع حسب اللعبة (بناءً على نتائج البحث)</span>
+          </div>
+          <div id="gamesdStockByGameContainer" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:10px; width:100%;">
+            <span style="font-size:11px; color:var(--text3)">جاري الحساب...</span>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title">تقرير النسخ المسلمة من حسابات الألعاب المشتركة</div>
+            <div style="display:flex; gap:8px">
+              <button class="btn btn-sm btn-primary" onclick="loadGamesDeliveries()"><i class="ti ti-refresh"></i> تحديث التقرير</button>
+            </div>
+          </div>
+
+          <div class="filter-bar" style="margin-bottom: 10px;">
+            <label><i class="ti ti-filter"></i> تصفية بحسب:</label>
+            
+            <label style="margin-right:4px">نوع النسخة:</label>
+            <select id="gamesdFilterSlotType" onchange="renderGamesDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">كافة الأنواع</option>
+              <option value="PS5">PS5</option>
+              <option value="PS4">PS4</option>
+            </select>
+
+            <label style="margin-right:8px">الموظف المسؤول:</label>
+            <select id="gamesdFilterUser" onchange="renderGamesDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="">الكل</option>
+            </select>
+            
+            <label style="margin-right:auto">بحث:</label>
+            <input type="text" id="gamesdFilterSearch" oninput="renderGamesDeliveries()" placeholder="رقم الطلب، اسم اللعبة، أو إيميل..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 220px;">
+          </div>
+
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم اللعبة</th>
+                  <th>الإيميل</th>
+                  <th>النسخة المسلمة</th>
+                  <th>رقم الطلب</th>
+                  <th>رقم العميل</th>
+                  <th>الموظف المسؤول</th>
+                  <th>تاريخ الإضافة</th>
+                  <th>تاريخ التسليم</th>
+                  <th>المتبقي من الحساب</th>
+                </tr>
+              </thead>
+              <tbody id="gamesDeliveriesTbody">
+                <tr>
+                  <td colspan="10">
+                    <div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل تقرير تسليم الألعاب...</p></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- PAGE: ACTIVITY LOGS -->
       <div class="page pad" id="page-activity-logs">
         <div class="tbl-wrap">
@@ -2162,6 +2347,103 @@
         </div>
       </div>
 
+      <!-- MODAL: إضافة/تعديل حساب لعبة -->
+      <div class="modal-bg" id="gameAccountModal" style="display:none">
+        <div class="modal" style="max-width:600px">
+          <div class="modal-title" id="gameAccountModalTitle"><i class="ti ti-device-gamepad-2" style="color:var(--accent)"></i> إضافة حساب لعبة جديد</div>
+          
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label">اسم اللعبة (يدوي)</label>
+              <input type="text" id="gameName" placeholder="مثال: Resident Evil 4 Remake">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">البريد الإلكتروني (الإيميل)</label>
+              <input type="email" id="gameEmail" placeholder="مثال: gamestore+01@gmail.com">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">كلمة المرور (الباسورد)</label>
+              <input type="text" id="gamePassword" placeholder="مثال: game_1020">
+            </div>
+
+            <!-- منشئ النسخ التفاعلي -->
+            <div class="form-group full" style="border: 1px dashed var(--border2); padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.01);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span style="font-weight:600; font-size:12.5px; color:var(--text2);"><i class="ti ti-server-cog"></i> نسخ الحساب المفعلة:</span>
+                <button class="btn btn-xs btn-primary" onclick="addGameSlotRow()"><i class="ti ti-plus"></i> إضافة نسخة جديدة</button>
+              </div>
+              
+              <!-- Container for dynamic slot rows -->
+              <div id="gameSlotsContainer" style="display:flex; flex-direction:column; gap:8px;">
+                <!-- Filled dynamically by JavaScript -->
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-foot" style="margin-top:15px">
+            <button class="btn" onclick="closeGameAccountModal()">إلغاء</button>
+            <button class="btn btn-primary" onclick="saveGameAccount()"><i class="ti ti-device-floppy"></i> حفظ الحساب</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: تسليم نسخة لعبة للعميل -->
+      <div class="modal-bg" id="gameDeliverModal" style="display:none">
+        <div class="modal" style="max-width:400px">
+          <div class="modal-title"><i class="ti ti-brand-whatsapp" style="color:var(--green)"></i> تسليم نسخة لعبة للعميل</div>
+          
+          <div style="padding:4px 0 10px; font-size:11px; color:var(--text2)">
+            <div><strong>اسم اللعبة:</strong> <span id="gameDeliverShowName"></span></div>
+            <div><strong>الحساب:</strong> <span id="gameDeliverShowEmail" class="mono"></span></div>
+            <div><strong>النسخة المحددة:</strong> <span id="gameDeliverShowSlotInfo" style="color:var(--accent); font-weight:700;"></span></div>
+          </div>
+
+          <input type="hidden" id="gameDeliverSlotId">
+
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="form-group">
+              <label class="form-label">رقم الطلب (سلة)</label>
+              <input type="text" id="gameDeliverOrderId" placeholder="مثال: 264030206">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">رقم جوال العميل (مفتاح الدولة ثم الرقم)</label>
+              <input type="text" id="gameDeliverCustomerPhone" placeholder="مثال: 966500000000">
+            </div>
+          </div>
+
+          <div class="modal-foot" style="margin-top:15px">
+            <button class="btn" onclick="closeGameDeliverModal()">إلغاء</button>
+            <button class="btn btn-success" onclick="confirmGameSlotDelivery()"><i class="ti ti-brand-whatsapp"></i> تأكيد وإرسال واتساب</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: تفاصيل حساب لعبة ومسؤولي النسخ -->
+      <div class="modal-bg" id="gameDetailsModal" style="display:none">
+        <div class="modal" style="max-width:550px">
+          <div class="modal-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span><i class="ti ti-info-circle" style="color:var(--accent)"></i> تفاصيل ومسؤولي نسخ حساب اللعبة</span>
+            <button class="btn btn-xs" onclick="closeGameDetailsModal()">إغلاق</button>
+          </div>
+          
+          <div style="background:var(--bg3); padding:10px; border-radius:var(--r); border:1px solid var(--border1); margin-bottom:12px;">
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px;">
+              <div><strong>اسم اللعبة:</strong> <span id="gdetShowName" style="color:var(--text2)"></span></div>
+              <div><strong>البريد الإلكتروني:</strong> <span id="gdetShowEmail" class="mono text-glow" style="color:var(--accent)"></span></div>
+              <div><strong>كلمة المرور:</strong> <span id="gdetShowPassword" class="mono" style="color:var(--text2)"></span></div>
+            </div>
+          </div>
+
+          <div style="font-weight:600; font-size:12px; margin-bottom:6px; color:var(--text2)">حالة ومسؤولي تسليم النسخ:</div>
+          <div style="max-height:240px; overflow-y:auto;" id="gdetSlotsList">
+            <!-- Slots statuses are rendered dynamically here -->
+          </div>
+        </div>
+      </div>
+
       <!-- BOTTOM NAVIGATION BAR (FOR MOBILE SCREEN APP FEEL) -->
       <div class="bottom-nav">
         <div class="bottom-nav-item active" onclick="nav('overview')">
@@ -2175,6 +2457,10 @@
         <div class="bottom-nav-item" onclick="nav('ps-plus')">
           <i class="ti ti-brand-playstation"></i>
           <span>بلس</span>
+        </div>
+        <div class="bottom-nav-item" onclick="nav('games')">
+          <i class="ti ti-device-gamepad-2"></i>
+          <span>الألعاب</span>
         </div>
         <div class="bottom-nav-item" onclick="nav('certificates')">
           <i class="ti ti-certificate"></i>

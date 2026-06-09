@@ -2736,6 +2736,242 @@ app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
     );
 });
 
+// ── 3.2. مسارات إدارة مخزون حسابات الألعاب ──
+app.get('/api/games/accounts', authenticateUser, (req, res) => {
+    const sql = `
+        SELECT ga.*, gs.id as slot_id, gs.slot_type, gs.slot_index, gs.status, gs.code, gs.order_number, gs.phone, gs.delivered_by, gs.delivered_at
+        FROM game_accounts ga
+        LEFT JOIN game_slots gs ON ga.id = gs.account_id
+        ORDER BY ga.created_at DESC, gs.slot_type DESC, gs.slot_index ASC
+    `;
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const accountsMap = {};
+        rows.forEach(row => {
+            if (!row.id) return;
+            if (!accountsMap[row.id]) {
+                accountsMap[row.id] = {
+                    id: row.id,
+                    email: row.email,
+                    password: row.password,
+                    game_name: row.game_name,
+                    created_by: row.created_by,
+                    created_at: row.created_at,
+                    slots: []
+                };
+            }
+            if (row.slot_id) {
+                accountsMap[row.id].slots.push({
+                    id: row.slot_id,
+                    slot_type: row.slot_type,
+                    slot_index: row.slot_index,
+                    status: row.status,
+                    code: row.code,
+                    order_number: row.order_number,
+                    phone: row.phone,
+                    delivered_by: row.delivered_by,
+                    delivered_at: row.delivered_at
+                });
+            }
+        });
+        res.json(Object.values(accountsMap));
+    });
+});
+
+app.post('/api/games/accounts', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_add) {
+        return res.status(403).json({ error: 'غير مصرح لك بإضافة الحسابات.' });
+    }
+    const { email, password, game_name, slots } = req.body;
+    if (!email || !password || !game_name || !Array.isArray(slots)) {
+        return res.status(400).json({ error: 'جميع الحقول مطلوبة.' });
+    }
+    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    db.serialize(() => {
+        db.run("BEGIN TRANSACTION");
+        db.run(
+            "INSERT INTO game_accounts (email, password, game_name, created_by, created_at) VALUES (?, ?, ?, ?, ?)",
+            [email.trim(), password.trim(), game_name.trim(), req.user.username, createdAt],
+            function(err) {
+                if (err) {
+                    db.run("ROLLBACK");
+                    if (err.message.includes('UNIQUE')) {
+                        return res.status(400).json({ error: 'هذا الإيميل مسجل بالفعل في حسابات الألعاب.' });
+                    }
+                    return res.status(500).json({ error: err.message });
+                }
+                const accountId = this.lastID;
+                let errorOccurred = false;
+
+                const stmt = db.prepare("INSERT INTO game_slots (account_id, slot_type, slot_index, code, status) VALUES (?, ?, ?, ?, 'available')");
+                slots.forEach(s => {
+                    stmt.run([accountId, s.slot_type, s.slot_index, s.code ? s.code.trim() : ''], (errRun) => {
+                        if (errRun) errorOccurred = errRun.message;
+                    });
+                });
+
+                stmt.finalize((errFinal) => {
+                    if (errorOccurred || errFinal) {
+                        db.run("ROLLBACK");
+                        return res.status(500).json({ error: errorOccurred || errFinal.message });
+                    }
+                    db.run("COMMIT");
+                    logActivity(req.user.username, 'ADD', 'games', `تم إضافة لعبة جديدة: ${game_name} (${email})`).catch(console.error);
+                    res.json({ success: true, id: accountId });
+                });
+            }
+        );
+    });
+});
+
+app.put('/api/games/accounts/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit) {
+        return res.status(403).json({ error: 'غير مصرح لك بتعديل بيانات الحسابات.' });
+    }
+    const { id } = req.params;
+    const { email, password, game_name, slots } = req.body;
+    if (!email || !password || !game_name || !Array.isArray(slots)) {
+        return res.status(400).json({ error: 'جميع الحقول مطلوبة لتحديث البيانات.' });
+    }
+
+    db.serialize(() => {
+        db.run("BEGIN TRANSACTION");
+        db.run(
+            "UPDATE game_accounts SET email = ?, password = ?, game_name = ? WHERE id = ?",
+            [email.trim(), password.trim(), game_name.trim(), id],
+            function(err) {
+                if (err) {
+                    db.run("ROLLBACK");
+                    return res.status(500).json({ error: err.message });
+                }
+
+                db.all("SELECT id FROM game_slots WHERE account_id = ?", [id], (errSlots, oldSlots) => {
+                    if (errSlots) {
+                        db.run("ROLLBACK");
+                        return res.status(500).json({ error: errSlots.message });
+                    }
+
+                    const oldSlotIds = oldSlots.map(s => s.id);
+                    const newSlotIds = slots.filter(s => s.id).map(s => parseInt(s.id));
+                    const idsToDelete = oldSlotIds.filter(oid => !newSlotIds.includes(oid));
+
+                    let errorOccurred = false;
+
+                    if (idsToDelete.length > 0) {
+                        const placeholders = idsToDelete.map(() => '?').join(',');
+                        db.run(`DELETE FROM game_slots WHERE id IN (${placeholders})`, idsToDelete, (errDel) => {
+                            if (errDel) errorOccurred = errDel.message;
+                        });
+                    }
+
+                    slots.forEach(s => {
+                        const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                        const status = s.order_number ? 'delivered' : (s.status || 'available');
+                        const deliveredAt = (status === 'delivered' && !s.delivered_at) ? nowStr : s.delivered_at;
+
+                        if (s.id) {
+                            db.run(
+                                `UPDATE game_slots SET slot_type = ?, slot_index = ?, code = ?, status = ?, order_number = ?, phone = ?, delivered_by = ?, delivered_at = ? WHERE id = ? AND account_id = ?`,
+                                [s.slot_type, s.slot_index, s.code ? s.code.trim() : '', status, s.order_number || null, s.phone || null, s.delivered_by || null, deliveredAt, s.id, id],
+                                (errUpd) => {
+                                    if (errUpd) errorOccurred = errUpd.message;
+                                }
+                            );
+                        } else {
+                            db.run(
+                                `INSERT INTO game_slots (account_id, slot_type, slot_index, code, status, order_number, phone, delivered_by, delivered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [id, s.slot_type, s.slot_index, s.code ? s.code.trim() : '', status, s.order_number || null, s.phone || null, s.delivered_by || null, deliveredAt],
+                                (errIns) => {
+                                    if (errIns) errorOccurred = errIns.message;
+                                }
+                            );
+                        }
+                    });
+
+                    setTimeout(() => {
+                        if (errorOccurred) {
+                            db.run("ROLLBACK");
+                            return res.status(500).json({ error: errorOccurred });
+                        }
+                        db.run("COMMIT");
+                        logActivity(req.user.username, 'UPDATE', 'games', `تم تحديث بيانات اللعبة: ${game_name} (${email})`).catch(console.error);
+                        res.json({ success: true });
+                    }, 200);
+                });
+            }
+        );
+    });
+});
+
+app.delete('/api/games/accounts/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'غير مصرح لك بحذف الحسابات.' });
+    }
+    const { id } = req.params;
+    db.get("SELECT email, game_name FROM game_accounts WHERE id = ?", [id], (errFetch, row) => {
+        if (errFetch || !row) return res.status(500).json({ error: errFetch ? errFetch.message : 'الحساب غير موجود' });
+        const email = row.email;
+        const game_name = row.game_name;
+        db.run("DELETE FROM game_accounts WHERE id = ?", [id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity(req.user.username, 'DELETE', 'games', `تم حذف حساب لعبة: ${game_name} (${email})`).catch(console.error);
+            res.json({ success: true });
+        });
+    });
+});
+
+app.post('/api/games/slots/deliver', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_deliver) {
+        return res.status(403).json({ error: 'غير مصرح لك بتسليم الحسابات.' });
+    }
+    const { slot_id, order_number, phone } = req.body;
+    if (!slot_id || !order_number) {
+        return res.status(400).json({ error: 'معرف النسخة ورقم الطلب مطلوبان.' });
+    }
+
+    const orderClean = order_number.trim();
+
+    db.get(
+        "SELECT id FROM game_slots WHERE order_number = ?",
+        [orderClean],
+        (errUnique, rowUnique) => {
+            if (errUnique) return res.status(500).json({ error: errUnique.message });
+            if (rowUnique) {
+                return res.status(400).json({ error: `رقم الطلب هذا تم استخدامه مسبقاً لتسليم نسخة لعبة أخرى.` });
+            }
+
+            const deliveredAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            db.run(
+                `UPDATE game_slots SET order_number = ?, phone = ?, status = 'delivered', delivered_by = ?, delivered_at = ? WHERE id = ?`,
+                [orderClean, phone ? phone.trim() : '', req.user.username, deliveredAt, slot_id],
+                function(errUpdate) {
+                    if (errUpdate) return res.status(500).json({ error: errUpdate.message });
+                    
+                    db.get(
+                        `SELECT ga.email, ga.game_name, gs.slot_type, gs.slot_index 
+                         FROM game_slots gs 
+                         JOIN game_accounts ga ON gs.account_id = ga.id 
+                         WHERE gs.id = ?`,
+                        [slot_id],
+                        (errGet, infoRow) => {
+                            if (infoRow) {
+                                logActivity(
+                                    req.user.username, 
+                                    'DELIVER', 
+                                    'games', 
+                                    `تم تسليم نسخة ${infoRow.slot_type} (${infoRow.slot_index}) للعبة ${infoRow.game_name} (${infoRow.email}) للطلب: ${orderClean}`
+                                ).catch(console.error);
+                            }
+                        }
+                    );
+                    res.json({ success: true });
+                }
+            );
+        }
+    );
+});
+
 app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
     if (req.user.role !== 'admin' && !req.user.can_add) {
         return res.status(403).json({ error: 'غير مصرح لك باستيراد الحسابات.' });
