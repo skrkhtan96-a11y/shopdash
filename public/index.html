@@ -1713,7 +1713,7 @@
         </div>
 
         <!-- Add External Sale Form -->
-        <div class="tbl-wrap" style="margin-bottom: 14px; padding: 14px; background: rgba(24, 29, 46, 0.4); border: 1px solid var(--border);">
+        <div class="tbl-wrap" style="margin-bottom: 14px; padding: 14px; background: rgba(24, 29, 46, 0.4); border: 1px solid var(--border); overflow: visible !important;">
           <div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
             <i class="ti ti-plus"></i> تسجيل عملية بيع خارجية جديدة
           </div>
@@ -1746,7 +1746,7 @@
                   <span id="selectedCountryLabel">اختر الدولة...</span>
                   <i class="ti ti-chevron-down" style="font-size:10px; color:var(--text3)"></i>
                 </div>
-                <div class="searchable-dropdown-menu" id="extCountryMenu" style="display:none; position:absolute; bottom:100%; right:0; left:0; background:rgba(21, 26, 43, 0.95); backdrop-filter:blur(10px); border:1px solid var(--border); border-radius:var(--r1); z-index:1000; box-shadow:0 -8px 24px rgba(0,0,0,0.5); padding:6px; max-height:200px; margin-bottom:4px;">
+                <div class="searchable-dropdown-menu" id="extCountryMenu" style="display:none; position:absolute; top:100%; right:0; left:0; background:rgba(21, 26, 43, 0.98); backdrop-filter:blur(10px); border:1px solid var(--border); border-radius:var(--r1); z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,0.5); padding:6px; max-height:220px; margin-top:4px;">
                   <input type="text" id="extCountrySearch" placeholder="بحث عن دولة..." oninput="filterCountries()" onclick="event.stopPropagation()" style="width:100%; padding:6px 10px; font-size:11px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); border-radius:4px; margin-bottom:6px; outline:none;">
                   <div class="searchable-dropdown-options" id="extCountryOptionsList" style="display:flex; flex-direction:column; gap:2px; max-height:140px; overflow-y:auto;">
                     <!-- ستعرض الدول هنا ديناميكياً -->
