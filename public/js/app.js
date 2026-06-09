@@ -159,10 +159,12 @@ function applyRoleBasedPermissions() {
     }
 
     if (role === 'games_employee') {
-        // إخفاء كافة عناصر القائمة الجانبية ما عدا مخزون حسابات بلس وسجل النشاطات
+        // إخفاء كافة عناصر القائمة الجانبية ما عدا مخزون حسابات بلس والألعاب وسجل النشاطات
         document.querySelectorAll('.sidebar .nav-item').forEach(item => {
             const onClickStr = item.getAttribute('onclick') || '';
-            if (!onClickStr.includes("'ps-plus'") && !onClickStr.includes("'activity-logs'")) {
+            const allowed = ["'ps-plus'", "'ps-plus-deliveries'", "'games'", "'games-deliveries'", "'activity-logs'"];
+            const isAllowed = allowed.some(a => onClickStr.includes(a));
+            if (!isAllowed) {
                 item.style.display = 'none';
             }
         });
@@ -171,10 +173,12 @@ function applyRoleBasedPermissions() {
             el.style.display = 'none';
         });
 
-        // إخفاء كافة أزرار الشريط السفلي للموبايل ما عدا بلس والنشاطات
+        // إخفاء كافة أزرار الشريط السفلي للموبايل ما عدا بلس والألعاب والنشاطات
         document.querySelectorAll('.bottom-nav-item').forEach(item => {
             const onClickStr = item.getAttribute('onclick') || '';
-            if (!onClickStr.includes("'ps-plus'") && !onClickStr.includes("'activity-logs'")) {
+            const allowed = ["'ps-plus'", "'games'", "'activity-logs'"];
+            const isAllowed = allowed.some(a => onClickStr.includes(a));
+            if (!isAllowed) {
                 item.style.display = 'none';
             }
         });
@@ -352,7 +356,10 @@ function toggleSidebar(open) {
 }
 
 function nav(name, updateHash = true) {
-    if (state.user && state.user.role === 'games_employee' && name !== 'ps-plus' && name !== 'ps-plus-deliveries' && name !== 'activity-logs') {
+    if (state.user && state.user.role === 'games_employee' && 
+        name !== 'ps-plus' && name !== 'ps-plus-deliveries' && 
+        name !== 'games' && name !== 'games-deliveries' && 
+        name !== 'activity-logs') {
         nav('ps-plus', true);
         return;
     }
