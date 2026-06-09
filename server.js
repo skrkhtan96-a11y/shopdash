@@ -3210,7 +3210,7 @@ app.post('/api/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
 
 // ── 3.7. مسارات المبيعات الخارجية المبسطة ──
 app.get('/api/external-sales', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_view_external_sales) {
+    if (req.user.role !== 'admin' && req.user.role !== 'sales_employee' && !req.user.can_view_external_sales) {
         return res.status(403).json({ error: 'غير مصرح لك باستعراض المبيعات الخارجية.' });
     }
 
@@ -3240,7 +3240,7 @@ app.get('/api/external-sales', authenticateUser, (req, res) => {
 });
 
 app.post('/api/external-sales', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_view_external_sales) {
+    if (req.user.role !== 'admin' && req.user.role !== 'sales_employee' && !req.user.can_view_external_sales) {
         return res.status(403).json({ error: 'غير مصرح لك بإدخال مبيعات خارجية.' });
     }
 

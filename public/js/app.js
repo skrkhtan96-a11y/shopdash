@@ -136,7 +136,7 @@ async function init() {
             uAvatar.textContent = state.user.username.substring(0, 1).toUpperCase();
             currentUsername = state.user.username;
             currentUserRole = state.user.role;
-            const roleLabel = currentUserRole === 'admin' ? 'مدير' : currentUserRole === 'accountant' ? 'محاسب' : currentUserRole === 'games_employee' ? 'موظف ألعاب' : 'موظف';
+            const roleLabel = currentUserRole === 'admin' ? 'مدير' : currentUserRole === 'accountant' ? 'محاسب' : currentUserRole === 'games_employee' ? 'موظف ألعاب' : currentUserRole === 'sales_employee' ? 'موظف مبيعات خارجية' : 'موظف';
             
             uName.textContent = currentUsername;
             uRole.textContent = roleLabel;
@@ -188,7 +188,7 @@ function applyRoleBasedPermissions() {
     const role = state.user.role;
     
     // الموظف لا يملك صلاحية إضافة مصروف، جرد المخزون، أو بدء أرشفة الأشهر
-    if (role === 'employee' || role === 'games_employee') {
+    if (role === 'employee' || role === 'games_employee' || role === 'sales_employee') {
         const addBtn = document.getElementById('addBtn');
         const addExpBtn = document.getElementById('addExpBtn');
         const newMonthBtn = document.getElementById('newMonthBtn');
@@ -223,6 +223,34 @@ function applyRoleBasedPermissions() {
         });
     }
 
+    if (role === 'sales_employee') {
+        // إخفاء كافة عناصر القائمة الجانبية ما عدا المبيعات الخارجية وسجل النشاطات
+        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+            const onClickStr = item.getAttribute('onclick') || '';
+            const allowed = ["'external-sales'", "'activity-logs'"];
+            const isAllowed = allowed.some(a => onClickStr.includes(a));
+            if (!isAllowed) {
+                item.style.display = 'none';
+            } else {
+                item.style.display = 'flex';
+            }
+        });
+        // إخفاء الفواصل والتسميات وأداة التبديل
+        document.querySelectorAll('.sidebar .s-sep, .sidebar .s-label, .sidebar #monthSel, .sidebar div[style*="padding:6px 12px 0"], .sidebar div[style*="padding: 6px 12px 0"]').forEach(el => {
+            el.style.display = 'none';
+        });
+
+        // إخفاء كافة أزرار الشريط السفلي للموبايل ما عدا النشاطات
+        document.querySelectorAll('.bottom-nav-item').forEach(item => {
+            const onClickStr = item.getAttribute('onclick') || '';
+            const allowed = ["'activity-logs'"];
+            const isAllowed = allowed.some(a => onClickStr.includes(a));
+            if (!isAllowed) {
+                item.style.display = 'none';
+            }
+        });
+    }
+
     // زر حذف بيانات اللوحة بالكامل متاح فقط للمدير (admin)
     const clearAllBtn = document.getElementById('btnClearAllSystem');
     if (clearAllBtn) {
@@ -232,7 +260,7 @@ function applyRoleBasedPermissions() {
     // زر حذف المصروفات متاح للمحاسبين والمدراء فقط (مخفي للموظفين)
     const clearExpensesBtn = document.getElementById('btnClearExpenses');
     if (clearExpensesBtn) {
-        clearExpensesBtn.style.display = (role === 'employee' || role === 'games_employee') ? 'none' : 'inline-block';
+        clearExpensesBtn.style.display = (role === 'employee' || role === 'games_employee' || role === 'sales_employee') ? 'none' : 'inline-block';
     }
 
     // زر حذف مخزون المنتجات متاح فقط للذين لديهم صلاحية حذف أو دور مدير
@@ -414,6 +442,11 @@ function nav(name, updateHash = true) {
         name !== 'games' && name !== 'games-deliveries' && 
         name !== 'activity-logs') {
         nav('ps-plus', true);
+        return;
+    }
+    if (state.user && state.user.role === 'sales_employee' && 
+        name !== 'external-sales' && name !== 'activity-logs') {
+        nav('external-sales', true);
         return;
     }
     // إغلاق القائمة تلقائياً عند تغيير الصفحة على الهواتف
@@ -3214,8 +3247,8 @@ function renderUsers(users) {
     users.forEach(user => {
         const tr = document.createElement('tr');
         const isSelf = user.username === currentUsername;
-        const roleLabel = user.role === 'admin' ? 'مدير' : user.role === 'accountant' ? 'محاسب' : user.role === 'games_employee' ? 'موظف ألعاب' : 'موظف';
-        const roleColor = user.role === 'admin' ? 'var(--blue)' : user.role === 'accountant' ? 'var(--amber)' : user.role === 'games_employee' ? 'var(--purple)' : 'var(--accent)';
+        const roleLabel = user.role === 'admin' ? 'مدير' : user.role === 'accountant' ? 'محاسب' : user.role === 'games_employee' ? 'موظف ألعاب' : user.role === 'sales_employee' ? 'موظف مبيعات خارجية' : 'موظف';
+        const roleColor = user.role === 'admin' ? 'var(--blue)' : user.role === 'accountant' ? 'var(--amber)' : user.role === 'games_employee' ? 'var(--purple)' : user.role === 'sales_employee' ? 'var(--green)' : 'var(--accent)';
         
         const perms = [];
         if (user.role === 'admin' || user.can_add) perms.push('<span class="pill pill-blue" style="font-size: 8.5px; padding: 1px 3px;">+إضافة</span>');
@@ -3302,6 +3335,7 @@ function togglePermissionsSection(role) {
     document.getElementById('uCanDeliver').disabled = isAdmin;
     document.getElementById('uCanViewPsDetails').disabled = isAdmin;
     document.getElementById('uCanViewGamesDetails').disabled = isAdmin;
+    document.getElementById('uCanViewExternalSales').disabled = isAdmin;
     if (isAdmin) {
         document.getElementById('uCanAdd').checked = true;
         document.getElementById('uCanEdit').checked = true;
@@ -3309,6 +3343,7 @@ function togglePermissionsSection(role) {
         document.getElementById('uCanDeliver').checked = true;
         document.getElementById('uCanViewPsDetails').checked = true;
         document.getElementById('uCanViewGamesDetails').checked = true;
+        document.getElementById('uCanViewExternalSales').checked = true;
     }
 }
 
