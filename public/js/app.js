@@ -2276,7 +2276,34 @@ function readXLSX(file) {
             try {
                 const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
                 const ws = wb.Sheets[wb.SheetNames[0]];
-                resolve(XLSX.utils.sheet_to_json(ws, { defval: '' }));
+                
+                // نقوم بقراءة الصفوف كصفوف خام لتحديد صف الترويسة (Header) بشكل ديناميكي لتخطي أي عناوين فرعية أو صفوف مدمجة
+                const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                let headerRowIndex = 0;
+                
+                const keywords = [
+                    'المنتج', 'اسم المنتج', 'اسم المنت', 'الكمية الافتتاحية', 'الكمية المتبقية', 'المخزون الافتتاحي', 
+                    'رقم الطلب', 'تاريخ الطلب', 'إجمالي الطلب', 
+                    'رقم العملية', 'رقم الحركة', 'المبلغ المستحق', 
+                    'البيان', 'التاريخ', 'المبلغ', 'الفئة'
+                ];
+                
+                for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+                    const row = rawRows[i];
+                    if (Array.isArray(row)) {
+                        const hasKeyword = row.some(cell => {
+                            if (!cell) return false;
+                            const cellStr = String(cell).trim();
+                            return keywords.some(kw => cellStr.includes(kw));
+                        });
+                        if (hasKeyword) {
+                            headerRowIndex = i;
+                            break;
+                        }
+                    }
+                }
+                
+                resolve(XLSX.utils.sheet_to_json(ws, { range: headerRowIndex, defval: '' }));
             } catch (err) { reject(err); }
         };
         r.onerror = reject; r.readAsBinaryString(file);
@@ -2609,7 +2636,7 @@ async function handleImport(ev, type) {
             };
 
             for (let r of rows) {
-                const prodName = cleanProductName(String(getValue(r, ['اسم المنتج', 'المنتج', 'الاسم', 'اسم', 'Product Name', 'Product', 'name', 'Name'])).trim());
+                const prodName = cleanProductName(String(getValue(r, ['المنتج', 'اسم المنتج', 'اسم المنت', 'الاسم', 'اسم', 'Product Name', 'Product', 'name', 'Name'])).trim());
                 const stockOffset = parseInt(getValue(r, ['الكمية المتبقية', 'الكمية الافتتاحية', 'المخزون الافتتاحي', 'الكمية', 'المخزون', 'العدد', 'الرصيد', 'Quantity', 'Stock', 'Initial Stock', 'qty', 'count'])) || 0;
                 const cost = parseFloat(getValue(r, ['سعر التكلفة (ر.س)', 'سعر التكلفة', 'سعر الشراء', 'التكلفة', 'سعر التكلفه', 'شراء', 'Cost', 'Purchase Cost', 'purchase_price'])) || 0;
                 const price = parseFloat(getValue(r, ['سعر بيع المفرد (ر.س)', 'سعر بيع المفرد', 'سعر البيع', 'سعر البيع المقدر', 'البيع', 'بيع', 'Price', 'Selling Price', 'selling_price'])) || 0;
@@ -2643,7 +2670,7 @@ async function handleImport(ev, type) {
                     resEl.innerHTML = `<span style="color:var(--red)">فشل استيراد المنتجات لقاعدة البيانات</span>`;
                 }
             } else {
-                resEl.innerHTML = `<span style="color:var(--amber)">⚠️ لم يتم العثور على منتجات صالحة بالملف (تأكد من وجود عمود: اسم المنتج)</span>`;
+                resEl.innerHTML = `<span style="color:var(--amber)">⚠️ لم يتم العثور على منتجات صالحة بالملف (تأكد من وجود عمود: اسم المنتج أو المنتج)</span>`;
             }
         }
     } catch (e) {
