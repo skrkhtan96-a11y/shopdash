@@ -8286,13 +8286,14 @@ function renderExternalSales() {
             const prodMatch = (item.product_name || '').toLowerCase().includes(searchVal);
             const custMatch = (item.customer_name || '').toLowerCase().includes(searchVal);
             const refMatch = (item.transfer_reference || '').toLowerCase().includes(searchVal);
-            if (!prodMatch && !custMatch && !refMatch) return false;
+            const orderMatch = (item.order_number || '').toLowerCase().includes(searchVal);
+            if (!prodMatch && !custMatch && !refMatch && !orderMatch) return false;
         }
         return true;
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12"><div style="text-align:center; padding:15px; color:var(--text3)"><i class="ti ti-info-circle" style="font-size:16px;"></i> لا توجد مبيعات خارجية مسجلة تطابق التصفية.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13"><div style="text-align:center; padding:15px; color:var(--text3)"><i class="ti ti-info-circle" style="font-size:16px;"></i> لا توجد مبيعات خارجية مسجلة تطابق التصفية.</div></td></tr>';
         return;
     }
 
@@ -8318,6 +8319,7 @@ function renderExternalSales() {
             <td class="mono" style="font-weight:600; color:#fff">${(item.amount || 0).toFixed(2)} ر.س</td>
             <td><span class="pill" style="background:${bankColor}15; color:${bankColor}; border:1px solid ${bankColor}33; font-weight:600;">${escapeHtml(item.bank_account)}</span></td>
             <td><span class="pill" style="background:rgba(255,255,255,0.05); color:var(--text2); border:1px solid var(--border2); font-size:11px;">${escapeHtml(item.country || 'غير محددة')}</span></td>
+            <td><span class="mono" style="font-weight:600; color:var(--text2)">${escapeHtml(item.order_number || '-')}</span></td>
             <td class="mono" style="font-weight:600; color:var(--accent)">${escapeHtml(item.transfer_reference || '-')}</td>
             <td>${escapeHtml(item.customer_name || '-')} ${item.customer_phone ? `<span style="font-size:10px; color:var(--text3)">(${escapeHtml(item.customer_phone)})</span>` : ''}</td>
             <td style="font-size:11px; color:var(--text3)" class="mono">${item.created_at}</td>
@@ -8336,6 +8338,7 @@ async function saveExternalSale(event) {
     const amount = parseFloat(document.getElementById('extAmount').value);
     const bank_account = document.getElementById('extBankAccount').value;
     const country = document.getElementById('extCountry').value.trim();
+    const order_number = document.getElementById('extOrderNumber').value.trim();
     const transfer_reference = document.getElementById('extReference').value.trim();
     const customer_name = document.getElementById('extCustomerName').value.trim();
     const customer_phone = document.getElementById('extCustomerPhone').value.trim();
@@ -8357,7 +8360,7 @@ async function saveExternalSale(event) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, country, status: 'delivered'
+                product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, country, order_number, status: 'delivered'
             })
         });
 
@@ -8370,6 +8373,7 @@ async function saveExternalSale(event) {
         document.getElementById('extSaleForm').reset();
         document.getElementById('extQuantity').value = 1; // reset default
         document.getElementById('extCountry').value = '';
+        document.getElementById('extOrderNumber').value = '';
         document.getElementById('selectedCountryLabel').textContent = 'اختر الدولة...';
         await loadExternalSales();
     } catch (e) {
