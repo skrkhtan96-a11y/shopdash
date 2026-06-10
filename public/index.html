@@ -516,6 +516,7 @@
       <div class="nav-item" onclick="openArchModal()"><i class="ti ti-calendar-plus"></i> بدء شهر جديد (أرشفة)</div>
       <div class="nav-item" onclick="exportAll()"><i class="ti ti-download"></i> تصدير البيانات (CSV)</div>
       <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><i class="ti ti-users"></i> إدارة المستخدمين</div>
+      <div class="nav-item" onclick="nav('db-management')" id="nav-db-management" style="display:none"><i class="ti ti-database"></i> النسخ الاحتياطي والاستعادة</div>
       <div class="nav-item" onclick="nav('activity-logs')"><i class="ti ti-history"></i> سجل النشاطات</div>
       
       <!-- Active User Profile at Sidebar Bottom -->
@@ -2464,6 +2465,48 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: DATABASE MANAGEMENT -->
+      <div class="page pad" id="page-db-management">
+        <div class="tbl-wrap" style="max-width: 680px; margin: 0 auto; padding: 20px;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+            <i class="ti ti-database" style="font-size:20px;"></i> النسخ الاحتياطي والاستعادة الكاملة لقاعدة البيانات
+          </div>
+
+          <div style="background: rgba(224, 85, 85, 0.1); border: 1px solid rgba(224, 85, 85, 0.3); border-radius: var(--r2); padding: 12px 16px; margin-bottom: 20px; color: #ff6b6b; font-size: 12.5px; line-height: 1.6;">
+            <strong>⚠️ تحذير أمني هام جداً:</strong>
+            <ul style="margin: 6px 18px 0 0; padding: 0;">
+              <li>عملية استيراد قاعدة البيانات ستقوم باستبدال كافة البيانات الحالية بالكامل (المخزون، المبيعات، الحسابات، والمستخدمين).</li>
+              <li>يرجى التأكد من تحميل نسخة احتياطية من قاعدة البيانات الحالية قبل القيام بأي عملية استيراد.</li>
+              <li>يجب أن يكون الملف المراد استيراده بصيغة SQLite صالحة وسليمة لمنع تلف النظام.</li>
+            </ul>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px;">
+            <!-- Export Card -->
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border2); border-radius: var(--r2); padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+              <i class="ti ti-download" style="font-size: 40px; color: var(--accent);"></i>
+              <div style="font-weight: 600; font-size: 13.5px; color: var(--text);">تحميل نسخة احتياطية كاملة</div>
+              <div style="font-size: 11px; color: var(--text3); line-height: 1.4;">تحميل ملف قاعدة البيانات بالكامل (.db) بضغطة زر لحفظها بأمان على جهازك.</div>
+              <button class="btn btn-primary" onclick="downloadDatabaseBackup()" style="width: 100%; justify-content: center; margin-top: 10px;">
+                <i class="ti ti-download"></i> تصدير قاعدة البيانات
+              </button>
+            </div>
+
+            <!-- Import Card -->
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border2); border-radius: var(--r2); padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; position: relative;">
+              <i class="ti ti-upload" style="font-size: 40px; color: var(--amber);"></i>
+              <div style="font-weight: 600; font-size: 13.5px; color: var(--text);">استعادة قاعدة البيانات</div>
+              <div style="font-size: 11px; color: var(--text3); line-height: 1.4;">اختر ملف قاعدة البيانات الاحتياطية (.db) لرفعه واستبدال البيانات الحالية.</div>
+              
+              <div class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px; cursor: pointer; background: var(--amber); border-color: var(--amber); position: relative; overflow: hidden; color: #000; font-weight: 600;">
+                <i class="ti ti-upload"></i> استيراد ملف البيانات
+                <input type="file" id="dbRestoreFileInput" accept=".db" onchange="handleDatabaseRestore(event)" style="position: absolute; top:0; left:0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+              </div>
+            </div>
           </div>
         </div>
       </div>

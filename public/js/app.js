@@ -142,10 +142,14 @@ async function init() {
             uRole.textContent = roleLabel;
         }
         
-        // إظهار رابط إدارة المستخدمين حصرياً للمدير
+        // إظهار رابط إدارة المستخدمين والنسخ الاحتياطي حصرياً للمدير
         const navUsers = document.getElementById('nav-users');
         if (navUsers) {
             navUsers.style.display = state.user.role === 'admin' ? 'flex' : 'none';
+        }
+        const navDbMgmt = document.getElementById('nav-db-management');
+        if (navDbMgmt) {
+            navDbMgmt.style.display = state.user.role === 'admin' ? 'flex' : 'none';
         }
 
         // إظهار رابط المبيعات الخارجية بناء على صلاحية المستخدم
@@ -400,7 +404,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -419,7 +423,8 @@ const PAGE_TITLES = {
     'ps-plus-deliveries': 'تقرير تسليم بلس',
     games: 'مخزون حسابات الألعاب',
     'games-deliveries': 'تقرير تسليم الألعاب',
-    'activity-logs': 'سجل النشاطات والعمليات'
+    'activity-logs': 'سجل النشاطات والعمليات',
+    'db-management': 'النسخ الاحتياطي والاستعادة لقاعدة البيانات'
 };
 
 // دالة التحكم في القائمة الجانبية للشاشات الصغيرة (الجوال)
@@ -8516,7 +8521,66 @@ function toggleExternalSaleForm() {
     }
 }
 
+function downloadDatabaseBackup() {
+    toast('جاري تحضير ملف قاعدة البيانات للتنزيل...', 'info');
+    const a = document.createElement('a');
+    a.href = '/api/database/backup';
+    a.download = `database_backup_${new Date().toISOString().split('T')[0]}.db`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
 
+async function handleDatabaseRestore(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
+    const confirmRestore = confirm('🚨 تحذير هام: هل أنت متأكد بنسبة 100% من استعادة قاعدة البيانات واستبدال البيانات الحالية؟\n\nهذا الإجراء سيقوم بحذف كافة السجلات والمخزون الحالي نهائياً واستبدالها ببيانات الملف المرفوع!');
+    if (!confirmRestore) {
+        event.target.value = '';
+        return;
+    }
 
+    toast('جاري قراءة ملف قاعدة البيانات الحجم...', 'info');
 
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const arrayBuffer = e.target.result;
+            // تحويل الـ ArrayBuffer إلى base64 لإرسالها عبر JSON
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            const base64 = btoa(binary);
+
+            toast('جاري رفع واستعادة قاعدة البيانات واستبدال الملفات...', 'info');
+
+            const res = await fetch('/api/database/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dbFileBase64: base64 })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'فشل استيراد قاعدة البيانات');
+            }
+
+            const data = await res.json();
+            toast(data.message || 'تمت الاستعادة بنجاح! سيتم إعادة تحميل الصفحة...', 'ok');
+            
+            // إعادة التوجيه أو إعادة التحديث بعد 3 ثوانٍ
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } catch (err) {
+            toast(err.message, 'error');
+        } finally {
+            event.target.value = '';
+        }
+    };
+
+    reader.readAsArrayBuffer(file);
+}

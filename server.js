@@ -225,6 +225,70 @@ app.get('/api/activity-logs', authenticateUser, (req, res) => {
     });
 });
 
+// --- DATABASE BACKUP & RESTORE ENDPOINTS (Admin Only) ---
+const fs = require('fs');
+
+app.get('/api/database/backup', authenticateUser, requireRole(['admin']), (req, res) => {
+    const mainDbPath = path.join(__dirname, 'database.db');
+    res.download(mainDbPath, `database_backup_${Date.now()}.db`, (err) => {
+        if (err) {
+            console.error('Error downloading DB:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'فشل تحميل ملف قاعدة البيانات.' });
+            }
+        }
+    });
+});
+
+app.post('/api/database/restore', authenticateUser, requireRole(['admin']), (req, res) => {
+    const { dbFileBase64 } = req.body;
+    if (!dbFileBase64) {
+        return res.status(400).json({ error: 'لم يتم توفير ملف قاعدة البيانات المرفوع.' });
+    }
+
+    try {
+        const buffer = Buffer.from(dbFileBase64, 'base64');
+        const signature = Buffer.from("SQLite format 3\0", "utf8");
+        
+        if (buffer.length < 16 || !buffer.slice(0, 16).equals(signature)) {
+            return res.status(400).json({ error: 'الملف المرفوع ليس ملف قاعدة بيانات SQLite صالح.' });
+        }
+
+        const tempPath = path.join(__dirname, 'database_temp.db');
+        fs.writeFileSync(tempPath, buffer);
+
+        db.close((err) => {
+            if (err) {
+                console.error('Error closing database:', err);
+                return res.status(500).json({ error: 'فشل إغلاق الاتصال بقاعدة البيانات الحالية.' });
+            }
+
+            const mainDbPath = path.join(__dirname, 'database.db');
+            fs.copyFile(tempPath, mainDbPath, (copyErr) => {
+                if (copyErr) {
+                    console.error('Error copying database file:', copyErr);
+                    return res.status(500).json({ error: 'فشل استبدال ملف قاعدة البيانات.' });
+                }
+
+                fs.unlink(tempPath, () => {});
+                
+                res.json({ 
+                    success: true, 
+                    message: 'تم استعادة قاعدة البيانات بنجاح. سيتم إعادة تشغيل اللوحة تلقائياً خلال ثانيتين لتطبيق التغييرات.' 
+                });
+
+                // Exit process to trigger PM2 restart
+                setTimeout(() => {
+                    process.exit(0);
+                }, 2000);
+            });
+        });
+    } catch (e) {
+        console.error('Database restore error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 6. Manage users: Get all users (Admin only)
 app.get('/api/users', authenticateUser, requireRole(['admin']), (req, res) => {
     db.all("SELECT id, username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, can_view_external_sales, created_at FROM users ORDER BY id ASC", [], (err, rows) => {
