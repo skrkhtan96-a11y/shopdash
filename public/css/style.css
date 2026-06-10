@@ -1368,3 +1368,133 @@ textarea {
   padding-bottom: 12px;
   margin-bottom: 20px !important;
 }
+
+/* ── RESPONSIVE MOBILE STYLING FOR EXTERNAL SALES ── */
+@media (max-width: 768px) {
+  #page-external-sales .kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    margin-bottom: 12px;
+  }
+  
+  #page-external-sales .kpi-grid .kpi-card:nth-child(1) {
+    grid-column: span 2;
+    background: linear-gradient(135deg, rgba(0, 242, 254, 0.05), rgba(0, 242, 254, 0.01));
+    border: 1px solid rgba(0, 242, 254, 0.2);
+  }
+
+  #page-external-sales .kpi-card {
+    padding: 10px 12px !important;
+  }
+
+  #page-external-sales .kpi-val {
+    font-size: 16px !important;
+  }
+
+  #page-external-sales .kpi-label {
+    font-size: 9px !important;
+  }
+
+  #extSaleForm {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  #extSaleForm button[type="submit"] {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  /* Transform table to list of premium cards on mobile viewports */
+  #page-external-sales table, 
+  #page-external-sales thead, 
+  #page-external-sales tbody, 
+  #page-external-sales th, 
+  #page-external-sales td, 
+  #page-external-sales tr {
+    display: block;
+  }
+
+  #page-external-sales thead {
+    display: none; /* Hide standard headers */
+  }
+
+  #externalSalesTbody {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 4px 0;
+  }
+
+  #externalSalesTbody tr {
+    display: flex;
+    flex-direction: column;
+    background: rgba(30, 37, 58, 0.45);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border2);
+    border-radius: var(--r2);
+    padding: 12px 14px;
+    gap: 7px;
+    margin-bottom: 0;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  #externalSalesTbody tr:hover {
+    background: rgba(30, 37, 58, 0.65);
+    transform: translateY(-2px);
+    border-color: var(--accent);
+  }
+
+  #externalSalesTbody td {
+    padding: 0 !important;
+    border: none !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+    width: 100% !important;
+    min-height: 20px;
+  }
+
+  /* Hide raw index */
+  #externalSalesTbody td:nth-child(1) {
+    display: none;
+  }
+
+  /* Product Name Header (Styled larger) */
+  #externalSalesTbody td:nth-child(2) {
+    font-size: 13.5px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border2) !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 4px !important;
+    color: var(--text);
+  }
+
+  #externalSalesTbody td:nth-child(2)::before {
+    content: "المنتج المباع";
+    font-size: 10px;
+    color: var(--text3);
+    font-weight: normal;
+  }
+
+  #externalSalesTbody td:nth-child(3)::before { content: "الكمية"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(4)::before { content: "المبلغ"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(5)::before { content: "الحساب المستلم"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(6)::before { content: "الدولة"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(7)::before { content: "رقم الطلب"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(8)::before { content: "رقم المرجع"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(9)::before { content: "العميل"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(10)::before { content: "تاريخ الإدخال"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(11)::before { content: "بواسطة"; color: var(--text3); }
+  #externalSalesTbody td:nth-child(12)::before { content: "ملاحظات"; color: var(--text3); }
+
+  /* Actions Container */
+  #externalSalesTbody td:nth-child(13) {
+    border-top: 1px solid var(--border2) !important;
+    padding-top: 8px !important;
+    margin-top: 4px !important;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+}
