@@ -8376,6 +8376,7 @@ async function saveExternalSale(event) {
         document.getElementById('extCountry').value = '';
         document.getElementById('extOrderNumber').value = '';
         document.getElementById('selectedCountryLabel').textContent = 'اختر الدولة...';
+        toggleExternalSaleForm();
         await loadExternalSales();
     } catch (e) {
         toast(e.message, 'error');
@@ -8493,6 +8494,26 @@ function showExtSaleDetails(id) {
 
 function closeExtSaleDetailsModal() {
     document.getElementById('extSaleDetailsModal').classList.remove('open');
+}
+
+function toggleExternalSaleForm() {
+    const container = document.getElementById('extSaleFormContainer');
+    const btn = document.getElementById('btnToggleExtForm');
+    if (!container || !btn) return;
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        btn.innerHTML = '<i class="ti ti-minus"></i> إغلاق نموذج التسجيل';
+        btn.style.background = 'var(--bg3)';
+        btn.style.borderColor = 'var(--border2)';
+        btn.style.color = 'var(--text2)';
+    } else {
+        container.style.display = 'none';
+        btn.innerHTML = '<i class="ti ti-plus"></i> تسجيل مبيعة جديدة';
+        btn.style.background = 'var(--accent)';
+        btn.style.borderColor = 'var(--accent)';
+        btn.style.color = '#fff';
+    }
 }
 
 

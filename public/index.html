@@ -1722,8 +1722,13 @@
           </div>
         </div>
 
+        <!-- Toggle Button for External Sale Form -->
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+          <button class="btn btn-sm btn-primary" id="btnToggleExtForm" onclick="toggleExternalSaleForm()"><i class="ti ti-plus"></i> تسجيل مبيعة جديدة</button>
+        </div>
+
         <!-- Add External Sale Form -->
-        <div class="tbl-wrap" style="margin-bottom: 14px; padding: 14px; background: rgba(24, 29, 46, 0.4); border: 1px solid var(--border); overflow: visible !important;">
+        <div class="tbl-wrap" id="extSaleFormContainer" style="display: none; margin-bottom: 14px; padding: 14px; background: rgba(24, 29, 46, 0.4); border: 1px solid var(--border); overflow: visible !important;">
           <div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
             <i class="ti ti-plus"></i> تسجيل عملية بيع خارجية جديدة
           </div>
