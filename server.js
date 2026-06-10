@@ -3223,7 +3223,9 @@ app.get('/api/external-sales', authenticateUser, (req, res) => {
             wathiqa: 0,
             najm: 0,
             qutaibi: 0,
-            kuraimi: 0
+            kuraimi: 0,
+            usd: 0,
+            zad: 0
         };
 
         rows.forEach(r => {
@@ -3233,6 +3235,8 @@ app.get('/api/external-sales', authenticateUser, (req, res) => {
             else if (r.bank_account === 'حساب نجم') stats.najm += amt;
             else if (r.bank_account === 'حساب القطيبي') stats.qutaibi += amt;
             else if (r.bank_account === 'حساب الكريمي') stats.kuraimi += amt;
+            else if (r.bank_account === 'حساب USD') stats.usd += amt;
+            else if (r.bank_account === 'حساب زاد') stats.zad += amt;
         });
 
         res.json({ sales: rows, stats });

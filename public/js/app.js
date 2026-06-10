@@ -8257,12 +8257,14 @@ async function loadExternalSales() {
         stateExternalSales = data.sales || [];
         
         // تحديث بطاقات الإحصائيات الفورية
-        const stats = data.stats || { total: 0, wathiqa: 0, najm: 0, qutaibi: 0, kuraimi: 0 };
+        const stats = data.stats || { total: 0, wathiqa: 0, najm: 0, qutaibi: 0, kuraimi: 0, usd: 0, zad: 0 };
         document.getElementById('extKpiTotal').textContent = stats.total.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
         document.getElementById('extKpiWathiqa').textContent = stats.wathiqa.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
         document.getElementById('extKpiNajm').textContent = stats.najm.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
         document.getElementById('extKpiQutaibi').textContent = stats.qutaibi.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
         document.getElementById('extKpiKuraimi').textContent = stats.kuraimi.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+        document.getElementById('extKpiUsd').textContent = (stats.usd || 0).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+        document.getElementById('extKpiZad').textContent = (stats.zad || 0).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
 
         renderExternalSales();
     } catch (e) {
@@ -8290,7 +8292,7 @@ function renderExternalSales() {
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11"><div style="text-align:center; padding:15px; color:var(--text3)"><i class="ti ti-info-circle" style="font-size:16px;"></i> لا توجد مبيعات خارجية مسجلة تطابق التصفية.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12"><div style="text-align:center; padding:15px; color:var(--text3)"><i class="ti ti-info-circle" style="font-size:16px;"></i> لا توجد مبيعات خارجية مسجلة تطابق التصفية.</div></td></tr>';
         return;
     }
 
@@ -8307,7 +8309,7 @@ function renderExternalSales() {
         }
         if (!actions) actions = '-';
 
-        const bankColor = item.bank_account === 'حساب الوثيقة' ? '#9d4edd' : item.bank_account === 'حساب نجم' ? '#ff9e00' : item.bank_account === 'حساب القطيبي' ? '#3dba7e' : '#5b9bd6';
+        const bankColor = item.bank_account === 'حساب الوثيقة' ? '#9d4edd' : item.bank_account === 'حساب نجم' ? '#ff9e00' : item.bank_account === 'حساب القطيبي' ? '#3dba7e' : item.bank_account === 'حساب الكريمي' ? '#5b9bd6' : item.bank_account === 'حساب USD' ? '#1a8fe3' : '#f25c05';
 
         tr.innerHTML = `
             <td style="color:var(--text3); font-size:11px">${index + 1}</td>
