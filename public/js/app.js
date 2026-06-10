@@ -8301,6 +8301,7 @@ function renderExternalSales() {
         const tr = document.createElement('tr');
         
         let actions = '';
+        actions += `<button class="btn btn-sm" style="color:var(--accent); border-color:rgba(61,142,186,0.2); background:transparent; padding:3px 6px; font-size:10px; margin-left:4px;" onclick="showExtSaleDetails(${item.id})"><i class="ti ti-eye"></i> التفاصيل</button>`;
         if (item.customer_phone) {
             const phoneDigits = item.customer_phone.replace(/[^0-9]/g, '');
             actions += `<a href="https://wa.me/${phoneDigits}" target="_blank" class="btn btn-sm btn-green" style="background:#25d366; border-color:#25d366; color:#fff; display:inline-flex; align-items:center; gap:4px; padding:3px 6px; font-size:10px; margin-left:4px;"><i class="ti ti-brand-whatsapp"></i> واتساب</a>`;
@@ -8468,6 +8469,30 @@ function selectCountry(country) {
     document.getElementById('selectedCountryLabel').textContent = country;
     document.getElementById('selectedCountryLabel').style.color = 'var(--text)';
     document.getElementById('extCountryMenu').style.display = 'none';
+}
+
+function showExtSaleDetails(id) {
+    const item = stateExternalSales.find(s => s.id === id);
+    if (!item) return;
+    
+    document.getElementById('detProductName').textContent = item.product_name || '-';
+    document.getElementById('detBankAccount').textContent = item.bank_account || '-';
+    document.getElementById('detAmount').textContent = (item.amount || 0).toFixed(2) + ' ر.س';
+    document.getElementById('detQuantity').textContent = item.quantity || '1';
+    document.getElementById('detCountry').textContent = item.country || 'غير محددة';
+    document.getElementById('detOrderNumber').textContent = item.order_number || '-';
+    document.getElementById('detReference').textContent = item.transfer_reference || '-';
+    document.getElementById('detCustomerName').textContent = item.customer_name || '-';
+    document.getElementById('detCustomerPhone').textContent = item.customer_phone || '-';
+    document.getElementById('detCreatedBy').textContent = item.created_by || 'غير معروف';
+    document.getElementById('detCreatedAt').textContent = item.created_at || '-';
+    document.getElementById('detNotes').textContent = item.notes || '-';
+    
+    document.getElementById('extSaleDetailsModal').classList.add('open');
+}
+
+function closeExtSaleDetailsModal() {
+    document.getElementById('extSaleDetailsModal').classList.remove('open');
 }
 
 

@@ -1896,6 +1896,68 @@
         </div>
       </div>
 
+      <!-- MODAL: تفاصيل العملية الخارجية -->
+      <div class="modal-bg" id="extSaleDetailsModal">
+        <div class="modal" style="max-width: 520px;">
+          <div class="modal-title"><i class="ti ti-info-circle" style="color:var(--accent)"></i> تفاصيل عملية البيع الخارجية</div>
+          
+          <div class="details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">اسم المنتج المباع</div>
+              <div id="detProductName" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">الحساب المستلم</div>
+              <div id="detBankAccount" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">المبلغ</div>
+              <div id="detAmount" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">الكمية</div>
+              <div id="detQuantity" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">الدولة</div>
+              <div id="detCountry" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">رقم الطلب</div>
+              <div id="detOrderNumber" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">رقم الحوالة / المرجع</div>
+              <div id="detReference" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">اسم العميل</div>
+              <div id="detCustomerName" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">جوال العميل</div>
+              <div id="detCustomerPhone" style="font-size: 12.5px; font-weight: 600; margin-top: 2px;">-</div>
+            </div>
+            <div style="background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">منفذ العملية</div>
+              <div id="detCreatedBy" style="font-size: 12.5px; font-weight: 600; margin-top: 2px; color: var(--accent);">--</div>
+            </div>
+            <div style="grid-column: span 2; background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">تاريخ ووقت العملية</div>
+              <div id="detCreatedAt" style="font-size: 12px; font-weight: 600; margin-top: 2px;" class="mono">--</div>
+            </div>
+            <div style="grid-column: span 2; background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
+              <div style="font-size: 10px; color: var(--text3);">ملاحظات</div>
+              <div id="detNotes" style="font-size: 12px; margin-top: 2px; line-height: 1.5; color: var(--text2);">-</div>
+            </div>
+          </div>
+          
+          <div class="modal-foot" style="margin-top: 0; padding-top: 10px;">
+            <button class="btn btn-primary" onclick="closeExtSaleDetailsModal()" style="width: 100%; justify-content: center;">إغلاق التفاصيل</button>
+          </div>
+        </div>
+      </div>
+
       <!-- MODAL: إضافة / تعديل شهادة -->
       <div class="modal-bg" id="certModal">
         <div class="modal">
