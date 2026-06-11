@@ -20,7 +20,10 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
             return res.status(400).json({ error: 'لم يتم رفع أي ملف.' });
         }
 
-        const fileName = `receipt_${Date.now()}_${req.file.originalname}`;
+        const customPrefix = req.body.prefix ? `${req.body.prefix.trim().replace(/[^a-zA-Z0-9\u0600-\u06FF\s_-]/g, '')}_` : '';
+        const ext = req.file.originalname.split('.').pop();
+        const cleanOrigName = req.file.originalname.substring(0, req.file.originalname.lastIndexOf('.')).replace(/[^a-zA-Z0-9\u0600-\u06FF\s_-]/g, '');
+        const fileName = `${customPrefix}${Date.now()}_${cleanOrigName}.${ext}`;
         const fileBuffer = req.file.buffer;
         const mimeType = req.file.mimetype;
 

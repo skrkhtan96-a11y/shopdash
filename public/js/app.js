@@ -8787,8 +8787,19 @@ async function uploadReceiptFile(formType) {
     // إظهار مؤشر الرفع
     if (progress) progress.style.display = 'block';
     
+    // استخراج اسم البند أو وصفه لتسمية الملف المرفوع به
+    let prefix = 'receipt';
+    if (formType === 'expense') {
+        const descVal = document.getElementById('mDesc').value.trim();
+        if (descVal) prefix = descVal;
+    } else if (formType === 'ext-sale') {
+        const prodVal = document.getElementById('extProductName').value.trim();
+        if (prodVal) prefix = prodVal;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('prefix', prefix);
     
     try {
         const res = await fetch('/api/upload/upload', {
