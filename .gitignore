@@ -4,3 +4,10 @@ database.db
 database.db-journal
 .DS_Store
 *.log
+deploy_vps_temp.js
+fix_nginx.js
+configure_nginx.js
+inspect_logs_temp.js
+test_balance.js
+patch_ps5_qty.js
+scratch/

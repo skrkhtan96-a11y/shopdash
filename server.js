@@ -4,15 +4,57 @@ const axios = require('axios');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { db, getConfig, setConfig, deleteConfig, hashPassword, verifyPassword, logActivity } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Enable trust proxy for rate limiting behind reverse proxy (Nginx)
+app.set('trust proxy', 1);
+
+app.use(helmet({
+    contentSecurityPolicy: false, // Disable CSP to avoid blocking dashboard inline scripts/styles
+    crossOriginEmbedderPolicy: false
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
-app.use(cors());
+
+const corsOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'https://shop.nuzum.sbs'];
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (corsOrigins.includes(origin) || corsOrigins.includes('*')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+
+// Rate limiting setup
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 mins
+    max: 500, // Limit each IP to 500 requests per 15 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'تم تجاوز الحد المسموح به من الطلبات. يرجى المحاولة لاحقاً.' }
+});
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 mins
+    max: 15, // Limit each IP to 15 login attempts per 15 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'تم تجاوز الحد المسموح لمحاولات تسجيل الدخول. يرجى المحاولة بعد 15 دقيقة.' }
+});
+
+// Apply general rate limiter to all API endpoints
+app.use('/api', generalLimiter);
 
 // --- AUTHENTICATION & USER MANAGEMENT MIDDLEWARES ---
 const crypto = require('crypto');
@@ -48,6 +90,20 @@ const requireRole = (roles) => {
         next();
     };
 };
+
+// Middleware to authenticate Model Context Protocol (MCP) clients
+const authenticateMcp = (req, res, next) => {
+    const expectedToken = process.env.MCP_TOKEN;
+    if (!expectedToken) {
+        return next();
+    }
+    const token = req.query.token || req.headers['x-api-key'] || (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+    if (token !== expectedToken) {
+        return res.status(401).json({ error: 'Unauthorized. Invalid MCP token.' });
+    }
+    next();
+};
+
 
 // Middleware to check authentication for static pages
 app.use((req, res, next) => {
@@ -116,49 +172,75 @@ app.post('/api/auth/register', (req, res) => {
         
         const isFirstUser = !rowCount || rowCount.count === 0;
         const role = isFirstUser ? 'admin' : 'employee'; // First user is Admin, others are Employee
-        const hashedPassword = hashPassword(password);
-        const createdAt = new Date().toISOString().split('T')[0];
         
-        db.run(
-            "INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)",
-            [username.trim(), email.trim().toLowerCase(), hashedPassword, role, createdAt],
-            function(errInsert) {
-                if (errInsert) {
-                    if (errInsert.message.includes('UNIQUE')) {
-                        return res.status(400).json({ error: 'اسم المستخدم أو البريد الإلكتروني مسجل مسبقاً.' });
+        const executeRegister = () => {
+            const hashedPassword = hashPassword(password);
+            const createdAt = new Date().toISOString().split('T')[0];
+            
+            db.run(
+                "INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)",
+                [username.trim(), email.trim().toLowerCase(), hashedPassword, role, createdAt],
+                function(errInsert) {
+                    if (errInsert) {
+                        if (errInsert.message.includes('UNIQUE')) {
+                            return res.status(400).json({ error: 'اسم المستخدم أو البريد الإلكتروني مسجل مسبقاً.' });
+                        }
+                        return res.status(500).json({ error: errInsert.message });
                     }
-                    return res.status(500).json({ error: errInsert.message });
+                    
+                    const userId = this.lastID;
+                    const sessionToken = crypto.randomBytes(32).toString('hex');
+                    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days expiration
+                    
+                    db.run(
+                        "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+                        [sessionToken, userId, expiresAt],
+                        (errSession) => {
+                            if (errSession) return res.status(500).json({ error: errSession.message });
+                            
+                            res.cookie('session_token', sessionToken, {
+                                httpOnly: true,
+                                expires: new Date(expiresAt),
+                                secure: process.env.NODE_ENV === 'production',
+                                sameSite: 'strict'
+                            });
+                            
+                            res.json({
+                                success: true,
+                                user: { id: userId, username, email, role }
+                            });
+                        }
+                    );
                 }
-                
-                const userId = this.lastID;
-                const sessionToken = crypto.randomBytes(32).toString('hex');
-                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days expiration
-                
-                db.run(
-                    "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-                    [sessionToken, userId, expiresAt],
-                    (errSession) => {
-                        if (errSession) return res.status(500).json({ error: errSession.message });
-                        
-                        res.cookie('session_token', sessionToken, {
-                            httpOnly: true,
-                            expires: new Date(expiresAt),
-                            secure: process.env.NODE_ENV === 'production'
-                        });
-                        
-                        res.json({
-                            success: true,
-                            user: { id: userId, username, email, role }
-                        });
-                    }
-                );
+            );
+        };
+
+        if (!isFirstUser) {
+            // Require logged in admin user to register additional users
+            const token = req.cookies.session_token;
+            if (!token) {
+                return res.status(403).json({ error: 'التسجيل المفتوح معطل. يرجى الطلب من مسؤول النظام إضافتك.' });
             }
-        );
+            db.get(
+                `SELECT u.role FROM sessions s 
+                 JOIN users u ON s.user_id = u.id 
+                 WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
+                [token],
+                (errSession, sessionUser) => {
+                    if (errSession || !sessionUser || sessionUser.role !== 'admin') {
+                        return res.status(403).json({ error: 'غير مصرح لك بإنشاء حسابات جديدة. يتطلب هذا الإجراء صلاحية مدير النظام.' });
+                    }
+                    executeRegister();
+                }
+            );
+        } else {
+            executeRegister();
+        }
     });
 });
 
 // 3. User login
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', loginLimiter, (req, res) => {
     const { login, password } = req.body; // login can be username or email
     if (!login || !password) {
         return res.status(400).json({ error: 'يرجى إدخال اسم المستخدم/البريد وكلمة المرور.' });
@@ -186,7 +268,8 @@ app.post('/api/auth/login', (req, res) => {
                     res.cookie('session_token', sessionToken, {
                         httpOnly: true,
                         expires: new Date(expiresAt),
-                        secure: process.env.NODE_ENV === 'production'
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: 'strict'
                     });
                     
                     res.json({
@@ -584,7 +667,10 @@ app.get('/api/salla/wallet', (req, res) => {
 });
 
 // مسار استيراد وحفظ تسويات المحفظة من إكسل إلى قاعدة البيانات
-app.post('/api/salla/imported-wallet', (req, res) => {
+app.post('/api/salla/imported-wallet', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_add) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية استيراد تسويات المحفظة.' });
+    }
     const { transactions } = req.body;
     if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
         return res.status(400).json({ error: 'يرجى تقديم مصفوفة عمليات صالحة.' });
@@ -621,7 +707,10 @@ app.post('/api/salla/imported-wallet', (req, res) => {
 });
 
 // مسار حذف وتصفير تسويات المحفظة المستوردة
-app.post('/api/salla/clear-wallet-imports', (req, res) => {
+app.post('/api/salla/clear-wallet-imports', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف تسويات المحفظة.' });
+    }
     db.run("DELETE FROM salla_imported_wallet", [], function (err) {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -796,7 +885,10 @@ app.get('/api/salla/orders', async (req, res) => {
 });
 
 // مسار استيراد وحفظ مبيعات سلة من إكسل إلى قاعدة البيانات
-app.post('/api/salla/imported-orders', (req, res) => {
+app.post('/api/salla/imported-orders', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_add) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية استيراد الطلبات.' });
+    }
     const { orders } = req.body;
     if (!orders || !Array.isArray(orders) || orders.length === 0) {
         return res.status(400).json({ error: 'يرجى تقديم مصفوفة طلبات صالحة.' });
@@ -959,7 +1051,7 @@ app.post('/api/salla/sync-now', async (req, res) => {
 // مسار جلب البيانات الحية المخصصة لقراءة ذكاء Claude AI
 app.get('/api/ai/live-data', async (req, res) => {
     const token = req.query.token;
-    const expectedToken = 'claude_ai_secret_123'; // رمز الأمان المخصص
+    const expectedToken = process.env.AI_API_TOKEN || 'claude_ai_secret_123'; // رمز الأمان المخصص
     if (token !== expectedToken) {
         return res.status(401).json({ error: 'غير مصرح بالدخول. رمز الأمان خاطئ.' });
     }
@@ -1214,7 +1306,10 @@ app.delete('/api/sales/saved-comparisons/:id', (req, res) => {
 });
 
 // مسار حذف وتصفير المبيعات المستوردة من قاعدة البيانات
-app.post('/api/salla/clear-imports', (req, res) => {
+app.post('/api/salla/clear-imports', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف المبيعات المستوردة.' });
+    }
     db.run("DELETE FROM salla_imported_orders", [], function (err) {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -1224,7 +1319,7 @@ app.post('/api/salla/clear-imports', (req, res) => {
 });
 
 // مسار حذف وتصفير بيانات اللوحة بالكامل للمدير
-app.post('/api/system/clear-all', requireRole(['admin']), (req, res) => {
+app.post('/api/system/clear-all', authenticateUser, requireRole(['admin']), (req, res) => {
     const tables = ['expenses', 'archives', 'salla_imported_orders', 'salla_imported_wallet', 'product_adjustments', 'ads_campaign_metrics', 'ads_connections'];
     let errorOccurred = false;
     let completed = 0;
@@ -1299,8 +1394,8 @@ const handleTikTokCallback = async (req, res) => {
     }
 
     try {
-        const appId = "7646601182546231297";
-        const secret = "abc042e1d2f83d6ac0898bb4990cd903dd1c4460";
+        const appId = process.env.TIKTOK_APP_ID || "7646601182546231297";
+        const secret = process.env.TIKTOK_APP_SECRET || "abc042e1d2f83d6ac0898bb4990cd903dd1c4460";
         
         const response = await axios.post("https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/", {
             app_id: appId,
@@ -2280,7 +2375,10 @@ app.post('/api/archives', async (req, res) => {
 });
 
 // حذف أرشيف شهري معين
-app.delete('/api/archives/:key', (req, res) => {
+app.delete('/api/archives/:key', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف الأرشيف الشهري.' });
+    }
     const { key } = req.params;
     db.run("DELETE FROM archives WHERE key = ?", [key], function (err) {
         if (err) {
@@ -2399,7 +2497,7 @@ function getSimulatedCarts() {
 const mcpSessions = new Map();
 
 // مسار استقبال اتصال الـ SSE لبدء جلسة MCP
-app.get('/mcp', (req, res) => {
+app.get('/mcp', authenticateMcp, (req, res) => {
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -2417,7 +2515,9 @@ app.get('/mcp', (req, res) => {
     mcpSessions.set(sessionId, res);
     
     // إرسال حدث endpoint لتعريف العميل بمسار الـ POST كامل ومطلق لتجنب مشاكل التوجيه
-    res.write(`event: endpoint\ndata: https://shop.nuzum.sbs/api/mcp?sessionId=${sessionId}\n\n`);
+    const token = req.query.token || '';
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+    res.write(`event: endpoint\ndata: https://shop.nuzum.sbs/api/mcp?sessionId=${sessionId}${tokenParam}\n\n`);
     
     req.on('close', () => {
         console.log(`[MCP] Claude session closed: ${sessionId}`);
@@ -2426,7 +2526,7 @@ app.get('/mcp', (req, res) => {
 });
 
 // مسار استقبال ومعالجة رسائل الـ JSON-RPC من العميل (يدعم كلاً من SSE و Direct HTTP POST)
-app.post(['/api/mcp', '/mcp'], express.json(), async (req, res) => {
+app.post(['/api/mcp', '/mcp'], authenticateMcp, express.json(), async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Access-Control-Allow-Methods', '*');
@@ -2969,7 +3069,14 @@ app.post('/api/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
 
             // تنفيذ التحديث
             const deliveredAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
-            const query = `UPDATE ps_plus_accounts SET ${slot}_order = ?, ${slot}_phone = ?, ${slot}_status = 'delivered', ${slot}_delivered_by = ?, ${slot}_delivered_at = ? WHERE id = ?`;
+            let query = '';
+            if (slot === 'ps5_1') {
+                query = "UPDATE ps_plus_accounts SET ps5_1_order = ?, ps5_1_phone = ?, ps5_1_status = 'delivered', ps5_1_delivered_by = ?, ps5_1_delivered_at = ? WHERE id = ?";
+            } else if (slot === 'ps5_2') {
+                query = "UPDATE ps_plus_accounts SET ps5_2_order = ?, ps5_2_phone = ?, ps5_2_status = 'delivered', ps5_2_delivered_by = ?, ps5_2_delivered_at = ? WHERE id = ?";
+            } else if (slot === 'ps4') {
+                query = "UPDATE ps_plus_accounts SET ps4_order = ?, ps4_phone = ?, ps4_status = 'delivered', ps4_delivered_by = ?, ps4_delivered_at = ? WHERE id = ?";
+            }
             db.run(query, [orderClean, phone ? phone.trim() : '', req.user.username, deliveredAt, id], function(errUpdate) {
                 if (errUpdate) return res.status(500).json({ error: errUpdate.message });
                 db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errGet, accountRow) => {
@@ -3372,10 +3479,25 @@ app.delete('/api/external-sales/:id', authenticateUser, requireRole(['admin']), 
     });
 });
 
+// دالة لتنظيف الجلسات منتهية الصلاحية دورياً من قاعدة البيانات
+function cleanExpiredSessions() {
+    db.run("DELETE FROM sessions WHERE datetime(expires_at) < datetime('now')", [], function(err) {
+        if (err) {
+            console.error('[Session Clean] خطأ أثناء حذف الجلسات المنتهية:', err.message);
+        } else if (this.changes > 0) {
+            console.log(`[Session Clean] تم حذف ${this.changes} جلسة منتهية الصلاحية بنجاح.`);
+        }
+    });
+}
+
 // تشغيل السيرفر
 app.listen(PORT, () => {
     console.log(`=================================================`);
     console.log(`🚀 خادم محاسبة سلة يعمل بنجاح!`);
     console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);
     console.log(`=================================================`);
+    
+    // تنظيف الجلسات المنتهية عند بدء التشغيل وكل 6 ساعات
+    cleanExpiredSessions();
+    setInterval(cleanExpiredSessions, 6 * 60 * 60 * 1000);
 });
