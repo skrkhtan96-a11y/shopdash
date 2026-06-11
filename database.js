@@ -313,6 +313,19 @@ db.serialize(() => {
         )
     `);
 
+    // 18. جدول سجلات الويب هوك (Salla Webhook Logs)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS salla_webhook_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_name TEXT NOT NULL,
+            payload TEXT,
+            status TEXT DEFAULT 'success',
+            error_message TEXT,
+            received_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+
 
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });

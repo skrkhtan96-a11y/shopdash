@@ -459,6 +459,138 @@ router.post('/clear-imports', authenticateUser, (req, res) => {
     });
 });
 
+// --- SALLA WEBHOOK ENDPOINTS ---
+
+// 1. Webhook receiver
+router.post('/webhook', async (req, res) => {
+    const payload = req.body;
+    const eventName = payload.event || 'unknown';
+    
+    console.log(`[SallaWebhook] Received event: ${eventName}`);
+    
+    try {
+        db.run(
+            "INSERT INTO salla_webhook_logs (event_name, payload, status) VALUES (?, ?, ?)",
+            [eventName, JSON.stringify(payload), 'success'],
+            (err) => {
+                if (err) console.error('[SallaWebhook] Error saving log to DB:', err.message);
+            }
+        );
+
+        if (['order.created', 'order.updated', 'order.status.updated'].includes(eventName) && payload.data) {
+            const o = payload.data;
+            const refId = String(o.reference_id);
+            const dateStr = o.created_at ? o.created_at.split(' ')[0] : new Date().toISOString().split('T')[0];
+            const statusSlug = o.status?.slug || 'completed';
+            const statusName = o.status?.name || 'تم التنفيذ';
+            const paymentMethod = o.payment_method || 'mada';
+            const amount = parseFloat(o.total?.amount || 0);
+            const customerName = o.customer ? `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim() : 'عميل خارجي';
+            
+            const items = o.items || [];
+            
+            db.serialize(() => {
+                db.run("DELETE FROM salla_imported_orders WHERE reference_id = ? OR reference_id LIKE ?", [refId, refId + '_%']);
+                
+                if (items.length > 0) {
+                    const stmt = db.prepare(`
+                        INSERT INTO salla_imported_orders 
+                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `);
+                    items.forEach(item => {
+                        const prodName = item.name || 'منتج مستورد';
+                        const thumbnail = item.thumbnail || '';
+                        const qty = parseInt(item.quantity) || 1;
+                        
+                        stmt.run([
+                            refId + '_' + item.id,
+                            dateStr,
+                            statusSlug,
+                            statusName,
+                            paymentMethod,
+                            amount / items.length,
+                            customerName,
+                            prodName,
+                            thumbnail,
+                            qty
+                        ]);
+                    });
+                    stmt.finalize();
+                } else {
+                    db.run(`
+                        INSERT INTO salla_imported_orders 
+                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [
+                        refId,
+                        dateStr,
+                        statusSlug,
+                        statusName,
+                        paymentMethod,
+                        amount,
+                        customerName,
+                        'طلب بدون عناصر',
+                        '',
+                        1
+                    ]);
+                }
+            });
+            console.log(`[SallaWebhook] Processed order ${refId} successfully.`);
+        }
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[SallaWebhook] Error processing webhook:', e.message);
+        db.run(
+            "INSERT INTO salla_webhook_logs (event_name, payload, status, error_message) VALUES (?, ?, ?, ?)",
+            [eventName, JSON.stringify(payload), 'failed', e.message]
+        );
+        res.status(500).json({ error: 'Internal server error processing webhook' });
+    }
+});
+
+// 2. GET Webhook status
+router.get('/webhook-status', authenticateUser, (req, res) => {
+    const query = `
+        SELECT received_at, event_name, status 
+        FROM salla_webhook_logs 
+        ORDER BY id DESC LIMIT 1
+    `;
+    db.get(query, [], (err, row) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        
+        if (!row) {
+            return res.json({ connected: false, last_event: null });
+        }
+        
+        const lastReceived = new Date(row.received_at + ' UTC');
+        const diffMs = Date.now() - lastReceived.getTime();
+        const connected = diffMs < 24 * 60 * 60 * 1000;
+        
+        res.json({
+            connected: true,
+            last_event: {
+                name: row.event_name,
+                status: row.status,
+                received_at: row.received_at
+            }
+        });
+    });
+});
+
+// 3. GET Webhook logs
+router.get('/webhook-logs', authenticateUser, (req, res) => {
+    db.all("SELECT id, event_name, status, error_message, received_at FROM salla_webhook_logs ORDER BY id DESC LIMIT 20", [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ data: rows });
+    });
+});
+
 // --- HELPER MOCK FUNCTIONS ---
 
 function getSimulatedOrders(page, perPage, status, products, sort, minAmt, maxAmt, q, from, to) {

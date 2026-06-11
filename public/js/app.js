@@ -407,7 +407,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -419,6 +419,7 @@ const PAGE_TITLES = {
     'salla-wallet': 'محفظة سلة',
     'salla-products': 'المخزون والمنتجات',
     'salla-compare': 'مقارنة المبيعات والفروقات',
+    'salla-webhooks': 'ربط الويب هوك (Webhook)',
     import: 'استيراد Excel',
     users: 'إدارة المستخدمين',
     certificates: 'إدارة تقارير الشهادات',
@@ -507,6 +508,7 @@ function nav(name, updateHash = true) {
     if (name === 'salla-wallet') renderWallet();
     if (name === 'salla-products') renderProducts();
     if (name === 'salla-compare') initComparePage();
+    if (name === 'salla-webhooks') loadWebhookData();
     if (name === 'users') loadUsers();
     if (name === 'certificates') loadCertificates();
     if (name === 'ps-plus') loadPsPlusAccounts();
@@ -3483,6 +3485,102 @@ function toggleCompareMode(mode) {
         } else {
             reportsDiv.style.display = 'none';
             daysDiv.style.display = 'flex';
+        }
+    }
+}
+
+// دالة نسخ رابط الويب هوك للمحافظة
+function copyWebhookUrl() {
+    const input = document.getElementById('webhookUrlInput');
+    if (!input) return;
+    input.select();
+    input.setSelectionRange(0, 99999); // للهواتف
+    try {
+        navigator.clipboard.writeText(input.value);
+        toast('تم نسخ رابط الويب هوك بنجاح!', 'ok');
+    } catch (err) {
+        // Fallback
+        document.execCommand('copy');
+        toast('تم نسخ رابط الويب هوك بنجاح!', 'ok');
+    }
+}
+
+// دالة جلب وعرض بيانات الويب هوك
+async function loadWebhookData() {
+    const statusInd = document.getElementById('webhookStatusIndicator');
+    const lastEventText = document.getElementById('webhookLastEventText');
+    const logsBody = document.getElementById('webhookLogsBody');
+
+    if (logsBody) {
+        logsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text3); padding:20px"><div class="spinner" style="margin:0 auto 10px auto"></div>جاري تحميل سجلات الويب هوك...</td></tr>`;
+    }
+
+    try {
+        // 1. جلب حالة الاتصال
+        const statusRes = await fetch('/api/salla/webhook-status');
+        if (statusRes.ok) {
+            const statusData = await statusRes.ok ? await statusRes.json() : { connected: false };
+            if (statusInd) {
+                if (statusData.connected) {
+                    statusInd.className = 'salla-live';
+                    statusInd.style.background = 'rgba(61,186,126,0.1)';
+                    statusInd.style.borderColor = 'var(--green)';
+                    statusInd.style.color = 'var(--green)';
+                    statusInd.innerHTML = '<i class="ti ti-circle-check"></i> متصل ونشط';
+                } else {
+                    statusInd.className = 'salla-live offline';
+                    statusInd.style.background = 'rgba(224,85,85,0.1)';
+                    statusInd.style.borderColor = 'var(--red)';
+                    statusInd.style.color = 'var(--red)';
+                    statusInd.innerHTML = '<i class="ti ti-circle-x"></i> غير متصل';
+                }
+            }
+
+            if (lastEventText) {
+                if (statusData.last_event) {
+                    const localTime = new Date(statusData.last_event.received_at + ' UTC').toLocaleString('ar-EG');
+                    lastEventText.innerHTML = `آخر حدث مستلم: <strong style="color:var(--accent)">${statusData.last_event.name}</strong> في ${localTime}`;
+                } else {
+                    lastEventText.textContent = 'لم يتم استلام أي أحداث بعد';
+                }
+            }
+        }
+
+        // 2. جلب السجلات
+        const logsRes = await fetch('/api/salla/webhook-logs');
+        if (logsRes.ok) {
+            const logsData = await logsRes.json();
+            const logs = logsData.data || [];
+            
+            if (logsBody) {
+                if (logs.length === 0) {
+                    logsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text3); padding:20px">لا توجد سجلات ويب هوك مستلمة بعد. قم بإرسال حدث تجريبي من لوحة سلة للتحقق.</td></tr>`;
+                    return;
+                }
+                
+                logsBody.innerHTML = '';
+                logs.forEach((log, index) => {
+                    const receivedDate = new Date(log.received_at + ' UTC').toLocaleString('ar-EG');
+                    const statusClass = log.status === 'success' ? 'badge-active' : 'badge-blocked';
+                    const statusLabel = log.status === 'success' ? 'ناجح' : 'فشل';
+                    const errorMsg = log.error_message || '-';
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td style="font-family:monospace; font-weight:600; color:var(--blue)">${log.event_name}</td>
+                        <td>${receivedDate}</td>
+                        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        <td style="color:${log.error_message ? 'var(--red)' : 'var(--text3)'}; font-size:11px">${errorMsg}</td>
+                    `;
+                    logsBody.appendChild(tr);
+                });
+            }
+        }
+    } catch (err) {
+        console.error('Error loading webhook data:', err);
+        if (logsBody) {
+            logsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--red); padding:20px">حدث خطأ أثناء تحميل البيانات من السيرفر.</td></tr>`;
         }
     }
 }

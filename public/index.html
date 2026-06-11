@@ -505,6 +505,7 @@
       <div class="nav-item" onclick="nav('salla-wallet')"><i class="ti ti-wallet"></i> كشف المحفظة</div>
       <div class="nav-item" onclick="nav('salla-products')"><i class="ti ti-box"></i> المخزون والمنتجات</div>
       <div class="nav-item" onclick="nav('salla-compare')"><i class="ti ti-chart-arrows-vertical"></i> مقارنة المبيعات</div>
+      <div class="nav-item" onclick="nav('salla-webhooks')"><i class="ti ti-webhook"></i> ربط الويب هوك (Webhook)</div>
 
       <div class="s-sep"></div>
       <div class="s-label">الأرشيف الشهري</div>
@@ -1537,6 +1538,78 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- PAGE: SALLA WEBHOOKS -->
+      <div class="page pad" id="page-salla-webhooks">
+        <!-- Connection Status & Summary -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:14px; margin-bottom:14px;">
+          <!-- Left: Connection Status Card -->
+          <div class="import-panel" style="margin-bottom:0; background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+            <div class="import-panel-title" style="font-size:14px; font-weight:600; color:var(--text); display: flex; align-items: center; gap: 8px;">
+              <i class="ti ti-webhook" style="color:var(--accent); font-size:18px;"></i>
+              <span>حالة اتصال الويب هوك (Webhook)</span>
+            </div>
+            <div style="margin:16px 0; display:flex; align-items:center; gap:12px">
+              <div id="webhookStatusIndicator" class="salla-live" style="background:rgba(224,85,85,0.1); border-color:var(--red); color:var(--red); padding:6px 12px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px;">
+                <i class="ti ti-circle-x"></i> غير متصل
+              </div>
+              <div style="font-size:11px; color:var(--text2)" id="webhookLastEventText">لم يتم استلام أي أحداث بعد</div>
+            </div>
+            <div style="font-size:11px; color:var(--text3); line-height:1.7">
+              عند إعداد الويب هوك بشكل صحيح في حسابك على شركاء سلة، ستتدفق تحديثات الطلبات والسلات والعمليات تلقائياً إلى لوحة التحكم بالوقت الفعلي دون الحاجة للمزامنة اليدوية.
+            </div>
+          </div>
+
+          <!-- Right: Setup Instructions & URL -->
+          <div class="import-panel" style="margin-bottom:0; background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+            <div class="import-panel-title" style="font-size:14px; font-weight:600; color:var(--text); display: flex; align-items: center; gap: 8px;">
+              <i class="ti ti-link" style="color:var(--blue); font-size:18px;"></i>
+              <span>رابط استقبال الويب هوك</span>
+            </div>
+            
+            <div style="margin:12px 0;">
+              <div style="font-size:10px; color:var(--text3); margin-bottom:6px">انسخ الرابط التالي وضعه في منصة شركاء سلة (أحداث الويب هوك):</div>
+              <div style="display:flex; gap:6px;">
+                <input type="text" id="webhookUrlInput" readonly value="https://shop.nuzum.sbs/api/salla/webhook" style="flex:1; height:36px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 10px; font-size:11px; font-family:monospace; outline:none">
+                <button class="btn btn-sm btn-primary" onclick="copyWebhookUrl()" style="background:var(--blue); border-color:var(--blue); min-width:80px"><i class="ti ti-copy"></i> نسخ</button>
+              </div>
+            </div>
+            
+            <div style="font-size:10px; color:var(--text2); display:flex; flex-direction:column; gap:4px">
+              <div>• قم بتفعيل الأحداث التالية في سلة:</div>
+              <div style="color:var(--blue); padding-right:10px; font-family:monospace; font-size:9.5px">
+                Order Created (طلب جديد) | Order Updated (تحديث الطلب) | Order Status Updated (تعديل حالة الطلب)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title"><i class="ti ti-history" style="color:var(--accent)"></i> آخر 20 حدث ويب هوك مستلم من سلة</div>
+            <button class="btn btn-sm" onclick="loadWebhookData()"><i class="ti ti-refresh"></i> تحديث السجل</button>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>الحدث (Event)</th>
+                  <th>تاريخ الاستلام (UTC)</th>
+                  <th>الحالة (Status)</th>
+                  <th>ملاحظات / أخطاء</th>
+                </tr>
+              </thead>
+              <tbody id="webhookLogsBody">
+                <tr>
+                  <td colspan="5" style="text-align:center; color:var(--text3); padding:20px">جاري تحميل سجلات الويب هوك...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- PAGE: IMPORT -->
