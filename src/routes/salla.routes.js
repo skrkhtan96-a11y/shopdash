@@ -58,7 +58,7 @@ router.get('/callback-handler', async (req, res) => {
             expires_at: Math.floor(Date.now() / 1000) + expires_in
         };
 
-        const profileRes = await axios.get('https://api.salla.dev/admin/v2/store/profile', {
+        const profileRes = await axios.get('https://api.salla.dev/admin/v2/store/info', {
             headers: { 
                 'Authorization': `Bearer ${access_token}`,
                 'Accept-Language': 'ar'
