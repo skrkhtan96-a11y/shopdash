@@ -8508,6 +8508,8 @@ function renderExternalSales() {
     });
 }
 
+let editingExtSaleId = null;
+
 async function saveExternalSale(event) {
     event.preventDefault();
     const product_name = document.getElementById('extProductName').value.trim();
@@ -8527,15 +8529,18 @@ async function saveExternalSale(event) {
         return;
     }
 
-    // التحقق من تكرار رقم المرجع محلياً لمنع الأخطاء الفورية
-    if (transfer_reference && stateExternalSales.some(s => s.transfer_reference === transfer_reference)) {
+    // التحقق من تكرار رقم المرجع محلياً لمنع الأخطاء الفورية (تخطي التحقق لو كان نفس السجل الذي نقوم بتعديله)
+    if (transfer_reference && stateExternalSales.some(s => s.transfer_reference === transfer_reference && s.id !== editingExtSaleId)) {
         toast('رقم المرجع أو الحوالة هذا تم إدخاله مسبقاً!', 'error');
         return;
     }
 
     try {
-        const res = await fetch('/api/external-sales', {
-            method: 'POST',
+        const url = editingExtSaleId ? `/api/external-sales/${editingExtSaleId}` : '/api/external-sales';
+        const method = editingExtSaleId ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, country, order_number, receipt_url, status: 'delivered'
@@ -8547,18 +8552,60 @@ async function saveExternalSale(event) {
             throw new Error(err.error || 'فشل حفظ المبيعة الخارجية');
         }
 
-        toast('تم تسجيل المبيعة الخارجية بنجاح', 'ok');
+        toast(editingExtSaleId ? 'تم تعديل المبيعة الخارجية بنجاح' : 'تم تسجيل المبيعة الخارجية بنجاح', 'ok');
+        
+        // إعادة تهيئة النموذج
         document.getElementById('extSaleForm').reset();
-        document.getElementById('extQuantity').value = 1; // reset default
+        document.getElementById('extQuantity').value = 1;
         document.getElementById('extCountry').value = '';
         document.getElementById('extOrderNumber').value = '';
         document.getElementById('extReceiptUrl').value = '';
         document.getElementById('selectedCountryLabel').textContent = 'اختر الدولة...';
-        toggleExternalSaleForm();
+        
+        editingExtSaleId = null; // تفريغ معرف التعديل
+        
+        const container = document.getElementById('extSaleFormContainer');
+        if (container) container.style.display = 'none';
+        
         await loadExternalSales();
     } catch (e) {
         toast(e.message, 'error');
     }
+}
+
+// دالة تفريغ وتعبئة البيانات في النموذج لتعديلها
+function editExternalSaleFromDetails() {
+    const editBtn = document.getElementById('extSaleEditBtn');
+    if (!editBtn) return;
+    const id = parseInt(editBtn.getAttribute('data-id'));
+    const item = stateExternalSales.find(s => s.id === id);
+    if (!item) return;
+
+    editingExtSaleId = id; // حفظ المعرف الحالي
+    
+    // إغلاق مودال التفاصيل
+    closeExtSaleDetailsModal();
+
+    // إظهار وتعبئة نموذج التسجيل/التعديل
+    const container = document.getElementById('extSaleFormContainer');
+    if (container) {
+        container.style.display = 'block';
+        // تمرير لـ النموذج
+        container.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    document.getElementById('extProductName').value = item.product_name || '';
+    document.getElementById('extQuantity').value = item.quantity || 1;
+    document.getElementById('extAmount').value = item.amount || '';
+    document.getElementById('extBankAccount').value = item.bank_account || 'حساب الوثيقة';
+    document.getElementById('extCountry').value = item.country || '';
+    document.getElementById('selectedCountryLabel').textContent = item.country || 'اختر الدولة...';
+    document.getElementById('extOrderNumber').value = item.order_number || '';
+    document.getElementById('extReference').value = item.transfer_reference || '';
+    document.getElementById('extCustomerName').value = item.customer_name || '';
+    document.getElementById('extCustomerPhone').value = item.customer_phone || '';
+    document.getElementById('extNotes').value = item.notes || '';
+    document.getElementById('extReceiptUrl').value = item.receipt_url || '';
 }
 
 async function deleteExternalSale(id) {
@@ -8670,13 +8717,34 @@ function showExtSaleDetails(id) {
     // تعبئة رابط الإيصال السحابي للمبيعات الخارجية
     const detReceiptSec = document.getElementById('detReceiptSection');
     const detReceiptLink = document.getElementById('detReceiptLink');
+    const detReceiptImgContainer = document.getElementById('detReceiptImgContainer');
+    const detReceiptPreviewImg = document.getElementById('detReceiptPreviewImg');
+    
     if (detReceiptSec && detReceiptLink) {
         if (item.receipt_url) {
             detReceiptSec.style.display = 'flex';
             detReceiptLink.href = item.receipt_url;
+            
+            // التحقق إذا كان الرابط صورة لعرض معاينة مصغرة داخلية
+            const isImage = item.receipt_url.match(/\.(jpeg|jpg|gif|png|webp)/i) || item.receipt_url.includes('drive.google.com') || item.receipt_url.includes('docs.google.com');
+            if (isImage && detReceiptImgContainer && detReceiptPreviewImg) {
+                detReceiptImgContainer.style.display = 'block';
+                detReceiptPreviewImg.src = item.receipt_url;
+            } else if (detReceiptImgContainer) {
+                detReceiptImgContainer.style.display = 'none';
+            }
         } else {
             detReceiptSec.style.display = 'none';
+            if (detReceiptImgContainer) detReceiptImgContainer.style.display = 'none';
         }
+    }
+    
+    // إظهار أو إخفاء زر التعديل بناء على الصلاحية
+    const editBtn = document.getElementById('extSaleEditBtn');
+    if (editBtn) {
+        const canEdit = state.user && (state.user.role === 'admin' || state.user.can_edit === 1 || state.user.can_edit === true);
+        editBtn.style.display = canEdit ? 'flex' : 'none';
+        editBtn.setAttribute('data-id', id); // تخزين المعرف لاسترجاعه عند الضغط
     }
     
     document.getElementById('extSaleDetailsModal').classList.add('open');

@@ -268,6 +268,63 @@ router.delete('/external-sales/:id', authenticateUser, requireRole(['admin']), (
     });
 });
 
+// Update an external sale (Admin or Sales Employee if permitted)
+router.put('/external-sales/:id', authenticateUser, (req, res) => {
+    const { id } = req.params;
+    const isSalesEmployee = req.user.role === 'sales_employee';
+    const isAdmin = req.user.role === 'admin';
+    const canEdit = req.user.can_edit === 1 || req.user.can_edit === true || isAdmin;
+
+    if (!isAdmin && !isSalesEmployee && !req.user.can_view_external_sales) {
+        return res.status(403).json({ error: 'غير مصرح لك بتعديل المبيعات الخارجية.' });
+    }
+    
+    if (!canEdit) {
+        return res.status(403).json({ error: 'عذراً، لا تملك الصلاحية لتعديل البيانات.' });
+    }
+
+    const { product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, notes, country, order_number, receipt_url } = req.body;
+
+    if (!product_name || !amount || !bank_account) {
+        return res.status(400).json({ error: 'حقول اسم المنتج، المبلغ، والحساب البنكي مطلوبة.' });
+    }
+
+    db.run(
+        `UPDATE external_sales SET 
+            product_name = ?, 
+            quantity = ?, 
+            amount = ?, 
+            bank_account = ?, 
+            customer_name = ?, 
+            customer_phone = ?, 
+            transfer_reference = ?, 
+            notes = ?, 
+            country = ?, 
+            order_number = ?, 
+            receipt_url = ?
+         WHERE id = ?`,
+        [
+            product_name.trim(),
+            parseInt(quantity) || 1,
+            parseFloat(amount),
+            bank_account.trim(),
+            customer_name ? customer_name.trim() : null,
+            customer_phone ? customer_phone.trim() : null,
+            transfer_reference ? transfer_reference.trim() : null,
+            notes ? notes.trim() : null,
+            country ? country.trim() : null,
+            order_number ? order_number.trim() : null,
+            receipt_url || null,
+            id
+        ],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            ConfigRepository.logActivity(req.user.username, 'UPDATE', 'external_sales', `تم تعديل مبيعة خارجية معرف: ${id} - اسم المنتج: ${product_name}`).catch(console.error);
+            res.json({ success: true });
+        }
+    );
+});
+
 // --- SYSTEM RESET ENDPOINT ---
 
 router.post('/system/clear-all', authenticateUser, requireRole(['admin']), (req, res) => {
