@@ -8,6 +8,9 @@ const { authenticateUser, requireRole } = require('../middlewares/auth');
 
 // Get all PlayStation Plus accounts
 router.get('/ps-plus/accounts', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_ps) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية استعراض مخزون بلس.' });
+    }
     db.all("SELECT * FROM ps_plus_accounts ORDER BY created_at DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
@@ -16,8 +19,8 @@ router.get('/ps-plus/accounts', authenticateUser, (req, res) => {
 
 // Add a new PlayStation Plus account
 router.post('/ps-plus/accounts', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_add) {
-        return res.status(403).json({ error: 'غير مصرح لك بإضافة الحسابات.' });
+    if (req.user.role !== 'admin' && !req.user.can_add_ps) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية إضافة حسابات بلس.' });
     }
     const { email, password, plus_type, plus_duration, ps5_1_code, ps5_2_code, ps4_code, ps5_1_status, ps5_2_status, ps4_status } = req.body;
     if (!email || !password || !plus_type || !plus_duration) {
@@ -57,8 +60,8 @@ router.post('/ps-plus/accounts', authenticateUser, (req, res) => {
 
 // Update a PlayStation Plus account
 router.put('/ps-plus/accounts/:id', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_edit) {
-        return res.status(403).json({ error: 'غير مصرح لك بتعديل بيانات الحسابات.' });
+    if (req.user.role !== 'admin' && !req.user.can_edit_ps) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل حسابات بلس.' });
     }
     const { id } = req.params;
     const { email, password, plus_type, plus_duration, ps5_1_order, ps5_2_order, ps4_order, ps5_1_code, ps5_2_code, ps4_code, ps5_1_status, ps5_2_status, ps4_status } = req.body;
@@ -149,8 +152,8 @@ router.put('/ps-plus/accounts/:id', authenticateUser, (req, res) => {
 
 // Delete a PlayStation Plus account
 router.delete('/ps-plus/accounts/:id', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_delete) {
-        return res.status(403).json({ error: 'غير مصرح لك بحذف الحسابات.' });
+    if (req.user.role !== 'admin' && !req.user.can_delete_ps) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف حسابات بلس.' });
     }
     const { id } = req.params;
     db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errFetch, row) => {
@@ -216,8 +219,8 @@ router.post('/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
 
 // Bulk Import PlayStation Plus accounts
 router.post('/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_add) {
-        return res.status(403).json({ error: 'غير مصرح لك باستيراد الحسابات.' });
+    if (req.user.role !== 'admin' && !req.user.can_add_ps) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية استيراد حسابات بلس.' });
     }
     const accounts = req.body;
     if (!Array.isArray(accounts) || accounts.length === 0) {
@@ -270,6 +273,9 @@ router.post('/ps-plus/accounts/bulk', authenticateUser, (req, res) => {
 
 // Get all games accounts
 router.get('/games/accounts', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_games) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية استعراض مخزون الألعاب.' });
+    }
     const sql = `
         SELECT ga.*, gs.id as slot_id, gs.slot_type, gs.slot_index, gs.status, gs.code, gs.order_number, gs.phone, gs.delivered_by, gs.delivered_at
         FROM game_accounts ga
@@ -312,8 +318,8 @@ router.get('/games/accounts', authenticateUser, (req, res) => {
 
 // Add a new game account
 router.post('/games/accounts', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_add) {
-        return res.status(403).json({ error: 'غير مصرح لك بإضافة الحسابات.' });
+    if (req.user.role !== 'admin' && !req.user.can_add_games) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية إضافة حسابات ألعاب.' });
     }
     const { email, password, game_name, slots } = req.body;
     if (!email || !password || !game_name || !Array.isArray(slots)) {
@@ -360,8 +366,8 @@ router.post('/games/accounts', authenticateUser, (req, res) => {
 
 // Update a game account
 router.put('/games/accounts/:id', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_edit) {
-        return res.status(403).json({ error: 'غير مصرح لك بتعديل بيانات الحسابات.' });
+    if (req.user.role !== 'admin' && !req.user.can_edit_games) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل حسابات ألعاب.' });
     }
     const { id } = req.params;
     const { email, password, game_name, slots } = req.body;
@@ -440,8 +446,8 @@ router.put('/games/accounts/:id', authenticateUser, (req, res) => {
 
 // Delete a game account
 router.delete('/games/accounts/:id', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_delete) {
-        return res.status(403).json({ error: 'غير مصرح لك بحذف الحسابات.' });
+    if (req.user.role !== 'admin' && !req.user.can_delete_games) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف حسابات ألعاب.' });
     }
     const { id } = req.params;
     db.get("SELECT email, game_name FROM game_accounts WHERE id = ?", [id], (errFetch, row) => {

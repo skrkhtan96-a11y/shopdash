@@ -25,7 +25,7 @@ const authenticateUser = (req, res, next) => {
         return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.' });
     }
     db.get(
-        `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details, u.can_view_games_details, u.can_view_external_sales FROM sessions s 
+        `SELECT u.* FROM sessions s 
          JOIN users u ON s.user_id = u.id 
          WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
         [token],
@@ -73,7 +73,7 @@ const sessionStaticCheckMiddleware = (req, res, next) => {
             return res.redirect('/login.html');
         }
         db.get(
-            `SELECT u.id, u.username, u.email, u.role, u.can_add, u.can_edit, u.can_delete, u.can_deliver, u.can_view_ps_details, u.can_view_games_details, u.can_view_external_sales FROM sessions s 
+            `SELECT u.* FROM sessions s 
              JOIN users u ON s.user_id = u.id 
              WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
             [token],

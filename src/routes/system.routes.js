@@ -169,7 +169,7 @@ router.delete('/archives/:key', authenticateUser, (req, res) => {
 
 // Get external sales
 router.get('/external-sales', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'sales_employee' && !req.user.can_view_external_sales) {
+    if (req.user.role !== 'admin' && !req.user.can_view_external_sales) {
         return res.status(403).json({ error: 'غير مصرح لك باستعراض المبيعات الخارجية.' });
     }
 
@@ -203,7 +203,7 @@ router.get('/external-sales', authenticateUser, (req, res) => {
 
 // Create new external sale
 router.post('/external-sales', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'sales_employee' && !req.user.can_view_external_sales) {
+    if (req.user.role !== 'admin' && !req.user.can_add_external_sales) {
         return res.status(403).json({ error: 'غير مصرح لك بإدخال مبيعات خارجية.' });
     }
 
@@ -259,7 +259,10 @@ router.post('/external-sales', authenticateUser, (req, res) => {
 });
 
 // Delete an external sale
-router.delete('/external-sales/:id', authenticateUser, requireRole(['admin']), (req, res) => {
+router.delete('/external-sales/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete_external_sales) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف المبيعات الخارجية.' });
+    }
     const { id } = req.params;
     db.run("DELETE FROM external_sales WHERE id = ?", [id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -271,16 +274,11 @@ router.delete('/external-sales/:id', authenticateUser, requireRole(['admin']), (
 // Update an external sale (Admin or Sales Employee if permitted)
 router.put('/external-sales/:id', authenticateUser, (req, res) => {
     const { id } = req.params;
-    const isSalesEmployee = req.user.role === 'sales_employee';
     const isAdmin = req.user.role === 'admin';
-    const canEdit = req.user.can_edit === 1 || req.user.can_edit === true || isAdmin;
+    const canEdit = req.user.can_edit_external_sales === 1 || req.user.can_edit_external_sales === true || isAdmin;
 
-    if (!isAdmin && !isSalesEmployee && !req.user.can_view_external_sales) {
-        return res.status(403).json({ error: 'غير مصرح لك بتعديل المبيعات الخارجية.' });
-    }
-    
     if (!canEdit) {
-        return res.status(403).json({ error: 'عذراً، لا تملك الصلاحية لتعديل البيانات.' });
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل المبيعات الخارجية.' });
     }
 
     const { product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, notes, country, order_number, receipt_url } = req.body;

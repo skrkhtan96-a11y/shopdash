@@ -115,6 +115,31 @@ let ordPageTotal = 1;
 // ── CHARTS ──
 let pieC, cmpC, walC, prodC, compareC;
 
+function hasPageAccess(page) {
+    if (!state.user) return true;
+    if (state.user.role === 'admin') return true;
+    if (page === 'overview') return true;
+    if (page === 'expenses') return !!state.user.can_view_expenses;
+    if (page === 'external-sales') return !!state.user.can_view_external_sales;
+    if (page === 'campaigns') return !!state.user.can_view_campaigns;
+    if (page === 'certificates') return !!state.user.can_view_certificates;
+    if (page === 'ps-plus') return !!state.user.can_view_ps;
+    if (page === 'ps-plus-deliveries') return !!state.user.can_view_ps || !!state.user.can_deliver;
+    if (page === 'games') return !!state.user.can_view_games;
+    if (page === 'games-deliveries') return !!state.user.can_view_games || !!state.user.can_deliver;
+    if (page === 'salla-orders') return !!state.user.can_view_salla_orders;
+    if (page === 'salla-carts') return !!state.user.can_view_salla_carts;
+    if (page === 'salla-wallet') return !!state.user.can_view_salla_wallet;
+    if (page === 'salla-products') return !!state.user.can_view_salla_products;
+    if (page === 'salla-compare') return !!state.user.can_view_salla_compare;
+    if (page === 'salla-webhooks') return !!state.user.can_view_salla_webhooks;
+    if (page === 'import') return !!state.user.can_view_import;
+    if (page === 'users') return false; // Only admin
+    if (page === 'db-management') return !!state.user.can_view_db_management;
+    if (page === 'activity-logs') return !!state.user.can_view_activity_logs;
+    return true;
+}
+
 // ══════════════════════════════════════════════
 //  INIT & CHECK AUTH STATUS
 // ══════════════════════════════════════════════
@@ -142,22 +167,51 @@ async function init() {
             uRole.textContent = roleLabel;
         }
         
-        // إظهار رابط إدارة المستخدمين والنسخ الاحتياطي حصرياً للمدير
-        const navUsers = document.getElementById('nav-users');
-        if (navUsers) {
-            navUsers.style.display = state.user.role === 'admin' ? 'flex' : 'none';
-        }
-        const navDbMgmt = document.getElementById('nav-db-management');
-        if (navDbMgmt) {
-            navDbMgmt.style.display = state.user.role === 'admin' ? 'flex' : 'none';
-        }
+        // ── CONTROL SIDEBAR & SECTIONS VISIBILITY DYNAMICALLY ──
+        const pagesWithNav = [
+            { id: 'nav-overview', name: 'overview' },
+            { id: 'nav-expenses', name: 'expenses' },
+            { id: 'nav-external-sales', name: 'external-sales' },
+            { id: 'nav-campaigns', name: 'campaigns' },
+            { id: 'nav-certificates', name: 'certificates' },
+            { id: 'nav-ps-plus', name: 'ps-plus' },
+            { id: 'nav-ps-plus-deliveries', name: 'ps-plus-deliveries' },
+            { id: 'nav-games', name: 'games' },
+            { id: 'nav-games-deliveries', name: 'games-deliveries' },
+            { id: 'nav-salla-orders', name: 'salla-orders' },
+            { id: 'nav-salla-carts', name: 'salla-carts' },
+            { id: 'nav-salla-wallet', name: 'salla-wallet' },
+            { id: 'nav-salla-products', name: 'salla-products' },
+            { id: 'nav-salla-compare', name: 'salla-compare' },
+            { id: 'nav-salla-webhooks', name: 'salla-webhooks' },
+            { id: 'nav-import', name: 'import' },
+            { id: 'nav-archive', name: 'archive-tool' },
+            { id: 'nav-export', name: 'export' },
+            { id: 'nav-users', name: 'users' },
+            { id: 'nav-db-management', name: 'db-management' },
+            { id: 'nav-activity-logs', name: 'activity-logs' }
+        ];
 
-        // إظهار رابط المبيعات الخارجية بناء على صلاحية المستخدم
-        const navExtSales = document.getElementById('nav-external-sales');
-        if (navExtSales) {
-            const hasAccess = state.user.role === 'admin' || !!state.user.can_view_external_sales;
-            navExtSales.style.display = hasAccess ? 'flex' : 'none';
-        }
+        pagesWithNav.forEach(item => {
+            const el = document.getElementById(item.id);
+            if (el) {
+                let nameToCheck = item.name;
+                if (item.id === 'nav-archive') nameToCheck = 'archive-tool';
+                if (item.id === 'nav-export') nameToCheck = 'export';
+                const hasPerm = hasPageAccess(nameToCheck);
+                el.style.display = hasPerm ? 'flex' : 'none';
+            }
+        });
+
+        // إخفاء/إظهار أزرار شريط التنقل السفلي للهواتف الذكية ديناميكياً
+        document.querySelectorAll('.bottom-nav-item').forEach(item => {
+            const onClickStr = item.getAttribute('onclick') || '';
+            const match = onClickStr.match(/nav\('([^']+)'\)/);
+            if (match && match[1]) {
+                const hasPerm = hasPageAccess(match[1]);
+                item.style.display = hasPerm ? 'flex' : 'none';
+            }
+        });
 
         // تطبيق الصلاحيات والقيود بناء على الدور المحاسبي
         applyRoleBasedPermissions();
@@ -207,68 +261,63 @@ function applyRoleBasedPermissions() {
     if (!state.user) return;
     const role = state.user.role;
     
-    // الموظف لا يملك صلاحية إضافة مصروف، جرد المخزون، أو بدء أرشفة الأشهر
-    if (role === 'employee' || role === 'games_employee' || role === 'sales_employee') {
-        const addBtn = document.getElementById('addBtn');
-        const addExpBtn = document.getElementById('addExpBtn');
-        const newMonthBtn = document.getElementById('newMonthBtn');
-        if (addBtn) addBtn.style.display = 'none';
-        if (addExpBtn) addExpBtn.style.display = 'none';
-        if (newMonthBtn) newMonthBtn.style.display = 'none';
+    // إخفاء/إظهار أزرار الإضافة والتنظيم بناءً على صلاحية الإضافة المحددة للمستخدم
+    const canAddExp = role === 'admin' || !!state.user.can_add_expenses;
+    const addBtn = document.getElementById('addBtn');
+    const addExpBtn = document.getElementById('addExpBtn');
+    if (addBtn) addBtn.style.display = canAddExp ? '' : 'none';
+    if (addExpBtn) addExpBtn.style.display = canAddExp ? '' : 'none';
+
+    const canArchive = role === 'admin' || (!!state.user.can_view_archive_tool && !!state.user.can_add_archive_tool);
+    const newMonthBtn = document.getElementById('newMonthBtn');
+    if (newMonthBtn) newMonthBtn.style.display = canArchive ? '' : 'none';
+
+    // تحديث ظهور وتنسيق الأقسام الجانبية والفواصل ديناميكياً
+    const labels = Array.from(document.querySelectorAll('.sidebar .s-label'));
+
+    // 1. قسم بيانات سلة المباشرة
+    const sallaItems = ['nav-salla-orders', 'nav-salla-carts', 'nav-salla-wallet', 'nav-salla-products', 'nav-salla-compare', 'nav-salla-webhooks'];
+    const anySallaVisible = sallaItems.some(id => {
+        const el = document.getElementById(id);
+        return el && el.style.display !== 'none';
+    });
+    const sallaLabel = labels.find(l => l.textContent.includes('بيانات سلة المباشرة'));
+    if (sallaLabel) {
+        sallaLabel.style.display = anySallaVisible ? 'block' : 'none';
+        const sep = sallaLabel.previousElementSibling;
+        if (sep && sep.classList.contains('s-sep')) {
+            sep.style.display = anySallaVisible ? 'block' : 'none';
+        }
     }
 
-    if (role === 'games_employee') {
-        // إخفاء كافة عناصر القائمة الجانبية ما عدا مخزون حسابات بلس والألعاب وسجل النشاطات
-        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
-            const onClickStr = item.getAttribute('onclick') || '';
-            const allowed = ["'ps-plus'", "'ps-plus-deliveries'", "'games'", "'games-deliveries'", "'activity-logs'"];
-            const isAllowed = allowed.some(a => onClickStr.includes(a));
-            if (!isAllowed) {
-                item.style.display = 'none';
-            }
-        });
-        // إخفاء الفواصل والتسميات وأداة التبديل
-        document.querySelectorAll('.sidebar .s-sep, .sidebar .s-label, .sidebar #monthSel, .sidebar div[style*="padding:6px 12px 0"], .sidebar div[style*="padding: 6px 12px 0"]').forEach(el => {
-            el.style.display = 'none';
-        });
-
-        // إخفاء كافة أزرار الشريط السفلي للموبايل ما عدا بلس والألعاب والنشاطات
-        document.querySelectorAll('.bottom-nav-item').forEach(item => {
-            const onClickStr = item.getAttribute('onclick') || '';
-            const allowed = ["'ps-plus'", "'games'", "'activity-logs'"];
-            const isAllowed = allowed.some(a => onClickStr.includes(a));
-            if (!isAllowed) {
-                item.style.display = 'none';
-            }
-        });
+    // 2. قسم الأرشيف الشهري
+    const canViewArchive = role === 'admin' || !!state.user.can_view_archive_tool;
+    const monthDropdown = document.querySelector('.sidebar select#monthSel')?.parentElement;
+    if (monthDropdown) monthDropdown.style.display = canViewArchive ? 'block' : 'none';
+    const archiveLabel = labels.find(l => l.textContent.includes('الأرشيف الشهري'));
+    if (archiveLabel) {
+        archiveLabel.style.display = canViewArchive ? 'block' : 'none';
+        const sep = archiveLabel.previousElementSibling;
+        if (sep && sep.classList.contains('s-sep')) {
+            sep.style.display = canViewArchive ? 'block' : 'none';
+        }
     }
+    const arcList = document.getElementById('arcList');
+    if (arcList) arcList.style.display = canViewArchive ? 'block' : 'none';
 
-    if (role === 'sales_employee') {
-        // إخفاء كافة عناصر القائمة الجانبية ما عدا المبيعات الخارجية وسجل النشاطات
-        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
-            const onClickStr = item.getAttribute('onclick') || '';
-            const allowed = ["'external-sales'", "'activity-logs'"];
-            const isAllowed = allowed.some(a => onClickStr.includes(a));
-            if (!isAllowed) {
-                item.style.display = 'none';
-            } else {
-                item.style.display = 'flex';
-            }
-        });
-        // إخفاء الفواصل والتسميات وأداة التبديل
-        document.querySelectorAll('.sidebar .s-sep, .sidebar .s-label, .sidebar #monthSel, .sidebar div[style*="padding:6px 12px 0"], .sidebar div[style*="padding: 6px 12px 0"]').forEach(el => {
-            el.style.display = 'none';
-        });
-
-        // إخفاء كافة أزرار الشريط السفلي للموبايل ما عدا النشاطات
-        document.querySelectorAll('.bottom-nav-item').forEach(item => {
-            const onClickStr = item.getAttribute('onclick') || '';
-            const allowed = ["'activity-logs'"];
-            const isAllowed = allowed.some(a => onClickStr.includes(a));
-            if (!isAllowed) {
-                item.style.display = 'none';
-            }
-        });
+    // 3. قسم الأدوات الإدارية
+    const adminItems = ['nav-import', 'nav-archive', 'nav-export', 'nav-users', 'nav-db-management', 'nav-activity-logs'];
+    const anyAdminVisible = adminItems.some(id => {
+        const el = document.getElementById(id);
+        return el && el.style.display !== 'none';
+    });
+    const adminLabel = labels.find(l => l.textContent.includes('أدوات إدارية'));
+    if (adminLabel) {
+        adminLabel.style.display = anyAdminVisible ? 'block' : 'none';
+        const sep = adminLabel.previousElementSibling;
+        if (sep && sep.classList.contains('s-sep')) {
+            sep.style.display = anyAdminVisible ? 'block' : 'none';
+        }
     }
 
     // زر حذف بيانات اللوحة بالكامل متاح فقط للمدير (admin)
@@ -277,14 +326,15 @@ function applyRoleBasedPermissions() {
         clearAllBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
     }
 
-    // زر حذف المصروفات متاح للمحاسبين والمدراء فقط (مخفي للموظفين)
+    // زر حذف المصروفات متاح لمن يملك صلاحية حذف المصروفات
     const clearExpensesBtn = document.getElementById('btnClearExpenses');
     if (clearExpensesBtn) {
-        clearExpensesBtn.style.display = (role === 'employee' || role === 'games_employee' || role === 'sales_employee') ? 'none' : 'inline-block';
+        const canDelExp = role === 'admin' || !!state.user.can_delete_expenses;
+        clearExpensesBtn.style.display = canDelExp ? 'inline-block' : 'none';
     }
 
     // زر حذف مخزون المنتجات متاح فقط للذين لديهم صلاحية حذف أو دور مدير
-    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const canDelete = state.user && (role === 'admin' || !!state.user.can_delete);
     const clearStockBtn = document.getElementById('btnClearStockBtn');
     if (clearStockBtn) {
         clearStockBtn.style.display = canDelete ? 'inline-block' : 'none';
@@ -462,16 +512,17 @@ function toggleSidebar(open) {
 }
 
 function nav(name, updateHash = true) {
-    if (state.user && state.user.role === 'games_employee' && 
-        name !== 'ps-plus' && name !== 'ps-plus-deliveries' && 
-        name !== 'games' && name !== 'games-deliveries' && 
-        name !== 'activity-logs') {
-        nav('ps-plus', true);
-        return;
-    }
-    if (state.user && state.user.role === 'sales_employee' && 
-        name !== 'external-sales' && name !== 'activity-logs') {
-        nav('external-sales', true);
+    const isAllowed = (page) => {
+        return hasPageAccess(page);
+    };
+
+    if (state.user && !isAllowed(name)) {
+        if (isAllowed('overview')) {
+            nav('overview', true);
+        } else {
+            const allowed = PAGES.find(p => isAllowed(p));
+            if (allowed) nav(allowed, true);
+        }
         return;
     }
     // إغلاق القائمة تلقائياً عند تغيير الصفحة على الهواتف
@@ -510,9 +561,9 @@ function nav(name, updateHash = true) {
 
     document.getElementById('pageTitle').textContent = PAGE_TITLES[name] || name;
 
-    // إخفاء زر الإضافة في الصفحات غير المحاسبية وبناء على صلاحية الموظف
+    // إخفاء زر الإضافة في الصفحات غير المحاسبية وبناء على صلاحية الإضافة للمستخدم
     const isLocal = ['overview', 'expenses'].includes(name);
-    const hasWritePermission = state.user && state.user.role !== 'employee';
+    const hasWritePermission = state.user && (state.user.role === 'admin' || !!state.user.can_add_expenses);
     document.getElementById('addBtn').style.display = (isLocal && !state.viewingArc && hasWritePermission) ? '' : 'none';
 
     if (name === 'overview') renderOverview();
@@ -1674,7 +1725,8 @@ function renderExpRows(data) {
 
     const total = data.reduce((s, e) => s + (e.amt || 0), 0);
     document.getElementById('expCount').textContent = `${data.length} بند — ${fmt(total)} ر.س`;
-    const ro = !!state.viewingArc || (state.user && state.user.role === 'موظف');
+    const canEdit = !state.viewingArc && (state.user && (state.user.role === 'admin' || !!state.user.can_edit_expenses));
+    const canDelete = !state.viewingArc && (state.user && (state.user.role === 'admin' || !!state.user.can_delete_expenses));
 
     // توليد وتحديث خيارات التحديد المتعدد للبيان الوصفي
     const expDescOptionsDiv = document.getElementById('expDescMultiOptions');
@@ -1706,10 +1758,12 @@ function renderExpRows(data) {
     <td><span class="mono red">${fmt(r.amt)}</span></td>
     <td style="font-size:11px;color:var(--text2)">${fmtDate(r.date)}</td>
     <td style="font-size:10px;color:var(--text3);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note || ''}</td>
-    <td onclick="event.stopPropagation();">${ro ? '' : `<div style="display:flex;gap:4px">
-      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="editRow(${r.id},'expense')"><i class="ti ti-edit"></i></button>
-      <button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="delRow(${r.id},'expense')"><i class="ti ti-trash"></i></button>
-    </div>`}</td>
+    <td onclick="event.stopPropagation();">
+      <div style="display:flex;gap:4px">
+        ${canEdit ? `<button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="editRow(${r.id},'expense')"><i class="ti ti-edit"></i></button>` : ''}
+        ${canDelete ? `<button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="delRow(${r.id},'expense')"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+    </td>
   </tr>`).join('') || '<tr><td colspan="8"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد بنود مصروفات حالياً</p></div></td></tr>';
 
     document.getElementById('expFoot').innerHTML = data.length ? `<tr class="tbl-foot"><td colspan="4">الإجمالي (${data.length})</td><td><span class="mono red">${fmt(total)}</span></td><td colspan="3"></td></tr>` : '';
@@ -1850,6 +1904,10 @@ function renderExp() {
 
 function openModal(type) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (state.user && state.user.role !== 'admin' && !state.user.can_add_expenses) {
+        toast('عذراً، لا تملك الصلاحية لإضافة مصروفات.', 'warn');
+        return;
+    }
     state.editingId = null;
     state.editingType = type || 'expense';
 
@@ -2374,7 +2432,7 @@ async function saveRow() {
 
 async function delRow(id, type) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
-    if (state.user && state.user.role === 'موظف') { toast('عذراً، لا تملك الصلاحية لحذف المصروفات.', 'warn'); return; }
+    if (state.user && state.user.role !== 'admin' && !state.user.can_delete_expenses) { toast('عذراً، لا تملك الصلاحية لحذف المصروفات.', 'warn'); return; }
     if (!confirm('هل أنت متأكد من رغبتك في حذف هذا البند نهائياً؟')) return;
 
     try {
@@ -2395,7 +2453,7 @@ async function delRow(id, type) {
 
 function editRow(id, type) {
     if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
-    if (state.user && state.user.role === 'موظف') { toast('عذراً، لا تملك الصلاحية لتعديل المصروفات.', 'warn'); return; }
+    if (state.user && state.user.role !== 'admin' && !state.user.can_edit_expenses) { toast('عذراً، لا تملك الصلاحية لتعديل المصروفات.', 'warn'); return; }
     state.editingId = id;
     state.editingType = 'expense';
 
@@ -3361,6 +3419,22 @@ function renderUsers(users) {
     });
 }
 
+const permissionFields = [
+    'CanViewExpenses', 'CanAddExpenses', 'CanEditExpenses', 'CanDeleteExpenses',
+    'CanViewExternalSales', 'CanAddExternalSales', 'CanEditExternalSales', 'CanDeleteExternalSales',
+    'CanViewCampaigns', 'CanAddCampaigns', 'CanEditCampaigns', 'CanDeleteCampaigns',
+    'CanViewCertificates', 'CanAddCertificates', 'CanEditCertificates', 'CanDeleteCertificates',
+    'CanViewPs', 'CanAddPs', 'CanEditPs', 'CanDeletePs',
+    'CanViewGames', 'CanAddGames', 'CanEditGames', 'CanDeleteGames',
+    'CanViewSallaOrders', 'CanViewSallaCarts', 'CanViewSallaWallet', 'CanViewSallaProducts', 'CanEditSallaProducts', 'CanViewSallaCompare', 'CanViewSallaWebhooks', 'CanEditSallaWebhooks',
+    'CanViewImport', 'CanAddImport', 'CanViewArchiveTool', 'CanAddArchiveTool', 'CanViewExport', 'CanViewDbManagement', 'CanEditDbManagement', 'CanViewActivityLogs',
+    'CanDeliver', 'CanViewPsDetails', 'CanViewGamesDetails'
+];
+
+function toSnakeCase(str) {
+    return str.replace(/([A-Z])/g, "_$1").toLowerCase().substring(1);
+}
+
 function openUserModal(id = '', username = '', role = 'employee', email = '') {
     currentEditUserId = id;
     document.getElementById('uUsername').value = username;
@@ -3371,22 +3445,19 @@ function openUserModal(id = '', username = '', role = 'employee', email = '') {
     // Look up user in state.users to populate checkboxes
     const user = (state.users || []).find(u => String(u.id) === String(id));
     if (user) {
-        document.getElementById('uCanAdd').checked = user.role === 'admin' || !!user.can_add;
-        document.getElementById('uCanEdit').checked = user.role === 'admin' || !!user.can_edit;
-        document.getElementById('uCanDelete').checked = user.role === 'admin' || !!user.can_delete;
-        document.getElementById('uCanDeliver').checked = user.role === 'admin' || !!user.can_deliver;
-        document.getElementById('uCanViewPsDetails').checked = user.role === 'admin' || (user.can_view_ps_details !== undefined ? !!user.can_view_ps_details : true);
-        document.getElementById('uCanViewGamesDetails').checked = user.role === 'admin' || (user.can_view_games_details !== undefined ? !!user.can_view_games_details : true);
-        document.getElementById('uCanViewExternalSales').checked = user.role === 'admin' || (user.can_view_external_sales !== undefined ? !!user.can_view_external_sales : true);
+        permissionFields.forEach(field => {
+            const el = document.getElementById('u' + field);
+            if (el) {
+                const propName = toSnakeCase(field);
+                el.checked = user.role === 'admin' || (user[propName] !== undefined ? !!user[propName] : true);
+            }
+        });
     } else {
         // Defaults for new users
-        document.getElementById('uCanAdd').checked = true;
-        document.getElementById('uCanEdit').checked = true;
-        document.getElementById('uCanDelete').checked = true;
-        document.getElementById('uCanDeliver').checked = true;
-        document.getElementById('uCanViewPsDetails').checked = true;
-        document.getElementById('uCanViewGamesDetails').checked = true;
-        document.getElementById('uCanViewExternalSales').checked = true;
+        permissionFields.forEach(field => {
+            const el = document.getElementById('u' + field);
+            if (el) el.checked = true;
+        });
     }
     
     togglePermissionsSection(role);
@@ -3409,22 +3480,15 @@ function closeUserModal() {
 
 function togglePermissionsSection(role) {
     const isAdmin = role === 'admin';
-    document.getElementById('uCanAdd').disabled = isAdmin;
-    document.getElementById('uCanEdit').disabled = isAdmin;
-    document.getElementById('uCanDelete').disabled = isAdmin;
-    document.getElementById('uCanDeliver').disabled = isAdmin;
-    document.getElementById('uCanViewPsDetails').disabled = isAdmin;
-    document.getElementById('uCanViewGamesDetails').disabled = isAdmin;
-    document.getElementById('uCanViewExternalSales').disabled = isAdmin;
-    if (isAdmin) {
-        document.getElementById('uCanAdd').checked = true;
-        document.getElementById('uCanEdit').checked = true;
-        document.getElementById('uCanDelete').checked = true;
-        document.getElementById('uCanDeliver').checked = true;
-        document.getElementById('uCanViewPsDetails').checked = true;
-        document.getElementById('uCanViewGamesDetails').checked = true;
-        document.getElementById('uCanViewExternalSales').checked = true;
-    }
+    permissionFields.forEach(field => {
+        const el = document.getElementById('u' + field);
+        if (el) {
+            el.disabled = isAdmin;
+            if (isAdmin) {
+                el.checked = true;
+            }
+        }
+    });
 }
 
 async function saveUser() {
@@ -3448,19 +3512,18 @@ async function saveUser() {
         return;
     }
     
-    const can_add = document.getElementById('uCanAdd').checked ? 1 : 0;
-    const can_edit = document.getElementById('uCanEdit').checked ? 1 : 0;
-    const can_delete = document.getElementById('uCanDelete').checked ? 1 : 0;
-    const can_deliver = document.getElementById('uCanDeliver').checked ? 1 : 0;
-    const can_view_ps_details = document.getElementById('uCanViewPsDetails').checked ? 1 : 0;
-    const can_view_games_details = document.getElementById('uCanViewGamesDetails').checked ? 1 : 0;
-    const can_view_external_sales = document.getElementById('uCanViewExternalSales').checked ? 1 : 0;
+    const body = { username, email, role };
+    permissionFields.forEach(field => {
+        const el = document.getElementById('u' + field);
+        if (el) {
+            body[toSnakeCase(field)] = el.checked ? 1 : 0;
+        }
+    });
+    
+    if (password) body.password = password;
 
     const url = currentEditUserId ? `/api/users/${currentEditUserId}` : '/api/users';
     const method = currentEditUserId ? 'PUT' : 'POST';
-    
-    const body = { username, email, role, can_add, can_edit, can_delete, can_deliver, can_view_ps_details, can_view_games_details, can_view_external_sales };
-    if (password) body.password = password;
     
     try {
         const res = await fetch(url, {

@@ -7,6 +7,9 @@ const TikTokService = require('../services/tiktok.service');
 
 // Get connection states of advertising platforms
 router.get('/connections', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_campaigns) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض اتصالات الحملات الإعلانية.' });
+    }
     db.all("SELECT * FROM ads_connections", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const connMap = {
@@ -23,6 +26,9 @@ router.get('/connections', authenticateUser, (req, res) => {
 
 // Connect an ad platform (mock or real)
 router.post('/connections/connect', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_campaigns && !req.user.can_add_campaigns) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية ربط منصات إعلانية.' });
+    }
     const { platform, account_id } = req.body;
     if (!['facebook', 'snapchat', 'tiktok'].includes(platform)) {
         return res.status(400).json({ error: 'منصة غير صالحة' });
@@ -41,6 +47,9 @@ router.post('/connections/connect', authenticateUser, (req, res) => {
 
 // Disconnect an ad platform
 router.post('/connections/disconnect', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_campaigns && !req.user.can_delete_campaigns) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية قطع ربط المنصات الإعلانية.' });
+    }
     const { platform } = req.body;
     db.run("DELETE FROM ads_connections WHERE platform = ?", [platform], function(err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -94,6 +103,9 @@ const handleTikTokCallback = async (req, res) => {
 
 // Retrieve TikTok ad account details
 router.get('/account-info', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_campaigns) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض بيانات الحساب الإعلاني.' });
+    }
     db.all("SELECT * FROM ads_connections WHERE platform = 'tiktok' AND status = 'connected'", [], async (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         if (rows.length === 0 || !rows[0].access_token) {
@@ -130,6 +142,9 @@ router.get('/account-info', authenticateUser, (req, res) => {
 
 // Retrieve ad campaigns metrics
 router.get('/campaigns', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_campaigns) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض الحملات الإعلانية.' });
+    }
     const from = req.query.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const to = req.query.to || new Date().toISOString().split('T')[0];
     const platform = req.query.platform || '';

@@ -8,6 +8,9 @@ const { authenticateUser } = require('../middlewares/auth');
 
 // Get all certificates
 router.get('/certificates', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_certificates) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض الشهادات.' });
+    }
     db.all("SELECT * FROM certificates ORDER BY name ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
@@ -16,6 +19,9 @@ router.get('/certificates', authenticateUser, (req, res) => {
 
 // Add a new certificate
 router.post('/certificates', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_add_certificates) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية إضافة شهادات.' });
+    }
     const { name, total_subs, comp_subs, ads_spend, note } = req.body;
     if (!name) return res.status(400).json({ error: 'اسم الشهادة مطلوب.' });
 
@@ -42,6 +48,9 @@ router.post('/certificates', authenticateUser, (req, res) => {
 
 // Update a certificate
 router.put('/certificates/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_certificates) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل الشهادات.' });
+    }
     const { id } = req.params;
     const { name, total_subs, sold_subs, comp_subs, ads_spend, note, status } = req.body;
     if (!name) return res.status(400).json({ error: 'اسم الشهادة مطلوب.' });
@@ -66,6 +75,9 @@ router.put('/certificates/:id', authenticateUser, (req, res) => {
 
 // Delete a certificate
 router.delete('/certificates/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete_certificates) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف الشهادات.' });
+    }
     const { id } = req.params;
     db.get("SELECT name FROM certificates WHERE id = ?", [id], (errFetch, row) => {
         const name = row ? row.name : 'غير معروف';
@@ -79,6 +91,9 @@ router.delete('/certificates/:id', authenticateUser, (req, res) => {
 
 // Get detailed certificate report with salla orders matching
 router.get('/certificates/report', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_certificates) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض تقارير الشهادات.' });
+    }
     db.all("SELECT * FROM certificates ORDER BY name ASC", [], (err, certs) => {
         if (err) return res.status(500).json({ error: err.message });
 
@@ -122,6 +137,9 @@ router.get('/certificates/report', authenticateUser, async (req, res) => {
 // --- PRODUCTS ADJUSTMENTS (Manual stock audit & cost/price override) ---
 
 router.get('/products/adjustments', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض تسويات المنتجات.' });
+    }
     db.all("SELECT * FROM product_adjustments", [], (err, rows) => {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -131,6 +149,9 @@ router.get('/products/adjustments', authenticateUser, (req, res) => {
 });
 
 router.post('/products/adjustments', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية جرد وتعديل مخزون المنتجات.' });
+    }
     const { product_name, stock_offset, cost, price } = req.body;
     if (!product_name) {
         return res.status(400).json({ error: 'يرجى تقديم اسم المنتج لإجراء الجرد.' });
@@ -157,6 +178,9 @@ router.post('/products/adjustments', authenticateUser, (req, res) => {
 });
 
 router.post('/products/adjustments/bulk', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية جرد وتعديل مخزون المنتجات.' });
+    }
     const { products } = req.body;
     if (!products || !Array.isArray(products) || products.length === 0) {
         return res.status(400).json({ error: 'يرجى تقديم مصفوفة منتجات صالحة.' });
@@ -185,8 +209,8 @@ router.post('/products/adjustments/bulk', authenticateUser, (req, res) => {
 });
 
 router.delete('/products/adjustments', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_delete) {
-        return res.status(403).json({ error: 'ليس لديك صلاحية حذف المخزون.' });
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية جرد وتعديل مخزون المنتجات.' });
     }
     const { product_name } = req.body;
     if (!product_name) {
@@ -202,8 +226,8 @@ router.delete('/products/adjustments', authenticateUser, (req, res) => {
 });
 
 router.delete('/products/adjustments/clear', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_delete) {
-        return res.status(403).json({ error: 'ليس لديك صلاحية حذف المخزون.' });
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية جرد وتعديل مخزون المنتجات.' });
     }
     db.run("DELETE FROM product_adjustments", [], function (err) {
         if (err) {
@@ -217,6 +241,9 @@ router.delete('/products/adjustments/clear', authenticateUser, (req, res) => {
 // --- INDEPENDENT INVENTORY PRODUCTS ---
 
 router.get('/inventory/products', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض منتجات المخزون.' });
+    }
     db.all("SELECT * FROM inventory_products ORDER BY id DESC", [], (err, rows) => {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -226,7 +253,7 @@ router.get('/inventory/products', authenticateUser, (req, res) => {
 });
 
 router.post('/inventory/products', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_add) {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
         return res.status(403).json({ error: 'ليس لديك صلاحية إضافة منتجات للمخزون.' });
     }
     const { product_name, sku, quantity, cost, price, category, notes } = req.body;
@@ -260,7 +287,7 @@ router.post('/inventory/products', authenticateUser, (req, res) => {
 });
 
 router.put('/inventory/products/:id', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_edit) {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
         return res.status(403).json({ error: 'ليس لديك صلاحية تعديل منتجات المخزون.' });
     }
     const { id } = req.params;
@@ -294,7 +321,7 @@ router.put('/inventory/products/:id', authenticateUser, (req, res) => {
 });
 
 router.delete('/inventory/products/:id', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_delete) {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
         return res.status(403).json({ error: 'ليس لديك صلاحية حذف منتجات المخزون.' });
     }
     const { id } = req.params;
@@ -315,7 +342,7 @@ router.delete('/inventory/products/:id', authenticateUser, (req, res) => {
 });
 
 router.post('/inventory/products/clear', authenticateUser, (req, res) => {
-    if (req.user.role !== 'admin' && !req.user.can_delete) {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
         return res.status(403).json({ error: 'ليس لديك صلاحية تفريغ المخزون.' });
     }
     db.run("DELETE FROM inventory_products", [], function (err) {
@@ -328,6 +355,9 @@ router.post('/inventory/products/clear', authenticateUser, (req, res) => {
 });
 
 router.post('/inventory/products/bulk', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية استيراد منتجات المخزون.' });
+    }
     const { products } = req.body;
     if (!products || !Array.isArray(products) || products.length === 0) {
         return res.status(400).json({ error: 'يرجى تقديم مصفوفة منتجات صالحة.' });

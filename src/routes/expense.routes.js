@@ -6,6 +6,10 @@ const { authenticateUser, requireRole } = require('../middlewares/auth');
 
 // Get all expenses
 router.get('/', authenticateUser, async (req, res, next) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_expenses) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض المصروفات.' });
+    }
+
     const cat = req.query.cat || '';
     const period = req.query.period || '';
     const descs = req.query.descs || '';
@@ -24,6 +28,10 @@ router.get('/', authenticateUser, async (req, res, next) => {
 
 // Add a new expense
 router.post('/', authenticateUser, async (req, res, next) => {
+    if (req.user.role !== 'admin' && !req.user.can_add_expenses) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية إضافة مصروفات.' });
+    }
+
     const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period, receipt_url } = req.body;
     if (!desc || !cat || isNaN(amt) || !date) {
         return res.status(400).json({ error: 'يرجى تقديم كافة البيانات المطلوبة بشكل صحيح.' });
@@ -49,6 +57,10 @@ router.post('/', authenticateUser, async (req, res, next) => {
 
 // Update an expense
 router.put('/:id', authenticateUser, async (req, res, next) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_expenses) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل المصروفات.' });
+    }
+
     const { id } = req.params;
     const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period, receipt_url } = req.body;
 
@@ -72,6 +84,10 @@ router.put('/:id', authenticateUser, async (req, res, next) => {
 
 // Delete an expense
 router.delete('/:id', authenticateUser, async (req, res, next) => {
+    if (req.user.role !== 'admin' && !req.user.can_delete_expenses) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف المصروفات.' });
+    }
+
     const { id } = req.params;
 
     try {

@@ -124,6 +124,55 @@ db.serialize(() => {
             can_deliver INTEGER DEFAULT 1,
             can_view_ps_details INTEGER DEFAULT 1,
             can_view_games_details INTEGER DEFAULT 1,
+            can_view_external_sales INTEGER DEFAULT 1,
+            
+            can_view_expenses INTEGER DEFAULT 1,
+            can_add_expenses INTEGER DEFAULT 1,
+            can_edit_expenses INTEGER DEFAULT 1,
+            can_delete_expenses INTEGER DEFAULT 1,
+            
+            can_add_external_sales INTEGER DEFAULT 1,
+            can_edit_external_sales INTEGER DEFAULT 1,
+            can_delete_external_sales INTEGER DEFAULT 1,
+            
+            can_view_campaigns INTEGER DEFAULT 1,
+            can_add_campaigns INTEGER DEFAULT 1,
+            can_edit_campaigns INTEGER DEFAULT 1,
+            can_delete_campaigns INTEGER DEFAULT 1,
+            
+            can_view_certificates INTEGER DEFAULT 1,
+            can_add_certificates INTEGER DEFAULT 1,
+            can_edit_certificates INTEGER DEFAULT 1,
+            can_delete_certificates INTEGER DEFAULT 1,
+            
+            can_view_ps INTEGER DEFAULT 1,
+            can_add_ps INTEGER DEFAULT 1,
+            can_edit_ps INTEGER DEFAULT 1,
+            can_delete_ps INTEGER DEFAULT 1,
+            
+            can_view_games INTEGER DEFAULT 1,
+            can_add_games INTEGER DEFAULT 1,
+            can_edit_games INTEGER DEFAULT 1,
+            can_delete_games INTEGER DEFAULT 1,
+            
+            can_view_salla_orders INTEGER DEFAULT 1,
+            can_view_salla_carts INTEGER DEFAULT 1,
+            can_view_salla_wallet INTEGER DEFAULT 1,
+            can_view_salla_products INTEGER DEFAULT 1,
+            can_edit_salla_products INTEGER DEFAULT 1,
+            can_view_salla_compare INTEGER DEFAULT 1,
+            can_view_salla_webhooks INTEGER DEFAULT 1,
+            can_edit_salla_webhooks INTEGER DEFAULT 1,
+            
+            can_view_import INTEGER DEFAULT 1,
+            can_add_import INTEGER DEFAULT 1,
+            can_view_archive_tool INTEGER DEFAULT 1,
+            can_add_archive_tool INTEGER DEFAULT 1,
+            can_view_export INTEGER DEFAULT 1,
+            can_view_db_management INTEGER DEFAULT 1,
+            can_edit_db_management INTEGER DEFAULT 1,
+            can_view_activity_logs INTEGER DEFAULT 1,
+            
             created_at TEXT NOT NULL
         )
     `);
@@ -355,6 +404,54 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN can_view_ps_details INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_view_games_details INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE users ADD COLUMN can_view_external_sales INTEGER DEFAULT 1", (err) => { /* تجاهل الخطأ */ });
+
+    // ترقية جدول المستخدمين لإضافة الصلاحيات التفصيلية الجديدة
+    db.run("ALTER TABLE users ADD COLUMN can_view_expenses INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_add_expenses INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_expenses INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_delete_expenses INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    
+    db.run("ALTER TABLE users ADD COLUMN can_add_external_sales INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_external_sales INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_delete_external_sales INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    
+    db.run("ALTER TABLE users ADD COLUMN can_view_campaigns INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_add_campaigns INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_campaigns INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_delete_campaigns INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    
+    db.run("ALTER TABLE users ADD COLUMN can_view_certificates INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_add_certificates INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_certificates INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_delete_certificates INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    
+    db.run("ALTER TABLE users ADD COLUMN can_view_ps INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_add_ps INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_ps INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_delete_ps INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    
+    db.run("ALTER TABLE users ADD COLUMN can_view_games INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_add_games INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_games INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_delete_games INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    
+    db.run("ALTER TABLE users ADD COLUMN can_view_salla_orders INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_salla_carts INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_salla_wallet INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_salla_products INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_salla_products INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_salla_compare INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_salla_webhooks INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_salla_webhooks INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    
+    db.run("ALTER TABLE users ADD COLUMN can_view_import INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_add_import INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_archive_tool INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_add_archive_tool INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_export INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_db_management INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_edit_db_management INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE users ADD COLUMN can_view_activity_logs INTEGER DEFAULT 1", (err) => { /* تجاهل */ });
 
     // ترقية جدول حسابات البلس لإضافة اسم المستخدم الذي قام بإضافة الحساب
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN created_by TEXT", (err) => { /* تجاهل الخطأ */ });
