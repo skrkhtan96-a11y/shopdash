@@ -92,13 +92,16 @@ const sessionStaticCheckMiddleware = (req, res, next) => {
 };
 
 const apiProtectionMiddleware = (req, res, next) => {
+    const url = req.originalUrl || req.path;
     if (
         req.path.startsWith('/auth/') || 
-        req.originalUrl.startsWith('/api/auth/') ||
+        url.startsWith('/api/auth/') ||
         req.path.startsWith('/ai/') ||
-        req.originalUrl.startsWith('/api/ai/') ||
+        url.startsWith('/api/ai/') ||
         req.path.startsWith('/mcp') ||
-        req.originalUrl.startsWith('/api/mcp')
+        url.startsWith('/api/mcp') ||
+        url.includes('/salla/callback-handler') ||
+        url.includes('/salla/auth-redirect')
     ) {
         return next();
     }
