@@ -430,15 +430,36 @@ async function updateDBStatus() {
 // تحميل المصروفات والأرشيف من الـ API وقاعدة البيانات
 async function loadLocalData() {
     try {
-        const expRes = await fetch(`/api/expenses`);
-        state.expenses = await expRes.json();
-        state.allUnfilteredExpenses = [...state.expenses];
+        if (hasPageAccess('expenses')) {
+            const expRes = await fetch(`/api/expenses`);
+            if (expRes.ok) {
+                state.expenses = await expRes.json();
+                state.allUnfilteredExpenses = [...state.expenses];
+            } else {
+                state.expenses = [];
+                state.allUnfilteredExpenses = [];
+            }
+        } else {
+            state.expenses = [];
+            state.allUnfilteredExpenses = [];
+        }
 
-        const arcRes = await fetch(`/api/archives`);
-        state.archives = await arcRes.json();
+        const canViewArchive = state.user && (state.user.role === 'admin' || !!state.user.can_view_archive_tool);
+        if (canViewArchive) {
+            const arcRes = await fetch(`/api/archives`);
+            if (arcRes.ok) {
+                state.archives = await arcRes.json();
+            } else {
+                state.archives = [];
+            }
+        } else {
+            state.archives = [];
+        }
     } catch (e) {
-        console.error('خطأ في تحميل بيانات المصروفات:', e);
-        toast('فشل جلب المصروفات من السيرفر', 'err');
+        console.error('خطأ في تحميل بيانات المصروفات والأرشيف:', e);
+        if (hasPageAccess('expenses')) {
+            toast('فشل جلب المصروفات من السيرفر', 'err');
+        }
     }
 }
 
@@ -5592,8 +5613,8 @@ function renderPsPlusAccounts(accounts) {
     }
 
     // Read other PS Plus permissions
-    const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit);
-    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit_ps);
+    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete_ps);
     const canDeliver = state.user && (state.user.role === 'admin' || !!state.user.can_deliver);
     const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_ps_details);
 
@@ -7797,8 +7818,8 @@ function renderGamesAccounts(accounts) {
         return;
     }
 
-    const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit);
-    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete);
+    const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit_games);
+    const canDelete = state.user && (state.user.role === 'admin' || !!state.user.can_delete_games);
     const canDeliver = state.user && (state.user.role === 'admin' || !!state.user.can_deliver);
     const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_games_details);
 
@@ -8826,7 +8847,7 @@ function showExtSaleDetails(id) {
     // إظهار أو إخفاء زر التعديل بناء على الصلاحية
     const editBtn = document.getElementById('extSaleEditBtn');
     if (editBtn) {
-        const canEdit = state.user && (state.user.role === 'admin' || state.user.can_edit === 1 || state.user.can_edit === true);
+        const canEdit = state.user && (state.user.role === 'admin' || !!state.user.can_edit_external_sales);
         editBtn.style.display = canEdit ? 'flex' : 'none';
         editBtn.setAttribute('data-id', id); // تخزين المعرف لاسترجاعه عند الضغط
     }
