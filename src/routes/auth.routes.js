@@ -32,7 +32,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
             httpOnly: true,
             expires: new Date(expiresAt),
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict'
+            sameSite: 'lax'
         });
 
         res.json({
