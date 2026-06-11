@@ -2249,8 +2249,7 @@ function checkProductPlusPeriod() {
                        lowerName.includes('sony') || 
                        lowerName.includes('playstation');
                        
-    const cat = document.getElementById('mCat').value;
-    const type = document.getElementById('mType').value;
+                        
                        
     if (isPlusOrPS && type === 'expense' && cat === 'شراء منتجات') {
         periodBlock.style.display = 'block';
