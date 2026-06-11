@@ -70,6 +70,7 @@ class DriveService {
                 resource: fileMetadata,
                 media: media,
                 fields: 'id, webViewLink, webContentLink',
+                supportsAllDrives: true, // مهم للرفع لحسابات الخدمة على مجلد مشترك
             });
 
             const fileId = response.data.id;
@@ -83,6 +84,7 @@ class DriveService {
                         role: 'reader',
                         type: 'anyone',
                     },
+                    supportsAllDrives: true,
                 });
             } catch (permErr) {
                 console.warn('[DriveService] Warning: Could not share file publicly, it might still require manual share permissions:', permErr.message);

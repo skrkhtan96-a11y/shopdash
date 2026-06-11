@@ -1,4 +1,6 @@
 const { Client } = require('ssh2');
+const fs = require('fs');
+const path = require('path');
 
 const conn = new Client();
 
@@ -13,16 +15,41 @@ const config = {
 console.log("Connecting to Hostinger VPS to deploy updates...");
 
 conn.on('ready', () => {
-    console.log("Connected! Running deployment commands...");
+    console.log("Connected! Initializing SFTP to upload JSON key...");
     
-    const commands = [
-        "cd /var/www/shopdashboard && git fetch origin && git reset --hard origin/main",
-        "cd /var/www/shopdashboard && npm install",
-        "cd /var/www/shopdashboard && (pm2 restart shopdashboard || pm2 restart server)",
-        "pm2 status"
-    ];
+    conn.sftp((err, sftp) => {
+        if (err) {
+            console.error("SFTP error:", err);
+            conn.end();
+            return;
+        }
 
-    executeSequential(commands, 0);
+        const localKeyPath = path.join(__dirname, 'planar-momentum-484019-c2-74c0a1ece07b.json');
+        const remoteKeyPath = '/var/www/shopdashboard/planar-momentum-484019-c2-74c0a1ece07b.json';
+
+        console.log(`Uploading ${localKeyPath} to ${remoteKeyPath}...`);
+
+        sftp.fastPut(localKeyPath, remoteKeyPath, {}, (uploadErr) => {
+            if (uploadErr) {
+                console.error("Error uploading credentials file via SFTP:", uploadErr);
+                conn.end();
+                return;
+            }
+            console.log("JSON Credentials file successfully uploaded!");
+
+            // Run normal git deployment and pm2 restart commands
+            const commands = [
+                "cd /var/www/shopdashboard && git fetch origin && git reset --hard origin/main",
+                "cd /var/www/shopdashboard && npm install",
+                // Update VPS .env with drive variables
+                "grep -q 'GOOGLE_DRIVE_FOLDER_ID' /var/www/shopdashboard/.env || (echo '' >> /var/www/shopdashboard/.env && echo 'GOOGLE_DRIVE_FOLDER_ID=1tCYz3pHOTV8_wj0woIX-5Qr9Eax-S03M' >> /var/www/shopdashboard/.env && echo 'GOOGLE_CREDENTIALS_FILE=planar-momentum-484019-c2-74c0a1ece07b.json' >> /var/www/shopdashboard/.env)",
+                "cd /var/www/shopdashboard && (pm2 restart shopdashboard || pm2 restart server)",
+                "pm2 status"
+            ];
+
+            executeSequential(commands, 0);
+        });
+    });
 }).on('error', (err) => {
     console.error("SSH connection error:", err);
 }).connect(config);
