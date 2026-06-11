@@ -118,7 +118,15 @@ let pieC, cmpC, walC, prodC, compareC;
 function hasPageAccess(page) {
     if (!state.user) return true;
     if (state.user.role === 'admin') return true;
-    if (page === 'overview') return true;
+    if (page === 'overview') {
+        return !!(state.user.can_view_expenses || 
+                  state.user.can_view_salla_orders || 
+                  state.user.can_view_salla_wallet || 
+                  state.user.can_view_campaigns || 
+                  state.user.can_view_certificates || 
+                  state.user.can_view_import ||
+                  state.user.can_view_db_management);
+    }
     if (page === 'expenses') return !!state.user.can_view_expenses;
     if (page === 'external-sales') return !!state.user.can_view_external_sales;
     if (page === 'campaigns') return !!state.user.can_view_campaigns;
@@ -134,6 +142,8 @@ function hasPageAccess(page) {
     if (page === 'salla-compare') return !!state.user.can_view_salla_compare;
     if (page === 'salla-webhooks') return !!state.user.can_view_salla_webhooks;
     if (page === 'import') return !!state.user.can_view_import;
+    if (page === 'archive-tool') return !!state.user.can_view_archive_tool;
+    if (page === 'export') return !!state.user.can_view_export;
     if (page === 'users') return false; // Only admin
     if (page === 'db-management') return !!state.user.can_view_db_management;
     if (page === 'activity-logs') return !!state.user.can_view_activity_logs;
