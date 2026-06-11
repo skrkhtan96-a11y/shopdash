@@ -369,9 +369,14 @@
           <div style="font-size: 10px; color: var(--text3); margin-top: 4px;" id="uPasswordHint"></div>
         </div>
       </div>
-      
       <div class="form-row full" id="uPermissionsSection" style="margin-top: 10px; border-top: 1px solid var(--border2); padding-top: 10px; margin-bottom: 10px; max-height: 320px; overflow-y: auto; padding-left: 5px;">
-        <label class="form-label" style="font-weight: 700; margin-bottom: 8px; color: var(--accent); font-size:12px; display:block;"><i class="ti ti-shield-lock"></i> شبكة صلاحيات صفحات النظام التفصيلية:</label>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label class="form-label" style="font-weight: 700; margin: 0; color: var(--accent); font-size:12px;"><i class="ti ti-shield-lock"></i> شبكة صلاحيات صفحات النظام التفصيلية:</label>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" onclick="setAllPermissions(true)" style="font-size: 9px; padding: 2px 6px; border-radius: 4px; cursor: pointer; background: var(--accent); color: #fff; border: none;">تحديد الكل</button>
+            <button type="button" onclick="setAllPermissions(false)" style="font-size: 9px; padding: 2px 6px; border-radius: 4px; cursor: pointer; background: rgba(255,255,255,0.05); border: 1px solid var(--border2); color: var(--text2);">إلغاء الكل</button>
+          </div>
+        </div>
         
         <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: var(--text); background: rgba(255,255,255,0.01); border: 1px solid var(--border2); border-radius: var(--r); margin-bottom: 12px;">
           <thead>

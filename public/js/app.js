@@ -3491,6 +3491,17 @@ function togglePermissionsSection(role) {
     });
 }
 
+function setAllPermissions(val) {
+    const role = document.getElementById('uRole').value;
+    if (role === 'admin') return; // Admin has locked permissions
+    permissionFields.forEach(field => {
+        const el = document.getElementById('u' + field);
+        if (el && !el.disabled) {
+            el.checked = val;
+        }
+    });
+}
+
 async function saveUser() {
     const username = document.getElementById('uUsername').value.trim();
     const email = document.getElementById('uEmail').value.trim();
