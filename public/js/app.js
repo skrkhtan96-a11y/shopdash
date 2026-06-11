@@ -335,6 +335,7 @@ async function updateDBStatus() {
 
         // تحديث شارة الربط
         const liveBadge = document.getElementById('sallaLive');
+        const disconnectBtn = document.getElementById('sallaDisconnectBtn');
         if (liveBadge) {
             if (state.connected) {
                 liveBadge.className = 'salla-live';
@@ -342,6 +343,7 @@ async function updateDBStatus() {
                 liveBadge.style.cursor = 'default';
                 liveBadge.onclick = null;
                 liveBadge.title = `متصل بمتجر: ${state.store.name}`;
+                if (disconnectBtn) disconnectBtn.style.display = 'inline-flex';
             } else {
                 liveBadge.className = 'salla-live offline';
                 liveBadge.innerHTML = '<i class="ti ti-plug"></i> اضغط لربط سلة (OAuth)';
@@ -351,6 +353,7 @@ async function updateDBStatus() {
                     setTimeout(() => window.location.href = '/auth', 1000);
                 };
                 liveBadge.title = 'اضغط لربط لوحة التحكم بمتجرك على منصة سلة الفعلي';
+                if (disconnectBtn) disconnectBtn.style.display = 'none';
             }
         }
     } catch (e) {
