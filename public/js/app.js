@@ -2092,7 +2092,7 @@ async function clearAllStock() {
     }
 }
 
-function toggleMFields() {
+function toggleMFields(isUserAction = false) {
     const type = document.getElementById('mType').value;
     const catGrp = document.getElementById('mCatGrp');
     const cat = document.getElementById('mCat').value;
@@ -2109,6 +2109,7 @@ function toggleMFields() {
             mFields.style.display = 'none';
             populateProductsDropdown();
         } else if (cat === 'تسويق') {
+            updateMarketingDesc(isUserAction);
             pFields.style.display = 'none';
             mFields.style.display = 'block';
         } else {
@@ -2121,6 +2122,35 @@ function toggleMFields() {
         mFields.style.display = 'none';
     }
     checkProductPlusPeriod();
+}
+
+function updateMarketingDesc(force = false) {
+    const cat = document.getElementById('mCat').value;
+    const type = document.getElementById('mType').value;
+    const mDesc = document.getElementById('mDesc');
+    const mPlatformSelect = document.getElementById('mPlatformSelect');
+    
+    if (type === 'expense' && cat === 'تسويق' && mDesc && mPlatformSelect) {
+        const platform = mPlatformSelect.value;
+        let descVal = '';
+        if (platform === 'سناب شات') {
+            descVal = 'تمويل سناب';
+        } else if (platform === 'تيك توك') {
+            descVal = 'تمويل تيك توك';
+        } else if (platform === 'انستقرام/فيسبوك') {
+            descVal = 'تمويل فيسبوك';
+        } else if (platform === 'منصة إكس') {
+            descVal = 'تمويل منصة إكس';
+        } else if (platform === 'جوجل/يوتيوب') {
+            descVal = 'تمويل جوجل';
+        } else if (platform === 'أخرى') {
+            descVal = 'تمويل حملة تسويقية';
+        }
+        
+        if (force || !state.editingId || !mDesc.value) {
+            mDesc.value = descVal;
+        }
+    }
 }
 
 // دالة تفريغ وتعبئة المنتجات في القائمة المنسدلة
@@ -2201,9 +2231,13 @@ function checkProductPlusPeriod() {
     
     const prodName = sel.value === 'custom' ? (customInput?.value || '') : sel.value;
     
-    // تعبئة حقل البيان (الوصف) تلقائياً باسم المنتج المختار
-    if (mDesc && prodName) {
-        mDesc.value = prodName;
+    // تعبئة حقل البيان (الوصف) تلقائياً باسم المنتج المختار فقط في بند شراء المنتجات
+    const cat = document.getElementById('mCat').value;
+    const type = document.getElementById('mType').value;
+    if (type === 'expense' && cat === 'شراء منتجات') {
+        if (mDesc && prodName) {
+            mDesc.value = prodName;
+        }
     }
     
     const lowerName = prodName.toLowerCase();

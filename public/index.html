@@ -50,7 +50,7 @@
         </div>
         <div class="form-group" id="mCatGrp">
           <label class="form-label">الفئة</label>
-          <select id="mCat" onchange="toggleMFields()">
+          <select id="mCat" onchange="toggleMFields(true)">
             <option>رواتب</option>
             <option>تسويق</option>
             <option>شراء منتجات</option>
@@ -116,7 +116,7 @@
         <div class="form-row full">
           <div class="form-group">
             <label class="form-label">اسم المنصة الإعلانية</label>
-            <select id="mPlatformSelect" style="width: 100%;">
+            <select id="mPlatformSelect" style="width: 100%;" onchange="updateMarketingDesc(true)">
               <option value="سناب شات">Snapchat (سناب شات)</option>
               <option value="تيك توك">TikTok (تيك توك)</option>
               <option value="انستقرام/فيسبوك">Instagram / Facebook (انستقرام/فيسبوك)</option>
