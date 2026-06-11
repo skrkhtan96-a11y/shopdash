@@ -67,7 +67,7 @@ class DriveService {
             };
 
             const response = await this.drive.files.create({
-                resource: fileMetadata,
+                requestBody: fileMetadata,
                 media: media,
                 fields: 'id, webViewLink, webContentLink',
                 supportsAllDrives: true, // مهم للرفع لحسابات الخدمة على مجلد مشترك
