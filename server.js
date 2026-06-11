@@ -504,7 +504,7 @@ app.get('/callback', async (req, res) => {
 });
 
 // مسار فحص حالة الربط
-app.get('/api/salla/auth-status', async (req, res) => {
+app.get('/api/salla/auth-status', authenticateUser, async (req, res) => {
     try {
         const storeInfo = await getConfig('salla_store');
         const sallaAuth = await getConfig('salla_auth');
@@ -547,7 +547,7 @@ app.get('/api/salla/auth-status', async (req, res) => {
 });
 
 // مسار جلب كشف المحفظة المستوردة
-app.get('/api/salla/wallet', (req, res) => {
+app.get('/api/salla/wallet', authenticateUser, (req, res) => {
     const from = req.query.from || '';
     const to = req.query.to || '';
     const status = req.query.status || '';
@@ -632,7 +632,7 @@ app.post('/api/salla/clear-wallet-imports', authenticateUser, (req, res) => {
 });
 
 // مسار إلغاء الربط (تسجيل الخروج من سلة)
-app.get('/api/salla/disconnect', async (req, res) => {
+app.get('/api/salla/disconnect', authenticateUser, async (req, res) => {
     try {
         await deleteConfig('salla_auth');
         await deleteConfig('salla_store');
@@ -646,7 +646,7 @@ app.get('/api/salla/disconnect', async (req, res) => {
 
 // مسار جلب الطلبات
 // مسار جلب الطلبات
-app.get('/api/salla/orders', async (req, res) => {
+app.get('/api/salla/orders', authenticateUser, async (req, res) => {
     const page = req.query.page || 1;
     const perPage = req.query.per_page || 15;
     const status = req.query.status || '';
@@ -944,7 +944,7 @@ setInterval(syncSallaOrdersToLocal, 5 * 60 * 60 * 1000);
 setTimeout(syncSallaOrdersToLocal, 10000);
 
 // مسار المزامنة الفورية عند طلب التحديث من الواجهة
-app.post('/api/salla/sync-now', async (req, res) => {
+app.post('/api/salla/sync-now', authenticateUser, async (req, res) => {
     try {
         const count = await syncSallaOrdersToLocal(true);
         res.json({ success: true, count });
@@ -1083,7 +1083,7 @@ app.get('/api/ai/live-data', async (req, res) => {
 // ══════════════════════════════════════════════
 
 // 1. مسار استيراد ملف إكسل مبيعات مخصص وحفظه
-app.post('/api/sales/import-excel', (req, res) => {
+app.post('/api/sales/import-excel', authenticateUser, (req, res) => {
     const { title, date, rows } = req.body;
     if (!title || !rows || !Array.isArray(rows) || rows.length === 0) {
         return res.status(400).json({ error: 'يرجى تقديم عنوان التقرير والصفوف الصالحة.' });
@@ -1126,7 +1126,7 @@ app.post('/api/sales/import-excel', (req, res) => {
 });
 
 // 2. مسار جلب قائمة ملفات الاستيراد
-app.get('/api/sales/imports', (req, res) => {
+app.get('/api/sales/imports', authenticateUser, (req, res) => {
     db.all(`
         SELECT import_id, import_title, import_date, COUNT(*) as rows_count,
                SUM(qty_sold) as total_qty, SUM(total_sales) as total_revenue
@@ -1142,7 +1142,7 @@ app.get('/api/sales/imports', (req, res) => {
 });
 
 // 3. مسار حذف استيراد معين وبياناته
-app.delete('/api/sales/imports/:import_id', (req, res) => {
+app.delete('/api/sales/imports/:import_id', authenticateUser, (req, res) => {
     const { import_id } = req.params;
     db.run("DELETE FROM product_sales_imports WHERE import_id = ?", [import_id], function (err) {
         if (err) {
@@ -1153,7 +1153,7 @@ app.delete('/api/sales/imports/:import_id', (req, res) => {
 });
 
 // 4. مسار جلب تفاصيل الاستيرادات للمقارنة
-app.get('/api/sales/compare-reports', (req, res) => {
+app.get('/api/sales/compare-reports', authenticateUser, (req, res) => {
     const { import1, import2 } = req.query;
     if (!import1 || !import2) {
         return res.status(400).json({ error: 'يرجى تقديم معرفي الاستيراد للمقارنة.' });
@@ -1175,7 +1175,7 @@ app.get('/api/sales/compare-reports', (req, res) => {
 });
 
 // 5. مسار حفظ مقارنة جديدة
-app.post('/api/sales/saved-comparisons', (req, res) => {
+app.post('/api/sales/saved-comparisons', authenticateUser, (req, res) => {
     const { title, compare_type, param1, param2, summary_json } = req.body;
     if (!title || !compare_type) {
         return res.status(400).json({ error: 'يرجى تقديم عنوان ونوع المقارنة.' });
@@ -1194,7 +1194,7 @@ app.post('/api/sales/saved-comparisons', (req, res) => {
 });
 
 // 6. مسار جلب المقارنات المحفوظة
-app.get('/api/sales/saved-comparisons', (req, res) => {
+app.get('/api/sales/saved-comparisons', authenticateUser, (req, res) => {
     db.all("SELECT * FROM saved_comparisons ORDER BY id DESC", [], (err, rows) => {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -1207,7 +1207,7 @@ app.get('/api/sales/saved-comparisons', (req, res) => {
 });
 
 // 7. مسار حذف مقارنة محفوظة
-app.delete('/api/sales/saved-comparisons/:id', (req, res) => {
+app.delete('/api/sales/saved-comparisons/:id', authenticateUser, (req, res) => {
     const { id } = req.params;
     db.run("DELETE FROM saved_comparisons WHERE id = ?", [id], function (err) {
         if (err) {
@@ -1256,7 +1256,7 @@ app.post('/api/system/clear-all', authenticateUser, requireRole(['admin']), (req
 // ── 4. مسارات وإدارة الحملات الإعلانية الموحدة (Facebook, Snapchat, TikTok) ──
 
 // جلب حالات الاتصال بالمنصات الإعلانية
-app.get('/api/ads/connections', (req, res) => {
+app.get('/api/ads/connections', authenticateUser, (req, res) => {
     db.all("SELECT * FROM ads_connections", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const connMap = {
@@ -1272,7 +1272,7 @@ app.get('/api/ads/connections', (req, res) => {
 });
 
 // ربط منصة إعلانية (محاكاة أو حقيقي)
-app.post('/api/ads/connections/connect', (req, res) => {
+app.post('/api/ads/connections/connect', authenticateUser, (req, res) => {
     const { platform, account_id } = req.body;
     if (!['facebook', 'snapchat', 'tiktok'].includes(platform)) {
         return res.status(400).json({ error: 'منصة غير صالحة' });
@@ -1290,7 +1290,7 @@ app.post('/api/ads/connections/connect', (req, res) => {
 });
 
 // قطع ربط منصة إعلانية
-app.post('/api/ads/connections/disconnect', (req, res) => {
+app.post('/api/ads/connections/disconnect', authenticateUser, (req, res) => {
     const { platform } = req.body;
     db.run("DELETE FROM ads_connections WHERE platform = ?", [platform], function(err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -1478,7 +1478,7 @@ async function fetchLiveTikTokCampaigns(token, advertiserId, fromDate, toDate) {
 }
 
 // جلب معلومات رصيد الحساب الإعلاني من تيك توك حياً
-app.get('/api/ads/account-info', (req, res) => {
+app.get('/api/ads/account-info', authenticateUser, (req, res) => {
     db.all("SELECT * FROM ads_connections WHERE platform = 'tiktok' AND status = 'connected'", [], async (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         if (rows.length === 0 || !rows[0].access_token) {
@@ -1514,7 +1514,7 @@ app.get('/api/ads/account-info', (req, res) => {
 });
 
 // جلب إحصائيات الحملات الإعلانية مع الفلترة التاريخية ومحاكاة البيانات الذكية
-app.get('/api/ads/campaigns', (req, res) => {
+app.get('/api/ads/campaigns', authenticateUser, (req, res) => {
     const from = req.query.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const to = req.query.to || new Date().toISOString().split('T')[0];
     const platform = req.query.platform || ''; // facebook, snapchat, tiktok or empty for all
@@ -1681,7 +1681,7 @@ async function generateMockCampaignsForPeriod(platforms, fromDate, toDate) {
 
 
 // مسار جلب السلات المتروكة
-app.get('/api/salla/abandoned-carts', async (req, res) => {
+app.get('/api/salla/abandoned-carts', authenticateUser, async (req, res) => {
     const token = await getOrRefreshToken();
 
     if (!token) {
@@ -1819,7 +1819,7 @@ app.get('/api/certificates/report', authenticateUser, async (req, res) => {
 // ── 3. مسارات إدارة المصروفات عبر SQLite ──
 
 // جلب المصروفات
-app.get('/api/expenses', (req, res) => {
+app.get('/api/expenses', authenticateUser, (req, res) => {
     const cat = req.query.cat || '';
     const period = req.query.period || '';
     const descs = req.query.descs || '';
@@ -1874,7 +1874,7 @@ app.get('/api/expenses', (req, res) => {
 });
 
 // إضافة مصروف جديد
-app.post('/api/expenses', (req, res) => {
+app.post('/api/expenses', authenticateUser, (req, res) => {
     const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period } = req.body;
     if (!desc || !cat || isNaN(amt) || !date) {
         return res.status(400).json({ error: 'يرجى تقديم كافة البيانات المطلوبة بشكل صحيح.' });
@@ -1906,7 +1906,7 @@ app.post('/api/expenses', (req, res) => {
 });
 
 // تعديل مصروف
-app.put('/api/expenses/:id', (req, res) => {
+app.put('/api/expenses/:id', authenticateUser, (req, res) => {
     const { id } = req.params;
     const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period } = req.body;
 
@@ -1937,7 +1937,7 @@ app.put('/api/expenses/:id', (req, res) => {
 });
 
 // حذف مصروف
-app.delete('/api/expenses/:id', (req, res) => {
+app.delete('/api/expenses/:id', authenticateUser, (req, res) => {
     const { id } = req.params;
     db.get("SELECT desc, amt FROM expenses WHERE id = ?", [id], (errFetch, row) => {
         const desc = row ? row.desc : 'غير معروف';
@@ -1953,7 +1953,7 @@ app.delete('/api/expenses/:id', (req, res) => {
 });
 
 // مسار حذف وتصفير جميع المصروفات
-app.post('/api/expenses/clear', (req, res) => {
+app.post('/api/expenses/clear', authenticateUser, requireRole(['admin']), (req, res) => {
     if (req.user && (req.user.role === 'employee' || req.user.role === 'games_employee')) {
         return res.status(403).json({ error: 'غير مصرح لك بهذه الصلاحية.' });
     }
@@ -1967,7 +1967,7 @@ app.post('/api/expenses/clear', (req, res) => {
 });
 
 // ── 3.1. مسارات تسوية وجرد المخزون يدوياً ──
-app.get('/api/products/adjustments', (req, res) => {
+app.get('/api/products/adjustments', authenticateUser, (req, res) => {
     db.all("SELECT * FROM product_adjustments", [], (err, rows) => {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -1976,7 +1976,7 @@ app.get('/api/products/adjustments', (req, res) => {
     });
 });
 
-app.post('/api/products/adjustments', (req, res) => {
+app.post('/api/products/adjustments', authenticateUser, (req, res) => {
     const { product_name, stock_offset, cost, price } = req.body;
     if (!product_name) {
         return res.status(400).json({ error: 'يرجى تقديم اسم المنتج لإجراء الجرد.' });
@@ -2002,7 +2002,7 @@ app.post('/api/products/adjustments', (req, res) => {
     );
 });
 
-app.post('/api/products/adjustments/bulk', (req, res) => {
+app.post('/api/products/adjustments/bulk', authenticateUser, (req, res) => {
     const { products } = req.body;
     if (!products || !Array.isArray(products) || products.length === 0) {
         return res.status(400).json({ error: 'يرجى تقديم مصفوفة منتجات صالحة.' });
@@ -2214,7 +2214,7 @@ app.post('/api/inventory/products/bulk', authenticateUser, (req, res) => {
 // ── 4. مسارات الأرشفة الشهرية (SQLite) ──
 
 // جلب الأرشيفات
-app.get('/api/archives', (req, res) => {
+app.get('/api/archives', authenticateUser, (req, res) => {
     db.all("SELECT key, name, month, archived_at FROM archives ORDER BY key DESC", [], (err, rows) => {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -2224,7 +2224,7 @@ app.get('/api/archives', (req, res) => {
 });
 
 // جلب تفاصيل شهر مؤرشف معين
-app.get('/api/archives/:key', (req, res) => {
+app.get('/api/archives/:key', authenticateUser, (req, res) => {
     const { key } = req.params;
     db.get("SELECT * FROM archives WHERE key = ?", [key], (err, row) => {
         if (err) {
@@ -2246,7 +2246,7 @@ app.get('/api/archives/:key', (req, res) => {
 });
 
 // أرشفة الشهر الحالي وبدء شهر جديد
-app.post('/api/archives', async (req, res) => {
+app.post('/api/archives', authenticateUser, async (req, res) => {
     const { name, month, sales_json, wallet_json } = req.body;
     if (!name || !month) {
         return res.status(400).json({ error: 'يرجى إرسال اسم الأرشيف والشهر.' });
