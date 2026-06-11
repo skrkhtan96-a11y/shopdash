@@ -22,14 +22,18 @@ const SallaService = {
 
         const now = Math.floor(Date.now() / 1000);
         if (sallaAuth.expires_at - now < 300) {
-            console.log('[SallaService] توكين سلة على وشك الانتهاء، جاري التحديث...');
             try {
-                const response = await axios.post(SALLA_TOKEN_URL, {
-                    client_id: process.env.SALLA_CLIENT_ID,
-                    client_secret: process.env.SALLA_CLIENT_SECRET,
-                    grant_type: 'refresh_token',
-                    refresh_token: sallaAuth.refresh_token,
-                    redirect_uri: process.env.SALLA_REDIRECT_URI
+                const params = new URLSearchParams();
+                params.append('client_id', process.env.SALLA_CLIENT_ID);
+                params.append('client_secret', process.env.SALLA_CLIENT_SECRET);
+                params.append('grant_type', 'refresh_token');
+                params.append('refresh_token', sallaAuth.refresh_token);
+                params.append('redirect_uri', process.env.SALLA_REDIRECT_URI);
+
+                const response = await axios.post(SALLA_TOKEN_URL, params, {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    }
                 });
 
                 const { access_token, refresh_token, expires_in } = response.data;
