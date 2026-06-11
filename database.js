@@ -60,6 +60,14 @@ db.serialize(() => {
         )
     `);
 
+    // 3.5 جدول الاتصال بـ جوجل درايف (OAuth state & credentials)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS google_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    `);
+
     // 4. جدول الطلبات المستوردة من إكسل
     db.run(`
         CREATE TABLE IF NOT EXISTS salla_imported_orders (

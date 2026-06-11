@@ -569,6 +569,11 @@
         <div class="topbar-right">
           <div class="salla-live" id="sallaLive"><i class="ti ti-circle-check"></i> متصل بسلة</div>
           <button class="btn btn-sm btn-red" id="sallaDisconnectBtn" onclick="disconnectSallaStore()" style="display:none; background:rgba(224,85,85,0.1); border-color:var(--red); color:var(--red); align-items:center; gap:4px; cursor:pointer;"><i class="ti ti-plug-off"></i> قطع ربط سلة</button>
+          
+          <!-- Google Drive OAuth Connection buttons -->
+          <a class="btn btn-sm" id="googleDriveConnectBtn" href="/api/upload/google-auth" style="background:rgba(61,186,126,0.1); border-color:var(--green); color:var(--green); align-items:center; gap:4px; display:flex; text-decoration:none;"><i class="ti ti-brand-google-drive"></i> ربط Google Drive</a>
+          <button class="btn btn-sm btn-red" id="googleDriveDisconnectBtn" onclick="disconnectGoogleDrive()" style="display:none; background:rgba(224,85,85,0.1); border-color:var(--red); color:var(--red); align-items:center; gap:4px; cursor:pointer;"><i class="ti ti-plug-off"></i> قطع ربط Drive</button>
+
           <div class="sync-indicator"><div class="sync-dot" id="syncDot"></div><span id="syncTxt">محدّث</span></div>
           <button class="btn btn-sm" onclick="openArchModal()" id="newMonthBtn" style="color:var(--amber); border-color:rgba(232,168,74,0.3); background:transparent;"><i class="ti ti-calendar-plus"></i> بدء شهر جديد</button>
           <button class="btn btn-sm" onclick="syncSalla()" id="syncBtn"><i class="ti ti-refresh"></i> تحديث مزامنة سلة</button>

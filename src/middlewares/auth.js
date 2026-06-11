@@ -102,7 +102,8 @@ const apiProtectionMiddleware = (req, res, next) => {
         url.startsWith('/api/mcp') ||
         url.includes('/salla/callback-handler') ||
         url.includes('/salla/auth-redirect') ||
-        url.includes('/salla/webhook')
+        url.includes('/salla/webhook') ||
+        url.includes('/upload/google-callback')
     ) {
         return next();
     }

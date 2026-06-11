@@ -162,6 +162,9 @@ async function init() {
         // تطبيق الصلاحيات والقيود بناء على الدور المحاسبي
         applyRoleBasedPermissions();
 
+        // التحقق من حالة ربط جوجل درايف
+        checkGoogleDriveStatus();
+
         // 2. تحديث حالة الاتصال وقاعدة البيانات لسلة
         await updateDBStatus();
 
@@ -181,6 +184,19 @@ async function init() {
         const hashPage = window.location.hash.replace('#', '');
         const savedPage = (PAGES.includes(hashPage) ? hashPage : null) || sessionStorage.getItem('active_page') || 'overview';
         nav(savedPage);
+
+        // تفقد إذا كان راجعاً من مصادقة جوجل
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('google_auth')) {
+            const authStatus = urlParams.get('google_auth');
+            if (authStatus === 'success') {
+                toast('تم ربط حساب Google Drive بنجاح تام! 🎉', 'ok');
+            } else {
+                toast('فشل ربط حساب Google Drive. يرجى التحقق من المدخلات.', 'err');
+            }
+            // تنظيف الرابط من البارامترات
+            window.history.replaceState({}, document.title, "/");
+        }
     } catch (e) {
         console.error('خطأ أثناء تشغيل التطبيق:', e);
         toast('خطأ أثناء الاتصال بالخادم الرئيسي', 'err');
@@ -8802,4 +8818,57 @@ async function uploadReceiptFile(formType) {
         fileInput.value = ''; // تفريغ الحقل لتكرار الرفع
     }
 }
+
+// دالة التحقق من حالة ربط حساب جوجل درايف الشخصي
+async function checkGoogleDriveStatus() {
+    try {
+        const res = await fetch('/api/upload/google-status');
+        if (res.ok) {
+            const data = await res.json();
+            const connectBtn = document.getElementById('googleDriveConnectBtn');
+            const disconnectBtn = document.getElementById('googleDriveDisconnectBtn');
+            
+            if (data.connected) {
+                if (connectBtn) {
+                    connectBtn.innerHTML = '<i class="ti ti-brand-google-drive"></i> متصل بـ Drive';
+                    connectBtn.style.background = 'rgba(61,186,126,0.1)';
+                    connectBtn.style.borderColor = 'var(--green)';
+                    connectBtn.style.color = 'var(--green)';
+                    connectBtn.removeAttribute('href'); // إزالة رابط النقر المباشر
+                }
+                if (disconnectBtn) disconnectBtn.style.display = 'flex';
+            } else {
+                if (connectBtn) {
+                    connectBtn.innerHTML = '<i class="ti ti-brand-google-drive"></i> ربط Google Drive';
+                    connectBtn.style.background = '';
+                    connectBtn.style.borderColor = '';
+                    connectBtn.style.color = '';
+                    connectBtn.setAttribute('href', '/api/upload/google-auth');
+                }
+                if (disconnectBtn) disconnectBtn.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error('Error checking Google Drive status:', e);
+    }
+}
+
+// دالة فك الارتباط بحساب جوجل درايف
+async function disconnectGoogleDrive() {
+    if (!confirm('هل أنت متأكد من إلغاء ربط حساب Google Drive بالكامل؟ لن يتم إرسال الإيصالات للفولدر الشخصي بعد الآن.')) return;
+    
+    try {
+        const res = await fetch('/api/upload/google-disconnect', { method: 'POST' });
+        if (res.ok) {
+            toast('تم إلغاء ربط حساب Google Drive بنجاح', 'ok');
+            await checkGoogleDriveStatus();
+        } else {
+            toast('حدث خطأ أثناء إلغاء الربط', 'error');
+        }
+    } catch (e) {
+        console.error('Disconnect Google Drive error:', e);
+        toast('فشل الاتصال بالسيرفر', 'error');
+    }
+}
+
 
