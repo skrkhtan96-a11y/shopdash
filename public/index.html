@@ -371,36 +371,41 @@
       </div>
       
       <div class="form-row full" id="uPermissionsSection" style="margin-top: 10px; border-top: 1px solid var(--border2); padding-top: 10px; margin-bottom: 10px;">
-        <label class="form-label" style="font-weight: 600; margin-bottom: 8px; color: var(--text2);">صلاحيات مخزون حسابات بلايستيشن بلس:</label>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+        <label class="form-label" style="font-weight: 700; margin-bottom: 8px; color: var(--accent); font-size:12px; display:block;"><i class="ti ti-brand-playstation"></i> صلاحيات المخازن والحسابات المشتركة:</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom:12px; background:rgba(255,255,255,0.02); padding:8px; border-radius:var(--r); border:1px solid var(--border2)">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer; color: var(--text);">
             <input type="checkbox" id="uCanAdd" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
             <span>إضافة حسابات جديدة</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer; color: var(--text);">
             <input type="checkbox" id="uCanEdit" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
             <span>تعديل بيانات الحسابات</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer; color: var(--text);">
             <input type="checkbox" id="uCanDelete" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
             <span>حذف الحسابات</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text);">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer; color: var(--text);">
             <input type="checkbox" id="uCanDeliver" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
             <span>تسليم النسخ (واتساب)</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text); grid-column: span 2;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer; color: var(--text); grid-column: span 2;">
             <input type="checkbox" id="uCanViewPsDetails" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
             <span>عرض تفاصيل وأكواد حسابات بلس</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text); grid-column: span 2;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer; color: var(--text); grid-column: span 2;">
             <input type="checkbox" id="uCanViewGamesDetails" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
             <span>عرض تفاصيل وأكواد حسابات الألعاب</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text); grid-column: span 2;">
+        </div>
+
+        <label class="form-label" style="font-weight: 700; margin-bottom: 8px; color: var(--green); font-size:12px; display:block;"><i class="ti ti-currency-dollar"></i> صلاحيات صفحة المبيعات الخارجية:</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background:rgba(61,186,126,0.02); padding:8px; border-radius:var(--r); border:1px solid rgba(61,186,126,0.1)">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer; color: var(--text); grid-column: span 2;">
             <input type="checkbox" id="uCanViewExternalSales" checked style="width: auto !important; margin: 0 !important; cursor: pointer;">
-            <span>عرض وإدارة المبيعات الخارجية</span>
+            <span style="font-weight:600; color:var(--text)">عرض واستعراض صفحة المبيعات الخارجية</span>
           </label>
+          <span style="grid-column: span 2; font-size:10px; color:var(--text3); margin-top:2px; border-top:1px dashed var(--border2); padding-top:4px;">تعتمد عمليات الإضافة، التعديل، والحذف للمبيعات الخارجية على الخيارات العامة أعلاه (إضافة/تعديل/حذف) المحددة للموظف.</span>
         </div>
       </div>
       

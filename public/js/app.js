@@ -8729,7 +8729,17 @@ function showExtSaleDetails(id) {
             const isImage = item.receipt_url.match(/\.(jpeg|jpg|gif|png|webp)/i) || item.receipt_url.includes('drive.google.com') || item.receipt_url.includes('docs.google.com');
             if (isImage && detReceiptImgContainer && detReceiptPreviewImg) {
                 detReceiptImgContainer.style.display = 'block';
-                detReceiptPreviewImg.src = item.receipt_url;
+                
+                // تحويل رابط جوجل درايف العام إلى رابط مباشر لعرض الصورة
+                let directLink = item.receipt_url;
+                if (item.receipt_url.includes('drive.google.com')) {
+                    const match = item.receipt_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || item.receipt_url.match(/id=([a-zA-Z0-9_-]+)/);
+                    if (match && match[1]) {
+                        directLink = `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w400-h400-no`; // أسرع طريقة وأكثرها أماناً لعرض الصور من جوجل
+                    }
+                }
+                
+                detReceiptPreviewImg.src = directLink;
             } else if (detReceiptImgContainer) {
                 detReceiptImgContainer.style.display = 'none';
             }
