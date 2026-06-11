@@ -107,7 +107,7 @@ const authenticateMcp = (req, res, next) => {
 
 // Middleware to check authentication for static pages
 app.use((req, res, next) => {
-    const publicPages = ['/login.html', '/register.html'];
+    const publicPages = ['/login.html'];
     const isHtmlOrRoot = req.path === '/' || req.path.endsWith('.html');
     
     if (isHtmlOrRoot && !publicPages.includes(req.path)) {
@@ -150,94 +150,6 @@ app.use('/api', (req, res, next) => {
 });
 
 // --- AUTH & USER API ENDPOINTS ---
-
-// 1. Check if system is initialized (has at least one user)
-app.get('/api/auth/check-init', (req, res) => {
-    db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ initialized: (row ? row.count > 0 : false) });
-    });
-});
-
-// 2. User registration (Sign-up)
-app.post('/api/auth/register', (req, res) => {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-        return res.status(400).json({ error: 'يرجى ملء جميع الحقول المطلوبة.' });
-    }
-    
-    // Check if it's the first user
-    db.get("SELECT COUNT(*) as count FROM users", [], (errCount, rowCount) => {
-        if (errCount) return res.status(500).json({ error: errCount.message });
-        
-        const isFirstUser = !rowCount || rowCount.count === 0;
-        const role = isFirstUser ? 'admin' : 'employee'; // First user is Admin, others are Employee
-        
-        const executeRegister = () => {
-            const hashedPassword = hashPassword(password);
-            const createdAt = new Date().toISOString().split('T')[0];
-            
-            db.run(
-                "INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)",
-                [username.trim(), email.trim().toLowerCase(), hashedPassword, role, createdAt],
-                function(errInsert) {
-                    if (errInsert) {
-                        if (errInsert.message.includes('UNIQUE')) {
-                            return res.status(400).json({ error: 'اسم المستخدم أو البريد الإلكتروني مسجل مسبقاً.' });
-                        }
-                        return res.status(500).json({ error: errInsert.message });
-                    }
-                    
-                    const userId = this.lastID;
-                    const sessionToken = crypto.randomBytes(32).toString('hex');
-                    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days expiration
-                    
-                    db.run(
-                        "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-                        [sessionToken, userId, expiresAt],
-                        (errSession) => {
-                            if (errSession) return res.status(500).json({ error: errSession.message });
-                            
-                            res.cookie('session_token', sessionToken, {
-                                httpOnly: true,
-                                expires: new Date(expiresAt),
-                                secure: process.env.NODE_ENV === 'production',
-                                sameSite: 'strict'
-                            });
-                            
-                            res.json({
-                                success: true,
-                                user: { id: userId, username, email, role }
-                            });
-                        }
-                    );
-                }
-            );
-        };
-
-        if (!isFirstUser) {
-            // Require logged in admin user to register additional users
-            const token = req.cookies.session_token;
-            if (!token) {
-                return res.status(403).json({ error: 'التسجيل المفتوح معطل. يرجى الطلب من مسؤول النظام إضافتك.' });
-            }
-            db.get(
-                `SELECT u.role FROM sessions s 
-                 JOIN users u ON s.user_id = u.id 
-                 WHERE s.token = ? AND datetime(s.expires_at) > datetime('now')`,
-                [token],
-                (errSession, sessionUser) => {
-                    if (errSession || !sessionUser || sessionUser.role !== 'admin') {
-                        return res.status(403).json({ error: 'غير مصرح لك بإنشاء حسابات جديدة. يتطلب هذا الإجراء صلاحية مدير النظام.' });
-                    }
-                    executeRegister();
-                }
-            );
-        } else {
-            executeRegister();
-        }
-    });
-});
 
 // 3. User login
 app.post('/api/auth/login', loginLimiter, (req, res) => {
@@ -3479,6 +3391,28 @@ app.delete('/api/external-sales/:id', authenticateUser, requireRole(['admin']), 
     });
 });
 
+// Test route for centralized error handling verification (only active during testing/development)
+if (process.env.NODE_ENV !== 'production') {
+    app.get('/api/auth/test-error', (req, res, next) => {
+        const error = new Error('Test internal database connection error');
+        error.status = 500;
+        next(error);
+    });
+}
+
+// Centralized Error Handling Middleware (L-3)
+app.use((err, req, res, next) => {
+    console.error('[Central Error Handler]', err.stack || err);
+    
+    const status = err.status || 500;
+    const isProd = process.env.NODE_ENV === 'production';
+    
+    res.status(status).json({
+        error: isProd ? 'حدث خطأ داخلي في الخادم.' : (err.message || 'Unknown error'),
+        ...(isProd ? {} : { stack: err.stack })
+    });
+});
+
 // دالة لتنظيف الجلسات منتهية الصلاحية دورياً من قاعدة البيانات
 function cleanExpiredSessions() {
     db.run("DELETE FROM sessions WHERE datetime(expires_at) < datetime('now')", [], function(err) {
@@ -3491,13 +3425,17 @@ function cleanExpiredSessions() {
 }
 
 // تشغيل السيرفر
-app.listen(PORT, () => {
-    console.log(`=================================================`);
-    console.log(`🚀 خادم محاسبة سلة يعمل بنجاح!`);
-    console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);
-    console.log(`=================================================`);
-    
-    // تنظيف الجلسات المنتهية عند بدء التشغيل وكل 6 ساعات
-    cleanExpiredSessions();
-    setInterval(cleanExpiredSessions, 6 * 60 * 60 * 1000);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`=================================================`);
+        console.log(`🚀 خادم محاسبة سلة يعمل بنجاح!`);
+        console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);
+        console.log(`=================================================`);
+        
+        // تنظيف الجلسات المنتهية عند بدء التشغيل وكل 6 ساعات
+        cleanExpiredSessions();
+        setInterval(cleanExpiredSessions, 6 * 60 * 60 * 1000);
+    });
+}
+
+module.exports = app;

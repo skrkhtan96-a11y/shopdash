@@ -222,30 +222,11 @@
         <button type="submit" class="login-btn" id="submitBtn">
           <i class="ti ti-login" style="font-size: 16px;"></i>
           تسجيل الدخول للنظام
-        </button>
       </form>
-
-      <div class="login-footer" id="footerText">
-        ليس لديك حساب بعد؟ <a href="register.html">إنشاء حساب جديد</a>
-      </div>
     </div>
   </div>
 
   <script>
-    // عند تحميل الصفحة، نتحقق من تهيئة النظام
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        const res = await fetch('/api/auth/check-init');
-        const data = await res.json();
-        
-        // إذا كان النظام غير مهيأ (لا يوجد أي مستخدم)، نوجهه فوراً لإنشاء حساب المدير
-        if (data.initialized === false) {
-          window.location.href = 'register.html';
-        }
-      } catch (e) {
-        console.error('فشل فحص تهيئة النظام:', e);
-      }
-    });
 
     // معالجة تسجيل الدخول
     async function handleLogin(e) {

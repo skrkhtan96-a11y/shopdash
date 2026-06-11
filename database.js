@@ -1,12 +1,18 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = path.join(__dirname, 'database.db');
+const isTest = process.env.NODE_ENV === 'test';
+const dbPath = isTest ? ':memory:' : path.join(__dirname, 'database.db');
+
+if (isTest) {
+    console.log('🧪 Running in TEST mode. Initializing SQLite IN-MEMORY database (:memory:)');
+}
+
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('خطأ أثناء فتح قاعدة البيانات:', err.message);
     } else {
-        console.log('قاعدة البيانات متصلة بنجاح (SQLite)');
+        console.log(isTest ? '🧪 Test SQLite DB connected in-memory (:memory:)' : 'قاعدة البيانات متصلة بنجاح (SQLite)');
     }
 });
 
