@@ -17,6 +17,7 @@ conn.on('ready', () => {
     
     const commands = [
         "cd /var/www/shopdashboard && git fetch origin && git reset --hard origin/main",
+        "cd /var/www/shopdashboard && npm install",
         "cd /var/www/shopdashboard && (pm2 restart shopdashboard || pm2 restart server)",
         "pm2 status"
     ];

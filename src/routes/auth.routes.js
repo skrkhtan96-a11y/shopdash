@@ -62,7 +62,7 @@ router.post('/logout', async (req, res, next) => {
 
 // 3. Get current user profile
 router.get('/me', authenticateUser, (req, res) => {
-    res.json({ success: true, user: req.user });
+    res.json(req.user);
 });
 
 // 4. Test error route for verify test suites
