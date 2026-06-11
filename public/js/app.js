@@ -1846,6 +1846,9 @@ function openModal(type) {
     
     const mPeriod = document.getElementById('mPeriod');
     if (mPeriod) mPeriod.value = '';
+
+    const mReceiptUrl = document.getElementById('mReceiptUrl');
+    if (mReceiptUrl) mReceiptUrl.value = '';
     
     document.getElementById('modalTitle').innerHTML = `<i class="ti ti-plus" style="color:var(--accent)"></i> إضافة بند مصروفات`;
     toggleMFields();
@@ -1900,6 +1903,18 @@ function showExpenseDetails(id) {
     } else {
         pSec.style.display = 'none';
         mSec.style.display = 'none';
+    }
+
+    // تعبئة رابط الإيصال السحابي
+    const dReceiptSec = document.getElementById('dReceiptSection');
+    const dReceiptLink = document.getElementById('dReceiptLink');
+    if (dReceiptSec && dReceiptLink) {
+        if (row.receipt_url) {
+            dReceiptSec.style.display = 'block';
+            dReceiptLink.href = row.receipt_url;
+        } else {
+            dReceiptSec.style.display = 'none';
+        }
     }
 
     document.getElementById('detailsModal').classList.add('open');
@@ -2290,7 +2305,8 @@ async function saveRow() {
     }
 
     // إعداد الحمولة مع الحقول الأساسية
-    const payload = { desc, cat: type === 'expense' ? cat : 'أخرى', amt, date, note };
+    const receipt_url = document.getElementById('mReceiptUrl').value || null;
+    const payload = { desc, cat: type === 'expense' ? cat : 'أخرى', amt, date, note, receipt_url };
     
     // إضافة الحقول الإضافية إذا كان تصنيف المصروف يتطلب ذلك
     if (type === 'expense' && cat === 'شراء منتجات') {
@@ -2424,6 +2440,11 @@ function editRow(id, type) {
         if (row.platform_name) {
             document.getElementById('mPlatformSelect').value = row.platform_name;
         }
+    }
+    
+    const mReceiptUrl = document.getElementById('mReceiptUrl');
+    if (mReceiptUrl) {
+        mReceiptUrl.value = row.receipt_url || '';
     }
     
     document.getElementById('addModal').classList.add('open');
@@ -8483,6 +8504,7 @@ async function saveExternalSale(event) {
     const customer_name = document.getElementById('extCustomerName').value.trim();
     const customer_phone = document.getElementById('extCustomerPhone').value.trim();
     const notes = document.getElementById('extNotes').value.trim();
+    const receipt_url = document.getElementById('extReceiptUrl').value || null;
 
     if (!product_name || !amount || !bank_account) {
         toast('يرجى تعبئة كافة الحقول المطلوبة', 'error');
@@ -8500,7 +8522,7 @@ async function saveExternalSale(event) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, country, order_number, status: 'delivered'
+                product_name, quantity, amount, bank_account, transfer_reference, customer_name, customer_phone, notes, country, order_number, receipt_url, status: 'delivered'
             })
         });
 
@@ -8514,6 +8536,7 @@ async function saveExternalSale(event) {
         document.getElementById('extQuantity').value = 1; // reset default
         document.getElementById('extCountry').value = '';
         document.getElementById('extOrderNumber').value = '';
+        document.getElementById('extReceiptUrl').value = '';
         document.getElementById('selectedCountryLabel').textContent = 'اختر الدولة...';
         toggleExternalSaleForm();
         await loadExternalSales();
@@ -8628,6 +8651,18 @@ function showExtSaleDetails(id) {
     document.getElementById('detCreatedAt').textContent = item.created_at || '-';
     document.getElementById('detNotes').textContent = item.notes || '-';
     
+    // تعبئة رابط الإيصال السحابي للمبيعات الخارجية
+    const detReceiptSec = document.getElementById('detReceiptSection');
+    const detReceiptLink = document.getElementById('detReceiptLink');
+    if (detReceiptSec && detReceiptLink) {
+        if (item.receipt_url) {
+            detReceiptSec.style.display = 'flex';
+            detReceiptLink.href = item.receipt_url;
+        } else {
+            detReceiptSec.style.display = 'none';
+        }
+    }
+    
     document.getElementById('extSaleDetailsModal').classList.add('open');
 }
 
@@ -8718,3 +8753,53 @@ async function handleDatabaseRestore(event) {
 
     reader.readAsArrayBuffer(file);
 }
+
+// دالة رفع الإيصال إلى جوجل درايف عبر السيرفر
+async function uploadReceiptFile(formType) {
+    const fileInputId = formType === 'expense' ? 'mReceiptFile' : 'extReceiptFile';
+    const progressId = formType === 'expense' ? 'expenseUploadProgress' : 'extSaleUploadProgress';
+    const urlInputId = formType === 'expense' ? 'mReceiptUrl' : 'extReceiptUrl';
+    
+    const fileInput = document.getElementById(fileInputId);
+    const progress = document.getElementById(progressId);
+    const urlInput = document.getElementById(urlInputId);
+    
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
+    
+    const file = fileInput.files[0];
+    
+    // إظهار مؤشر الرفع
+    if (progress) progress.style.display = 'block';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const res = await fetch('/api/upload/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'فشل رفع الملف');
+        }
+        
+        const data = await res.json();
+        if (data.success && data.file_url) {
+            if (urlInput) {
+                urlInput.value = data.file_url;
+            }
+            toast('تم رفع الإيصال بنجاح إلى Google Drive!', 'ok');
+        } else {
+            throw new Error('فشل الرفع');
+        }
+    } catch (err) {
+        console.error('Upload error:', err);
+        toast('حدث خطأ أثناء رفع الملف: ' + err.message, 'error');
+    } finally {
+        if (progress) progress.style.display = 'none';
+        fileInput.value = ''; // تفريغ الحقل لتكرار الرفع
+    }
+}
+

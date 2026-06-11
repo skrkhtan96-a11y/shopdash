@@ -207,7 +207,7 @@ router.post('/external-sales', authenticateUser, (req, res) => {
         return res.status(403).json({ error: 'غير مصرح لك بإدخال مبيعات خارجية.' });
     }
 
-    const { product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, country, order_number } = req.body;
+    const { product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, country, order_number, receipt_url } = req.body;
     
     if (!product_name || !amount || !bank_account) {
         return res.status(400).json({ error: 'حقول اسم المنتج، المبلغ، والحساب البنكي مطلوبة.' });
@@ -232,8 +232,8 @@ router.post('/external-sales', authenticateUser, (req, res) => {
     const saudiTimeStr = `${yyyy}-${mm}-${dd} ${hh}:${minutes}:${seconds} ${ampm}`;
 
     db.run(
-        `INSERT INTO external_sales (product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, country, order_number, created_by, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO external_sales (product_name, quantity, amount, bank_account, customer_name, customer_phone, transfer_reference, status, notes, country, order_number, receipt_url, created_by, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             product_name.trim(),
             parseInt(quantity) || 1,
@@ -246,6 +246,7 @@ router.post('/external-sales', authenticateUser, (req, res) => {
             notes ? notes.trim() : null,
             country ? country.trim() : null,
             order_number ? order_number.trim() : null,
+            receipt_url || null,
             req.user.username,
             saudiTimeStr
         ],

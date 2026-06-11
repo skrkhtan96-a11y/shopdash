@@ -55,35 +55,9 @@ const ExpenseRepository = {
 
     add: (expense) => {
         return new Promise((resolve, reject) => {
-            const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period } = expense;
+            const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period, receipt_url } = expense;
             db.run(
-                "INSERT INTO expenses (desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [
-                    desc,
-                    cat,
-                    parseFloat(amt),
-                    date,
-                    note || '',
-                    product_name || null,
-                    quantity ? parseInt(quantity) : null,
-                    purchase_price ? parseFloat(purchase_price) : null,
-                    selling_price ? parseFloat(selling_price) : null,
-                    platform_name || null,
-                    period || null
-                ],
-                function (err) {
-                    if (err) reject(err);
-                    else resolve(this.lastID);
-                }
-            );
-        });
-    },
-
-    update: (id, expense) => {
-        return new Promise((resolve, reject) => {
-            const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period } = expense;
-            db.run(
-                "UPDATE expenses SET desc = ?, cat = ?, amt = ?, date = ?, note = ?, product_name = ?, quantity = ?, purchase_price = ?, selling_price = ?, platform_name = ?, period = ? WHERE id = ?",
+                "INSERT INTO expenses (desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period, receipt_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     desc,
                     cat,
@@ -96,6 +70,34 @@ const ExpenseRepository = {
                     selling_price ? parseFloat(selling_price) : null,
                     platform_name || null,
                     period || null,
+                    receipt_url || null
+                ],
+                function (err) {
+                    if (err) reject(err);
+                    else resolve(this.lastID);
+                }
+            );
+        });
+    },
+
+    update: (id, expense) => {
+        return new Promise((resolve, reject) => {
+            const { desc, cat, amt, date, note, product_name, quantity, purchase_price, selling_price, platform_name, period, receipt_url } = expense;
+            db.run(
+                "UPDATE expenses SET desc = ?, cat = ?, amt = ?, date = ?, note = ?, product_name = ?, quantity = ?, purchase_price = ?, selling_price = ?, platform_name = ?, period = ?, receipt_url = ? WHERE id = ?",
+                [
+                    desc,
+                    cat,
+                    parseFloat(amt),
+                    date,
+                    note || '',
+                    product_name || null,
+                    quantity ? parseInt(quantity) : null,
+                    purchase_price ? parseFloat(purchase_price) : null,
+                    selling_price ? parseFloat(selling_price) : null,
+                    platform_name || null,
+                    period || null,
+                    receipt_url || null,
                     id
                 ],
                 function (err) {

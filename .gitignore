@@ -11,3 +11,6 @@ inspect_logs_temp.js
 test_balance.js
 patch_ps5_qty.js
 scratch/
+*.json
+!package.json
+!package-lock.json

@@ -68,6 +68,7 @@ const deliveryRouter = require('./src/routes/delivery.routes');
 const inventoryRouter = require('./src/routes/inventory.routes');
 const systemRouter = require('./src/routes/system.routes');
 const aiRouter = require('./src/routes/ai.routes');
+const uploadRouter = require('./src/routes/upload.routes');
 
 // --- MOUNT APIS & PAGES ---
 
@@ -84,6 +85,7 @@ app.use('/api', deliveryRouter);
 app.use('/api', inventoryRouter);
 app.use('/api', systemRouter);
 app.use('/api/ai', aiRouter.router);
+app.use('/api/upload', uploadRouter);
 
 // Map Salla OAuth entry/callback endpoints (backward compatible with VPS config)
 app.get('/auth', (req, res) => res.redirect('/api/salla/auth-redirect'));

@@ -128,6 +128,18 @@
         </div>
       </div>
       
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">إيصال الصرف / الفاتورة (اختياري - Google Drive)</label>
+          <div style="display:flex; gap:8px;">
+            <input type="file" id="mReceiptFile" accept="image/*,application/pdf" style="display:none;" onchange="uploadReceiptFile('expense')">
+            <button type="button" class="btn btn-sm" onclick="document.getElementById('mReceiptFile').click()"><i class="ti ti-upload"></i> اختر ملف الإيصال</button>
+            <input type="text" id="mReceiptUrl" placeholder="رابط الإيصال السحابي..." readonly style="flex:1; height:30px; font-size:11px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none">
+          </div>
+          <div id="expenseUploadProgress" style="display:none; font-size:9.5px; color:var(--accent); margin-top:4px;"><i class="spinner" style="width:10px; height:10px; display:inline-block; vertical-align:middle; margin-left:4px;"></i> جاري رفع الملف إلى جوجل درايف...</div>
+        </div>
+      </div>
+
       <div class="form-row full">
         <div class="form-group">
           <label class="form-label">ملاحظات إضافية</label>
@@ -224,6 +236,15 @@
         <div>
           <div style="font-size:10px; color:var(--text2); margin-bottom:4px">ملاحظات وتفاصيل إضافية</div>
           <div id="dNote" style="font-size:11px; color:var(--text2); background:var(--bg3); padding:10px 12px; border-radius:var(--r); border:1px solid var(--border); min-height:50px; white-space:pre-line;">-</div>
+        </div>
+
+        <!-- رابط الإيصال السحابي -->
+        <div id="dReceiptSection" style="display:none;">
+          <div style="font-size:10px; color:var(--text2); margin-bottom:4px">إيصال الصرف المرفوع</div>
+          <div style="background:var(--bg3); padding:10px; border-radius:var(--r); border:1px solid var(--border); display:flex; align-items:center; gap:8px;">
+            <i class="ti ti-file-text" style="font-size:18px; color:var(--accent);"></i>
+            <a id="dReceiptLink" href="#" target="_blank" style="color:var(--accent); font-size:12px; font-weight:600; text-decoration:none;">عرض واستعراض ملف الفاتورة / الإيصال في Google Drive <i class="ti ti-external-link" style="font-size:10px;"></i></a>
+          </div>
         </div>
 
       </div>
@@ -1867,7 +1888,18 @@
               <label class="form-label" style="font-size:10px;">ملاحظات</label>
               <input type="text" id="extNotes" placeholder="أدخل أي ملاحظات..." style="padding: 6px 10px; font-size: 12px;">
             </div>
-            <button class="btn btn-primary" type="submit" style="padding: 6px 12px; font-size: 12px; height: 31px;"><i class="ti ti-check"></i> حفظ العملية</button>
+            
+            <div class="form-group" style="margin-bottom:0; grid-column: span 2;">
+              <label class="form-label" style="font-size:10px;">إيصال التحويل / الفاتورة (اختياري - Google Drive)</label>
+              <div style="display:flex; gap:8px;">
+                <input type="file" id="extReceiptFile" accept="image/*,application/pdf" style="display:none;" onchange="uploadReceiptFile('external-sale')">
+                <button type="button" class="btn btn-sm" onclick="document.getElementById('extReceiptFile').click()" style="padding: 6px 10px; font-size: 11px; height:31px;"><i class="ti ti-upload"></i> اختر ملف الإيصال</button>
+                <input type="text" id="extReceiptUrl" placeholder="رابط الإيصال السحابي..." readonly style="flex:1; height:31px; font-size:11px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none">
+              </div>
+              <div id="extSaleUploadProgress" style="display:none; font-size:9.5px; color:var(--accent); margin-top:4px;"><i class="spinner" style="width:10px; height:10px; display:inline-block; vertical-align:middle; margin-left:4px;"></i> جاري رفع الملف إلى جوجل درايف...</div>
+            </div>
+            
+            <button class="btn btn-primary" type="submit" style="padding: 6px 12px; font-size: 12px; height: 31px; grid-column: span 1;"><i class="ti ti-check"></i> حفظ العملية</button>
           </form>
         </div>
 
@@ -2029,6 +2061,14 @@
             <div style="grid-column: span 2; background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2);">
               <div style="font-size: 10px; color: var(--text3);">ملاحظات</div>
               <div id="detNotes" style="font-size: 12px; margin-top: 2px; line-height: 1.5; color: var(--text2);">-</div>
+            </div>
+            
+            <div id="detReceiptSection" style="grid-column: span 2; background: var(--bg3); padding: 8px 12px; border-radius: var(--r1); border: 1px solid var(--border2); display:none; align-items:center; gap:8px;">
+              <div style="font-size: 10px; color: var(--text3); width:100%">إيصال التحويل المرفوع</div>
+              <div style="display:flex; align-items:center; gap:6px; margin-top:4px">
+                <i class="ti ti-file-text" style="font-size:16px; color:var(--accent);"></i>
+                <a id="detReceiptLink" href="#" target="_blank" style="color:var(--accent); font-size:11.5px; font-weight:600; text-decoration:none;">عرض واستعراض ملف الفاتورة / الإيصال في Google Drive <i class="ti ti-external-link" style="font-size:9px;"></i></a>
+              </div>
             </div>
           </div>
           

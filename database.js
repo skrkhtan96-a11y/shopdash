@@ -331,6 +331,10 @@ db.serialize(() => {
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });
     
+    // ترقية جدول المصروفات والمبيعات الخارجية لإضافة رابط إيصال الرفع (اختياري)
+    db.run("ALTER TABLE expenses ADD COLUMN receipt_url TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE external_sales ADD COLUMN receipt_url TEXT", (err) => { /* تجاهل الخطأ */ });
+
     // ترقية جدول المبيعات الخارجية لإضافة عمود الدولة ورقم الطلب
     db.run("ALTER TABLE external_sales ADD COLUMN country TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE external_sales ADD COLUMN order_number TEXT", (err) => { /* تجاهل الخطأ */ });
