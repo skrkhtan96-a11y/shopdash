@@ -23,7 +23,7 @@ class DriveService {
 
             const auth = new google.auth.GoogleAuth({
                 keyFile: keyPath,
-                scopes: ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive'],
+                scopes: ['https://www.googleapis.com/auth/drive'],
             });
 
             this.drive = google.drive({ version: 'v3', auth });
@@ -58,7 +58,7 @@ class DriveService {
 
             const fileMetadata = {
                 name: fileName,
-                parents: [this.folderId],
+                parents: [this.folderId]
             };
 
             const media = {
@@ -66,17 +66,20 @@ class DriveService {
                 body: bufferStream,
             };
 
+            // الرفع مع التحديد الصريح لعدم استهلاك مساحة حساب الخدمة ونقل الملكية لمساحة المجلد المشترك
             const response = await this.drive.files.create({
                 requestBody: fileMetadata,
                 media: media,
                 fields: 'id, webViewLink, webContentLink',
-                supportsAllDrives: true, // مهم للرفع لحسابات الخدمة على مجلد مشترك
+                supportsAllDrives: true,
+                keepRevisionForever: false,
+                ignoreDefaultVisibility: true
             });
 
             const fileId = response.data.id;
             console.log(`[DriveService] File successfully uploaded to Google Drive. ID: ${fileId}`);
 
-            // Make file readable to anyone with the link (optional but recommended for viewing inside dashboard)
+            // Make file readable to anyone with the link
             try {
                 await this.drive.permissions.create({
                     fileId: fileId,
@@ -87,10 +90,9 @@ class DriveService {
                     supportsAllDrives: true,
                 });
             } catch (permErr) {
-                console.warn('[DriveService] Warning: Could not share file publicly, it might still require manual share permissions:', permErr.message);
+                console.warn('[DriveService] Warning: Could not share file publicly:', permErr.message);
             }
 
-            // Return webViewLink or webContentLink
             return response.data.webViewLink;
         } catch (error) {
             console.error('[DriveService] Error uploading file to Google Drive:', error.message);
