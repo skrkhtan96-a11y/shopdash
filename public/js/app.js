@@ -8666,6 +8666,7 @@ async function saveExternalSale(event) {
         document.getElementById('extOrderNumber').value = '';
         document.getElementById('extReceiptUrl').value = '';
         document.getElementById('selectedCountryLabel').textContent = 'اختر الدولة...';
+        updateBankAccountOptions('');
         
         editingExtSaleId = null; // تفريغ معرف التعديل
         
@@ -8702,9 +8703,10 @@ function editExternalSaleFromDetails() {
     document.getElementById('extProductName').value = item.product_name || '';
     document.getElementById('extQuantity').value = item.quantity || 1;
     document.getElementById('extAmount').value = item.amount || '';
-    document.getElementById('extBankAccount').value = item.bank_account || 'حساب الوثيقة';
     document.getElementById('extCountry').value = item.country || '';
     document.getElementById('selectedCountryLabel').textContent = item.country || 'اختر الدولة...';
+    updateBankAccountOptions(item.country);
+    document.getElementById('extBankAccount').value = item.bank_account || 'حساب الوثيقة';
     document.getElementById('extOrderNumber').value = item.order_number || '';
     document.getElementById('extReference').value = item.transfer_reference || '';
     document.getElementById('extCustomerName').value = item.customer_name || '';
@@ -8795,11 +8797,66 @@ function filterCountries() {
     });
 }
 
+const COUNTRY_WALLETS = {
+    'اليمن': [
+        { value: 'حساب القطيبي', label: '🏦 حساب القطيبي' },
+        { value: 'حساب الكريمي', label: '🏦 حساب الكريمي' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'العراق': [
+        { value: 'زين كاش (العراق)', label: '📱 زين كاش (العراق)' },
+        { value: 'آسيا باي (العراق)', label: '📱 آسيا باي (العراق)' },
+        { value: 'فاست باي (العراق)', label: '📱 فاست باي (العراق)' },
+        { value: 'كي كارد (العراق)', label: '💳 كي كارد (العراق)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'مصر': [
+        { value: 'فودافون كاش (مصر)', label: '📱 فودافون كاش (مصر)' },
+        { value: 'إنستاباي (مصر)', label: 'InstaPay 📱 (مصر)' },
+        { value: 'فوري (مصر)', label: '🏪 فوري (مصر)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'سوريا': [
+        { value: 'سيرياتيل كاش (سوريا)', label: '📱 سيرياتيل كاش (سوريا)' },
+        { value: 'MTN Cash (سوريا)', label: '📱 MTN Cash (سوريا)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'الأردن': [
+        { value: 'زين كاش الأردن', label: '📱 زين كاش الأردن' },
+        { value: 'CliQ (الأردن)', label: 'CliQ 💳 (الأردن)' },
+        { value: 'أورنج موني (الأردن)', label: '📱 أورنج موني (الأردن)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ]
+};
+
+const DEFAULT_WALLETS = [
+    { value: 'حساب الوثيقة', label: '🏦 حساب الوثيقة' },
+    { value: 'حساب نجم', label: '🏦 حساب نجم' },
+    { value: 'حساب القطيبي', label: '🏦 حساب القطيبي' },
+    { value: 'حساب الكريمي', label: '🏦 حساب الكريمي' },
+    { value: 'حساب USD', label: '💵 حساب USD' },
+    { value: 'حساب زاد', label: '📱 حساب زاد' }
+];
+
+function updateBankAccountOptions(country) {
+    const select = document.getElementById('extBankAccount');
+    if (!select) return;
+    const currentValue = select.value;
+    const wallets = COUNTRY_WALLETS[country] || DEFAULT_WALLETS;
+    select.innerHTML = wallets.map(w => `<option value="${escapeHtml(w.value)}">${escapeHtml(w.label)}</option>`).join('');
+    if (wallets.some(w => w.value === currentValue)) {
+        select.value = currentValue;
+    } else if (wallets.length > 0) {
+        select.value = wallets[0].value;
+    }
+}
+
 function selectCountry(country) {
     document.getElementById('extCountry').value = country;
     document.getElementById('selectedCountryLabel').textContent = country;
     document.getElementById('selectedCountryLabel').style.color = 'var(--text)';
     document.getElementById('extCountryMenu').style.display = 'none';
+    updateBankAccountOptions(country);
 }
 
 function showExtSaleDetails(id) {
