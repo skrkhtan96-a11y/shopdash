@@ -8814,6 +8814,8 @@ const COUNTRY_WALLETS = {
         { value: 'فودافون كاش (مصر)', label: '📱 فودافون كاش (مصر)' },
         { value: 'إنستاباي (مصر)', label: 'InstaPay 📱 (مصر)' },
         { value: 'فوري (مصر)', label: '🏪 فوري (مصر)' },
+        { value: 'اتصالات كاش (مصر)', label: '📱 اتصالات كاش (مصر)' },
+        { value: 'أورانج كاش (مصر)', label: '📱 أورانج كاش (مصر)' },
         { value: 'حساب USD', label: '💵 حساب USD' }
     ],
     'سوريا': [
@@ -8825,6 +8827,90 @@ const COUNTRY_WALLETS = {
         { value: 'زين كاش الأردن', label: '📱 زين كاش الأردن' },
         { value: 'CliQ (الأردن)', label: 'CliQ 💳 (الأردن)' },
         { value: 'أورنج موني (الأردن)', label: '📱 أورنج موني (الأردن)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'السعودية': [
+        { value: 'STC Pay (السعودية)', label: '📱 STC Pay (السعودية)' },
+        { value: 'Urpay (السعودية)', label: '📱 Urpay (السعودية)' },
+        { value: 'مصرف الراجحي (السعودية)', label: '🏦 مصرف الراجحي (السعودية)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'عمان': [
+        { value: 'بنك مسقط (عمان)', label: '🏦 بنك مسقط (عمان)' },
+        { value: 'Mpay (عمان)', label: '📱 Mpay (عمان)' },
+        { value: 'Pocket (عمان)', label: '📱 Pocket (عمان)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'الإمارات': [
+        { value: 'e& money (الإمارات)', label: '📱 e& money (الإمارات)' },
+        { value: 'الدرهم الإلكتروني (الإمارات)', label: '💳 الدرهم الإلكتروني (الإمارات)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'قطر': [
+        { value: 'Ooredoo Money (قطر)', label: '📱 Ooredoo Money (قطر)' },
+        { value: 'iPay (قطر)', label: '📱 iPay (قطر)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'البحرين': [
+        { value: 'BenefitPay (البحرين)', label: '📱 BenefitPay (البحرين)' },
+        { value: 'Sahl (البحرين)', label: '📱 Sahl (البحرين)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'الكويت': [
+        { value: 'KNET (الكويت)', label: '💳 KNET (الكويت)' },
+        { value: 'WNet (الكويت)', label: '💳 WNet (الكويت)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'لبنان': [
+        { value: 'Wish Money (لبنان)', label: '📱 Wish Money (لبنان)' },
+        { value: 'OMT (لبنان)', label: '🏦 OMT (لبنان)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'فلسطين': [
+        { value: 'Jawwal Pay (فلسطين)', label: '📱 Jawwal Pay (فلسطين)' },
+        { value: 'PalPay (فلسطين)', label: '📱 PalPay (فلسطين)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'السودان': [
+        { value: 'بنكك Bokak (السودان)', label: '🏦 بنكك Bokak (السودان)' },
+        { value: 'Ocash (السودان)', label: '📱 Ocash (السودان)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'ليبيا': [
+        { value: 'سداد (ليبيا)', label: '📱 سداد (ليبيا)' },
+        { value: 'تداول (ليبيا)', label: '💳 تداول (ليبيا)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'تونس': [
+        { value: 'D17 (تونس)', label: '📱 D17 (تونس)' },
+        { value: 'MobiPost (تونس)', label: '📱 MobiPost (تونس)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'الجزائر': [
+        { value: 'BaridiMob (الجزائر)', label: '📱 BaridiMob (الجزائر)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'المغرب': [
+        { value: 'Cash Plus (المغرب)', label: '🏢 Cash Plus (المغرب)' },
+        { value: 'Wafacash (المغرب)', label: '🏢 Wafacash (المغرب)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'موريتانيا': [
+        { value: 'Masrvi (موريتانيا)', label: '📱 Masrvi (موريتانيا)' },
+        { value: 'Bankily (موريتانيا)', label: '📱 Bankily (موريتانيا)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'الصومال': [
+        { value: 'eDahab (الصومال)', label: '📱 eDahab (الصومال)' },
+        { value: 'EVC Plus (الصومال)', label: '📱 EVC Plus (الصومال)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'جيبوتي': [
+        { value: 'CAC Pay (جيبوتي)', label: '📱 CAC Pay (جيبوتي)' },
+        { value: 'حساب USD', label: '💵 حساب USD' }
+    ],
+    'جزر القمر': [
+        { value: 'MoneyGram (جزر القمر)', label: '🏢 MoneyGram (جزر القمر)' },
         { value: 'حساب USD', label: '💵 حساب USD' }
     ]
 };
