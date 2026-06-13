@@ -76,9 +76,34 @@ const handleTikTokCallback = async (req, res) => {
 
         if (response.data && response.data.code === 0) {
             const accessToken = response.data.data.access_token;
+            
+            // جلب قائمة كافة الحسابات الإعلانية المرتبطة بالتوكين تلقائياً
+            let advertiserId = '7492167669576351745'; // الافتراضي الاحتياطي
+            let accountsDisplay = 'متجر نُظم (هويتك0411)';
+            
+            try {
+                const getAdvertiserRes = await axios.get("https://business-api.tiktok.com/open_api/v1.3/oauth2/advertiser/get/", {
+                    params: {
+                        app_id: appId,
+                        secret: secret,
+                        access_token: accessToken
+                    }
+                });
+                
+                if (getAdvertiserRes.data && getAdvertiserRes.data.code === 0 && getAdvertiserRes.data.data.list) {
+                    const list = getAdvertiserRes.data.data.list;
+                    if (list.length > 0) {
+                        advertiserId = list.map(a => a.advertiser_id).join(',');
+                        accountsDisplay = list.map(a => `${a.advertiser_name} (${a.advertiser_id})`).join(' - ');
+                    }
+                }
+            } catch (e) {
+                console.error("خطأ أثناء جلب الحسابات الإعلانية لتيك توك:", e.message);
+            }
+
             db.run(
                 `INSERT OR REPLACE INTO ads_connections (platform, account_id, access_token, status) VALUES (?, ?, ?, ?)`,
-                ['tiktok', '7492167669576351745', accessToken, 'connected'],
+                ['tiktok', advertiserId, accessToken, 'connected'],
                 (err) => {
                     if (err) {
                         return res.status(500).send('خطأ أثناء حفظ التوكين في قاعدة البيانات: ' + err.message);
@@ -86,8 +111,9 @@ const handleTikTokCallback = async (req, res) => {
                     res.send(`
                         <div style="font-family:sans-serif;text-align:center;padding:50px;background:#0d1117;color:#c9d1d9;height:100vh;box-sizing:border-box;">
                             <h2 style="color:#10B981;margin-top:100px;">تم ربط حساب تيك توك إعلانات بنجاح!</h2>
-                            <p>تم استلام التوكين وتحديث الحساب الإعلاني لمتجر نُظم (هويتك0411) بنجاح.</p>
-                            <p style="color:#8b949e;font-size:12px;">تلقائياً، ستبدأ اللوحة بعرض إحصاءات الإعلانات الحقيقية.</p>
+                            <p>تم استلام التوكين وتحديث الحسابات الإعلانية المرتبطة بنجاح.</p>
+                            <p style="color:#e2a58a;font-weight:600;">الحسابات التي تم ربطها: ${accountsDisplay}</p>
+                            <p style="color:#8b949e;font-size:12px;">تلقائياً، ستبدأ اللوحة بعرض إحصاءات الإعلانات الحقيقية لهذه الحسابات.</p>
                             <button onclick="window.close()" style="margin-top:20px;padding:10px 20px;background:#10B981;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">إغلاق النافذة</button>
                         </div>
                     `);
@@ -114,28 +140,54 @@ router.get('/account-info', authenticateUser, (req, res) => {
         
         try {
             const token = rows[0].access_token;
-            const advertiserId = rows[0].account_id || '7492167669576351745';
+            const appId = process.env.TIKTOK_APP_ID || "7646601182546231297";
+            const secret = process.env.TIKTOK_APP_SECRET || "abc042e1d2f83d6ac0898bb4990cd903dd1c4460";
             
-            const response = await axios.get("https://business-api.tiktok.com/open_api/v1.3/advertiser/info/", {
-                headers: { 'Access-Token': token },
-                params: { advertiser_ids: JSON.stringify([advertiserId]) }
+            // 1. جلب قائمة الحسابات الإعلانية ديناميكياً من التوكين
+            const getAdvertiserRes = await axios.get("https://business-api.tiktok.com/open_api/v1.3/oauth2/advertiser/get/", {
+                params: {
+                    app_id: appId,
+                    secret: secret,
+                    access_token: token
+                }
             });
             
-            if (response.data && response.data.code === 0 && response.data.data.list && response.data.data.list.length > 0) {
-                const info = response.data.data.list[0];
-                return res.json({
-                    platform: 'tiktok',
-                    balance: info.balance !== undefined ? info.balance : 141.70,
-                    name: info.name || 'هويتك0411',
-                    currency: info.currency || 'SAR',
-                    advertiser_id: advertiserId
-                });
-            } else {
-                return res.json({ platform: 'tiktok', balance: 141.7, name: 'هويتك0411', currency: 'SAR', advertiser_id: advertiserId });
+            let advertiserIds = [];
+            if (getAdvertiserRes.data && getAdvertiserRes.data.code === 0 && getAdvertiserRes.data.data.list) {
+                advertiserIds = getAdvertiserRes.data.data.list.map(a => a.advertiser_id);
             }
+            
+            // إذا لم نجد حسابات من الاستعلام المباشر، نعتمد على المسجل في قاعدة البيانات
+            if (advertiserIds.length === 0) {
+                const advertiserIdDb = rows[0].account_id || '7492167669576351745';
+                advertiserIds = advertiserIdDb.split(',').map(id => id.trim());
+            }
+
+            if (advertiserIds.length > 0) {
+                const response = await axios.get("https://business-api.tiktok.com/open_api/v1.3/advertiser/info/", {
+                    headers: { 'Access-Token': token },
+                    params: { advertiser_ids: JSON.stringify(advertiserIds) }
+                });
+                
+                if (response.data && response.data.code === 0 && response.data.data.list && response.data.data.list.length > 0) {
+                    const list = response.data.data.list;
+                    const totalBalance = list.reduce((sum, current) => sum + (parseFloat(current.balance) || 0), 0);
+                    const name = list.map(item => item.name).join(' + ');
+                    return res.json({
+                        platform: 'tiktok',
+                        balance: totalBalance,
+                        name: name || 'حساب تيك توك إعلاني',
+                        currency: list[0].currency || 'SAR',
+                        advertiser_id: advertiserIds.join(',')
+                    });
+                }
+            }
+            
+            return res.json({ platform: 'tiktok', balance: 141.7, name: 'هويتك0411', currency: 'SAR', advertiser_id: advertiserIds.join(',') });
         } catch (e) {
             console.error("Failed to fetch TikTok ad account info:", e.message);
-            return res.json({ platform: 'tiktok', balance: 141.7, name: 'هويتك0411', currency: 'SAR', advertiser_id: '7492167669576351745' });
+            const fallbackId = rows[0].account_id || '7492167669576351745';
+            return res.json({ platform: 'tiktok', balance: 141.7, name: 'هويتك0411', currency: 'SAR', advertiser_id: fallbackId });
         }
     });
 });

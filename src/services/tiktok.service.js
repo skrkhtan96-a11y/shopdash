@@ -3,6 +3,24 @@ const axios = require('axios');
 const TikTokService = {
     fetchLiveCampaigns: async (token, advertiserId, fromDate, toDate) => {
         try {
+            const ids = String(advertiserId).split(',');
+            let allResults = [];
+            for (const id of ids) {
+                const trimmedId = id.trim();
+                if (!trimmedId) continue;
+                const results = await TikTokService.fetchSingleAdvertiserCampaigns(token, trimmedId, fromDate, toDate);
+                if (results && results.length > 0) {
+                    allResults = allResults.concat(results);
+                }
+            }
+            return allResults;
+        } catch (e) {
+            console.error("[TikTokService] Failed to fetch live TikTok campaigns:", e.message);
+            return null;
+        }
+    },
+    fetchSingleAdvertiserCampaigns: async (token, advertiserId, fromDate, toDate) => {
+        try {
             const todayStr = new Date().toISOString().split('T')[0];
             const start = fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const end = toDate || todayStr;
