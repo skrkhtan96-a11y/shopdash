@@ -310,6 +310,8 @@ router.get('/campaigns', authenticateUser, (req, res) => {
         const facebookConn = connRows.find(r => r.platform === 'facebook');
 
         if (tiktokConn && tiktokConn.access_token && tiktokConn.account_id) {
+            // Delete mock data for tiktok
+            db.run("DELETE FROM ads_campaign_metrics WHERE platform = 'tiktok' AND campaign_id LIKE 'tt_c%'");
             const liveData = await TikTokService.fetchLiveCampaigns(tiktokConn.access_token, tiktokConn.account_id, from, to);
             if (liveData && liveData.length > 0) {
                 db.serialize(() => {
@@ -327,6 +329,8 @@ router.get('/campaigns', authenticateUser, (req, res) => {
         }
 
         if (facebookConn && facebookConn.access_token && facebookConn.account_id) {
+            // Delete mock data for facebook
+            db.run("DELETE FROM ads_campaign_metrics WHERE platform = 'facebook' AND campaign_id LIKE 'fb_c%'");
             try {
                 const FacebookService = require('../services/facebook.service');
                 const liveData = await FacebookService.fetchLiveCampaigns(facebookConn.access_token, facebookConn.account_id, from, to);
@@ -378,12 +382,27 @@ router.get('/campaigns', authenticateUser, (req, res) => {
         db.all(query, params, async (err, campaignRows) => {
             if (err) return res.status(500).json({ error: err.message });
 
-            if (campaignRows.length === 0) {
-                const generated = await generateMockCampaignsForPeriod(targetPlatforms, from, to);
+            // Filter out mock campaigns for platforms that are connected
+            const filteredRows = campaignRows.filter(row => {
+                if (row.platform === 'tiktok' && activePlatforms.includes('tiktok') && row.campaign_id.startsWith('tt_c')) {
+                    return false;
+                }
+                if (row.platform === 'facebook' && activePlatforms.includes('facebook') && row.campaign_id.startsWith('fb_c')) {
+                    return false;
+                }
+                if (row.platform === 'snapchat' && activePlatforms.includes('snapchat') && row.campaign_id.startsWith('snap_c')) {
+                    return false;
+                }
+                return true;
+            });
+
+            const disconnectedPlatforms = targetPlatforms.filter(p => !activePlatforms.includes(p));
+            if (filteredRows.length === 0 && disconnectedPlatforms.length > 0) {
+                const generated = await generateMockCampaignsForPeriod(disconnectedPlatforms, from, to);
                 return res.json(generated);
             }
 
-            res.json(campaignRows);
+            res.json(filteredRows);
         });
     });
 });
