@@ -469,6 +469,18 @@ router.post('/webhook', async (req, res) => {
     console.log(`[SallaWebhook] Received event: ${eventName}`);
     
     try {
+        // Forward webhook payload to the WhatsApp bot at port 5000
+        const signature = req.headers['x-salla-signature'] || req.headers['X-Salla-Signature'] || '';
+        axios.post('http://127.0.0.1:5000/webhook/salla', payload, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Salla-Signature': signature
+            },
+            timeout: 5000
+        }).catch(err => {
+            console.log('[SallaWebhook] Failed to forward webhook to WhatsApp bot (expected if bot is down/starting):', err.message);
+        });
+
         db.run(
             "INSERT INTO salla_webhook_logs (event_name, payload, status) VALUES (?, ?, ?)",
             [eventName, JSON.stringify(payload), 'success'],
