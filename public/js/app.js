@@ -6176,6 +6176,35 @@ function renderPsPlusDeliveries(accounts) {
             <td>${d.remainingInfo}</td>
         </tr>`;
     }).join('');
+    state.filteredPsPlusDeliveries = filtered;
+}
+
+function exportPsPlusDeliveriesToExcel() {
+    const data = state.filteredPsPlusDeliveries || [];
+    if (data.length === 0) {
+        toast('لا توجد بيانات لتصديرها', 'warning');
+        return;
+    }
+
+    const rows = data.map((d, index) => ({
+        '#': index + 1,
+        'الإيميل': d.account.email,
+        'النسخة المسلمة': d.slotName,
+        'نوع البلس': d.account.plus_type,
+        'مدة الاشتراك': d.account.plus_duration,
+        'رقم الطلب': d.order,
+        'رقم العميل': d.phone,
+        'الموظف المسؤول': d.delivered_by,
+        'تاريخ الإضافة': formatToSaudiTime(d.added_at),
+        'تاريخ التسليم': formatToSaudiTime(d.delivered_at)
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!dir'] = 'rtl';
+
+    XLSX.utils.book_append_sheet(wb, ws, "النسخ المسلمة");
+    XLSX.writeFile(wb, `تقرير_تسليم_بلس_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 
