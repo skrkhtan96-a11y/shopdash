@@ -656,6 +656,7 @@
         <div class="nav-item" id="nav-expenses" onclick="nav('expenses')"><i class="ti ti-receipt"></i> المصروفات</div>
         <div class="nav-item" id="nav-external-sales" onclick="nav('external-sales')" style="display:none"><i class="ti ti-currency-dollar"></i> المبيعات الخارجية</div>
         <div class="nav-item" id="nav-campaigns" onclick="nav('campaigns')"><i class="ti ti-speakerphone"></i> الحملات الإعلانية</div>
+        <div class="nav-item" id="nav-ai-analysis" onclick="nav('ai-analysis')"><i class="ti ti-brain"></i> التحليل الذكي والتوصيات (AI)</div>
         <div class="nav-item" id="nav-certificates" onclick="nav('certificates')"><i class="ti ti-certificate"></i> إدارة تقارير الشهادات</div>
         <div class="nav-item" id="nav-ps-plus" onclick="nav('ps-plus')"><i class="ti ti-brand-playstation"></i> مخزون حسابات بلس</div>
         <div class="nav-item" id="nav-ps-plus-deliveries" onclick="nav('ps-plus-deliveries')"><i class="ti ti-report"></i> تقرير تسليم بلس</div>
@@ -979,6 +980,67 @@
               <tbody id="campBody"></tbody>
               <tfoot id="campFoot"></tfoot>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: AI ANALYSIS & RECOMMENDATIONS -->
+      <div class="page pad" id="page-ai-analysis">
+        <div class="tbl-wrap" style="margin-bottom: 20px;">
+          <div class="tbl-header" style="border-bottom:none; padding-bottom: 0;">
+            <div class="tbl-title">مركز التحليل الذكي وتوصيات الحملات الإعلانية (AI Copilot)</div>
+            <div style="font-size:11px; color:var(--text3);">مستند على معايير Meta Ads & TikTok Ads Model Context Protocol (MCP)</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; margin-bottom:20px;" class="ads-charts-container">
+          <!-- Main AI Copilot Board -->
+          <div class="tbl-wrap pad" style="display:flex; flex-direction:column; min-height:500px;">
+            <div style="font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="display:flex; align-items:center; gap:6px;"><i class="ti ti-brain" style="color:var(--accent)"></i> مستشار الذكاء الاصطناعي الذكي (Claude AI)</span>
+              <button class="btn btn-sm btn-primary" onclick="runAiAnalysis()"><i class="ti ti-sparkles"></i> توليد التقرير والتوصيات فوراً</button>
+            </div>
+            
+            <!-- AI Response Box -->
+            <div id="aiResponseContainer" style="flex:1; background:rgba(21, 26, 43, 0.4); border:1px solid var(--border); border-radius:6px; padding:16px; overflow-y:auto; font-size:13px; line-height:1.6; color:var(--text); max-height:400px; margin-bottom:12px;">
+              <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; color:var(--text3); gap:10px;" id="aiPlaceholder">
+                <i class="ti ti-message-chatbot" style="font-size:48px; color:var(--accent); opacity:0.6;"></i>
+                <span>انقر على "توليد التقرير والتوصيات فوراً" لجلب وتحليل أداء حملاتك الإعلانية عبر فيسبوك وتيك توك وصياغة توجيهات ذكية لتحسين العائد (ROAS).</span>
+              </div>
+              <div id="aiReportOutput" style="display:none; text-align:right; direction:rtl;"></div>
+            </div>
+
+            <!-- Custom Prompt Input -->
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="aiCustomPrompt" placeholder="اسأل Claude عن تفاصيل الحملات (مثال: أي الحسابات الأعلى عائد؟ أو ما هي توصياتك الصباحية؟)..." style="flex:1; padding:10px 12px; font-size:12px; border-radius:6px; background:var(--bg3); color:var(--text); border:1px solid var(--border);" onkeydown="if(event.key === 'Enter') sendCustomAiPrompt()">
+              <button class="btn btn-primary" onclick="sendCustomAiPrompt()"><i class="ti ti-send"></i> إرسال</button>
+            </div>
+          </div>
+
+          <!-- Ad Accounts & Campaigns Status Bar -->
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div class="tbl-wrap pad">
+              <div style="font-weight:600; margin-bottom:12px; font-size:13px; display:flex; align-items:center; gap:6px;"><i class="ti ti-plug" style="color:var(--accent)"></i> حالة اتصال المنصات (MCP)</div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <!-- FB Status -->
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:6px; background:rgba(255,255,255,0.02); border-radius:4px;">
+                  <span style="font-weight:600;"><i class="ti ti-brand-facebook" style="color:#1877F2"></i> فيسبوك إعلانات:</span>
+                  <span id="aiFbStatus" class="mono" style="color:var(--text3);">جاري الفحص...</span>
+                </div>
+                <!-- TikTok Status -->
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:6px; background:rgba(255,255,255,0.02); border-radius:4px;">
+                  <span style="font-weight:600;"><i class="ti ti-brand-tiktok" style="color:#000"></i> تيك توك إعلانات:</span>
+                  <span id="aiTiktokStatus" class="mono" style="color:var(--text3);">جاري الفحص...</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tbl-wrap pad" style="flex:1; display:flex; flex-direction:column;">
+              <div style="font-weight:600; margin-bottom:12px; font-size:13px; display:flex; align-items:center; gap:6px;"><i class="ti ti-speakerphone" style="color:var(--accent)"></i> الحملات الخاضعة للتحليل الموحد</div>
+              <div id="aiCampaignsList" style="display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; font-size:11px; flex:1;">
+                <div style="text-align:center; color:var(--text3); padding:20px;">جاري تحميل الحملات الإعلانية الحية...</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

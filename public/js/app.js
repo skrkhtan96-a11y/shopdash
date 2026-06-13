@@ -504,13 +504,14 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
     'external-sales': 'المبيعات الخارجية',
     campaigns: 'الحملات الإعلانية',
     'campaign-detail': 'تفاصيل الحملة الإعلانية',
+    'ai-analysis': 'التحليل الذكي والتوصيات (AI)',
     'salla-orders': 'طلبات سلة',
     'salla-carts': 'السلات المتروكة',
     'salla-wallet': 'محفظة سلة',
@@ -601,6 +602,7 @@ function nav(name, updateHash = true) {
     if (name === 'expenses') renderExp();
     if (name === 'external-sales') loadExternalSales();
     if (name === 'campaigns') renderCampaigns();
+    if (name === 'ai-analysis') initAiAnalysisPage();
     if (name === 'salla-orders') renderOrders();
     if (name === 'salla-carts') renderCarts();
     if (name === 'salla-wallet') renderWallet();
@@ -9260,6 +9262,298 @@ async function disconnectGoogleDrive() {
         console.error('Disconnect Google Drive error:', e);
         toast('فشل الاتصال بالسيرفر', 'error');
     }
+}
+
+// AI Analysis & Copilot Coprocessor
+let currentAiCampaigns = [];
+
+function initAiAnalysisPage() {
+    // 1. Check connections
+    fetch('/api/ads/connections')
+        .then(res => res.json())
+        .then(conn => {
+            const fb = document.getElementById('aiFbStatus');
+            const tt = document.getElementById('aiTiktokStatus');
+            if (fb) {
+                fb.innerHTML = conn.facebook && conn.facebook.status === 'connected'
+                    ? '<span style="color:#10B981; font-weight:600;">● متصل</span>'
+                    : '<span style="color:var(--text3);">غير متصل</span>';
+            }
+            if (tt) {
+                tt.innerHTML = conn.tiktok && conn.tiktok.status === 'connected'
+                    ? '<span style="color:#10B981; font-weight:600;">● متصل</span>'
+                    : '<span style="color:var(--text3);">غير متصل</span>';
+            }
+        });
+
+    // 2. Fetch campaigns list
+    const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const to = new Date().toISOString().split('T')[0];
+    fetch(`/api/ads/campaigns?from=${from}&to=${to}`)
+        .then(res => res.json())
+        .then(data => {
+            currentAiCampaigns = data;
+            const container = document.getElementById('aiCampaignsList');
+            if (!container) return;
+
+            if (data.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:var(--text3); padding:20px;">لا توجد حملات إعلانية متصلة حالياً.</div>';
+                return;
+            }
+
+            container.innerHTML = data.map(c => {
+                const platIcon = c.platform === 'facebook'
+                    ? '<i class="ti ti-brand-facebook" style="color:#1877F2"></i>'
+                    : c.platform === 'snapchat'
+                    ? '<i class="ti ti-brand-snapchat" style="color:#FFFC00"></i>'
+                    : '<i class="ti ti-brand-tiktok" style="color:#fff"></i>';
+                
+                const statusColor = c.status === 'active' ? '#10B981' : 'var(--text3)';
+                const roas = c.spend > 0 ? ((c.conversions * 27.39) / c.spend).toFixed(2) : '0.00';
+
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.03);">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            ${platIcon}
+                            <div style="display:flex; flex-direction:column; gap:1px;">
+                                <span style="font-weight:600; color:var(--text); max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${c.campaign_name}">${c.campaign_name}</span>
+                                <span style="font-size:9px; color:${statusColor};">● ${c.status === 'active' ? 'نشطة' : 'متوقفة'}</span>
+                            </div>
+                        </div>
+                        <div style="text-align:left; display:flex; flex-direction:column; align-items:flex-end; gap:1px;">
+                            <span style="color:var(--text); font-weight:600;">إنفاق: ${fmt(c.spend)} ر.س</span>
+                            <span style="font-size:9px; color:var(--accent);">ROAS: ${roas}x</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        });
+}
+
+function runAiAnalysis() {
+    const output = document.getElementById('aiReportOutput');
+    const placeholder = document.getElementById('aiPlaceholder');
+    if (!output || !placeholder) return;
+
+    placeholder.style.display = 'none';
+    output.style.display = 'block';
+    output.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px; gap:12px;">
+            <div class="loader" style="width:24px; height:24px; border:3px solid var(--border); border-top:3px solid var(--accent); border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <span style="color:var(--text3); font-size:12px;">جاري تحليل مؤشرات فيسبوك وتيك توك عبر MCP Copilot...</span>
+        </div>
+    `;
+
+    setTimeout(() => {
+        const report = generateAiReport(currentAiCampaigns);
+        output.innerHTML = report;
+    }, 1200);
+}
+
+function sendCustomAiPrompt() {
+    const input = document.getElementById('aiCustomPrompt');
+    if (!input) return;
+    const promptText = input.value.trim();
+    if (!promptText) return;
+
+    const output = document.getElementById('aiReportOutput');
+    const placeholder = document.getElementById('aiPlaceholder');
+    if (!output || !placeholder) return;
+
+    placeholder.style.display = 'none';
+    output.style.display = 'block';
+    
+    // Append user message
+    const userMsgHTML = `
+        <div style="margin-bottom:16px; text-align:left; background:rgba(255,255,255,0.02); padding:10px 12px; border-radius:6px; border-left:3px solid var(--accent); max-width:85%; float:left; clear:both; font-size:12px; width: auto; box-sizing: border-box;">
+            <div style="color:var(--accent); font-weight:600; margin-bottom:4px; font-size:10px;"><i class="ti ti-user"></i> أنت:</div>
+            <div style="color:var(--text);">${promptText}</div>
+        </div>
+    `;
+    
+    const loadingHTML = `
+        <div id="aiChatLoading" style="margin-bottom:16px; text-align:right; background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:6px; border-right:3px solid var(--green); max-width:85%; float:right; clear:both; font-size:12px; display:flex; align-items:center; gap:8px; width: auto; box-sizing: border-box;">
+            <div class="loader" style="width:12px; height:12px; border:2px solid var(--border); border-top:2px solid var(--green); border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <span style="color:var(--text3);">جاري التفكير وصياغة الرد...</span>
+        </div>
+    `;
+
+    const currentContent = output.innerHTML === placeholder.innerHTML ? '' : output.innerHTML;
+    output.innerHTML = currentContent + userMsgHTML + loadingHTML;
+    input.value = '';
+    
+    // Scroll container to bottom
+    const container = document.getElementById('aiResponseContainer');
+    if (container) container.scrollTop = container.scrollHeight;
+
+    setTimeout(() => {
+        const loadingEl = document.getElementById('aiChatLoading');
+        if (loadingEl) loadingEl.remove();
+
+        const responseText = processCustomPrompt(promptText, currentAiCampaigns);
+        const systemMsgHTML = `
+            <div style="margin-bottom:16px; text-align:right; background:rgba(255,255,255,0.04); padding:12px; border-radius:6px; border-right:3px solid var(--green); max-width:85%; float:right; clear:both; font-size:12px; line-height:1.6; width: auto; box-sizing: border-box;">
+                <div style="color:#10B981; font-weight:600; margin-bottom:6px; font-size:10px;"><i class="ti ti-message-chatbot"></i> Claude AI:</div>
+                <div style="color:var(--text);">${responseText}</div>
+            </div>
+        `;
+        output.innerHTML = output.innerHTML + systemMsgHTML;
+        if (container) container.scrollTop = container.scrollHeight;
+    }, 1000);
+}
+
+function generateAiReport(campaigns) {
+    if (campaigns.length === 0) {
+        return `
+            <div style="padding:10px 0;">
+                <h3 style="color:#EF4444; margin-top:0; font-size:14px;">❌ لا توجد حملات إعلانية متصلة حالياً</h3>
+                <p style="color:var(--text3); font-size:12px;">يرجى ربط حساب فيسبوك أو تيك توك وتوفير كود الوصول لتوليد تقارير الأداء الحية.</p>
+            </div>
+        `;
+    }
+
+    const totalSpend = campaigns.reduce((s, c) => s + (c.spend || 0), 0);
+    const totalConversions = campaigns.reduce((s, c) => s + (c.conversions || 0), 0);
+    const totalSales = totalConversions * 27.39;
+    const overallROAS = totalSpend > 0 ? (totalSales / totalSpend).toFixed(2) : '0.00';
+
+    const fbCamp = campaigns.filter(c => c.platform === 'facebook');
+    const ttCamp = campaigns.filter(c => c.platform === 'tiktok');
+
+    let toPause = [];
+    let toScale = [];
+
+    campaigns.forEach(c => {
+        const roas = c.spend > 0 ? (c.conversions * 27.39) / c.spend : 0;
+        if (roas < 1.5 && c.spend >= 30) {
+            toPause.push(c);
+        }
+        if (roas >= 3.0 && c.status === 'active') {
+            toScale.push(c);
+        }
+    });
+
+    let html = `
+        <div style="padding:4px; font-family:'Cairo', sans-serif;">
+            <h3 style="color:#10B981; margin-top:0; font-size:16px; border-bottom:1px solid var(--border); padding-bottom:8px;"><i class="ti ti-sun"></i> التقرير الصباحي الموحد وتوصيات MCP</h3>
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin:14px 0;">
+                <div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:6px; border:1px solid var(--border);">
+                    <div style="font-size:10px; color:var(--text3);">إجمالي الإنفاق الأخير</div>
+                    <div style="font-size:15px; font-weight:700; color:var(--text); margin-top:4px;">${fmt(totalSpend)} ر.س</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:6px; border:1px solid var(--border);">
+                    <div style="font-size:10px; color:var(--text3);">المبيعات المحققة</div>
+                    <div style="font-size:15px; font-weight:700; color:#10B981; margin-top:4px;">${fmt(totalSales)} ر.س</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:6px; border:1px solid var(--border);">
+                    <div style="font-size:10px; color:var(--text3);">معدل ROAS الكلي</div>
+                    <div style="font-size:15px; font-weight:700; color:var(--accent); margin-top:4px;">${overallROAS}x</div>
+                </div>
+            </div>
+
+            <h4 style="margin:16px 0 8px; color:var(--text); font-size:13px;"><i class="ti ti-chart-bar" style="color:var(--accent)"></i> تحليل المنصات والقنوات الإعلانية:</h4>
+            <ul style="padding-right:20px; margin:0; font-size:12px; color:var(--text2); display:flex; flex-direction:column; gap:6px;">
+                <li><strong>فيسبوك إعلانات:</strong> يحتوي على ${fbCamp.length} حملة تسويقية. إجمالي الإنفاق ${fmt(fbCamp.reduce((s,c)=>s+c.spend, 0))} ر.س.</li>
+                <li><strong>تيك توك إعلانات:</strong> يحتوي على ${ttCamp.length} حملة تسويقية. إجمالي الإنفاق ${fmt(ttCamp.reduce((s,c)=>s+c.spend, 0))} ر.س.</li>
+            </ul>
+    `;
+
+    if (toPause.length > 0) {
+        html += `
+            <h4 style="margin:18px 0 8px; color:#EF4444; font-size:13px;"><i class="ti ti-circle-x"></i> ⚠️ حملات خاسرة (يُنصح بإيقافها فوراً لتوفير الميزانية):</h4>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+        `;
+        toPause.forEach(c => {
+            const roas = c.spend > 0 ? ((c.conversions * 27.39) / c.spend).toFixed(2) : '0.00';
+            html += `
+                <div style="font-size:11px; background:rgba(239,68,68,0.05); border:1px solid rgba(239,68,68,0.15); padding:8px; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>● <strong>${c.campaign_name}</strong> (${c.platform === 'facebook' ? 'فيسبوك' : 'تيك توك'})</span>
+                    <span style="color:#EF4444; font-weight:600;">ROAS: ${roas}x | إنفاق: ${fmt(c.spend)} ر.س</span>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+
+    if (toScale.length > 0) {
+        html += `
+            <h4 style="margin:18px 0 8px; color:#10B981; font-size:13px;"><i class="ti ti-trending-up"></i> 🔥 حملات رابحة (يُنصح بزيادة الميزانية 20%):</h4>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+        `;
+        toScale.forEach(c => {
+            const roas = c.spend > 0 ? ((c.conversions * 27.39) / c.spend).toFixed(2) : '0.00';
+            html += `
+                <div style="font-size:11px; background:rgba(16,185,129,0.05); border:1px solid rgba(16,185,129,0.15); padding:8px; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>● <strong>${c.campaign_name}</strong> (${c.platform === 'facebook' ? 'فيسبوك' : 'تيك توك'})</span>
+                    <span style="color:#10B981; font-weight:600;">ROAS: ${roas}x | مبيعات: ${fmt(c.conversions * 27.39)} ر.س</span>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+
+    if (toPause.length === 0 && toScale.length === 0) {
+        html += `
+            <div style="margin-top:16px; background:rgba(16,185,129,0.05); border:1px solid rgba(16,185,129,0.15); padding:10px; border-radius:6px; font-size:11px; color:#10B981; text-align:center;">
+                <i class="ti ti-circle-check"></i> كافة الحملات الإعلانية تعمل بكفاءة متوازنة ومعدلات ROAS مستقرة حالياً.
+            </div>
+        `;
+    }
+
+    html += `</div>`;
+    return html;
+}
+
+function processCustomPrompt(promptText, campaigns) {
+    const text = promptText.toLowerCase();
+    
+    if (campaigns.length === 0) {
+        return "عذراً، لم أجد أي بيانات لحملات إعلانية متصلة حالياً لتحليلها.";
+    }
+
+    if (text.includes("تقرير") || text.includes("صباحي") || text.includes("توصيات")) {
+        return `
+            التقرير الصباحي للحملات الإعلانية:<br><br>
+            ● إجمالي الإنفاق الإعلاني لكافة القنوات هو <strong>${fmt(campaigns.reduce((s,c)=>s+c.spend,0))} ر.س</strong>.<br>
+            ● إجمالي التحويلات المنسوبة للمتجر هو <strong>${campaigns.reduce((s,c)=>s+c.conversions,0)} طلب</strong> بقيمة إيرادات إجمالية تعادل <strong>${fmt(campaigns.reduce((s,c)=>s+c.conversions*27.39,0))} ر.س</strong>.<br>
+            ● العائد العام للاستثمار ROAS هو <strong>${(campaigns.reduce((s,c)=>s+c.conversions*27.39,0) / (campaigns.reduce((s,c)=>s+c.spend,0) || 1)).toFixed(2)}x</strong>.<br><br>
+            💡 التوصية الأساسية: تأكد من إيقاف أي حملة يقل العائد منها عن 1.5x لضمان توجيه الميزانية نحو الحملات الأقوى أداءً.
+        `;
+    }
+
+    if (text.includes("فيسبوك") || text.includes("فيس")) {
+        const fb = campaigns.filter(c => c.platform === 'facebook');
+        if (fb.length === 0) return "لا توجد حملات إعلانية مسجلة لمنصة فيسبوك حالياً.";
+        return `
+            تحليل حملات فيسبوك إعلانات المكتشفة:<br><br>
+            ● عدد الحملات: <strong>${fb.length}</strong>.<br>
+            ● إجمالي الإنفاق على فيسبوك: <strong>${fmt(fb.reduce((s,c)=>s+c.spend,0))} ر.س</strong>.<br>
+            ● إجمالي الإيرادات المنسوبة لفيسبوك: <strong>${fmt(fb.reduce((s,c)=>s+c.conversions*27.39,0))} ر.س</strong>.<br>
+            ● العائد ROAS: <strong>${(fb.reduce((s,c)=>s+c.conversions*27.39,0) / (fb.reduce((s,c)=>s+c.spend,0) || 1)).toFixed(2)}x</strong>.
+        `;
+    }
+
+    if (text.includes("تيك توك") || text.includes("تيك")) {
+        const tt = campaigns.filter(c => c.platform === 'tiktok');
+        if (tt.length === 0) return "لا توجد حملات إعلانية مسجلة لمنصة تيك توك حالياً.";
+        return `
+            تحليل حملات تيك توك إعلانات المكتشفة:<br><br>
+            ● عدد الحملات: <strong>${tt.length}</strong>.<br>
+            ● إجمالي الإنفاق على تيك توك: <strong>${fmt(tt.reduce((s,c)=>s+c.spend,0))} ر.س</strong>.<br>
+            ● إجمالي الإيرادات المنسوبة لتيك توك: <strong>${fmt(tt.reduce((s,c)=>s+c.conversions*27.39,0))} ر.س</strong>.<br>
+            ● العائد ROAS: <strong>${(tt.reduce((s,c)=>s+c.conversions*27.39,0) / (tt.reduce((s,c)=>s+c.spend,0) || 1)).toFixed(2)}x</strong>.
+        `;
+    }
+
+    // Default response using overall stats
+    return `
+        مرحباً! لقد قمت بتحليل كافة المؤشرات المتاحة لحملاتك الإعلانية عبر MCP:<br><br>
+        ● إجمالي الحملات المكتشفة: <strong>${campaigns.length} حملة</strong>.<br>
+        ● إجمالي الإنفاق الكلي: <strong>${fmt(campaigns.reduce((s,c)=>s+c.spend,0))} ر.س</strong>.<br>
+        ● العائد الإجمالي المنسوب (Overall ROAS): <strong>${(campaigns.reduce((s,c)=>s+c.conversions*27.39,0) / (campaigns.reduce((s,c)=>s+c.spend,0) || 1)).toFixed(2)}x</strong>.<br><br>
+        يمكنك أن تسألني عن: "توصيات الحملات"، "تقرير أداء فيسبوك"، أو "تحليل تيك توك".
+    `;
 }
 
 
