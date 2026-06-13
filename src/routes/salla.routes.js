@@ -469,9 +469,9 @@ router.post('/webhook', async (req, res) => {
     console.log(`[SallaWebhook] Received event: ${eventName}`);
     
     try {
-        // Forward webhook payload to the WhatsApp bot at port 5000
+        // Forward webhook payload to the WhatsApp bot at port 5001
         const signature = req.headers['x-salla-signature'] || req.headers['X-Salla-Signature'] || '';
-        axios.post('http://127.0.0.1:5000/webhook/salla', payload, {
+        axios.post('http://127.0.0.1:5001/webhook/salla', payload, {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Salla-Signature': signature
