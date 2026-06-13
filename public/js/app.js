@@ -4904,6 +4904,33 @@ function openCampaignDetail(campaignName, platform, triggerNav = true) {
                     if (detAvailableBalance) {
                         detAvailableBalance.textContent = fmt(accInfo.balance || 0) + ' ' + (accInfo.currency || 'ر.س');
                     }
+                    
+                    const detAccountsList = document.getElementById('detAccountsList');
+                    const detAccountsItems = document.getElementById('detAccountsItems');
+                    if (detAccountsList && detAccountsItems && accInfo.accounts && accInfo.accounts.length > 0) {
+                        detAccountsList.style.display = 'flex';
+                        detAccountsItems.innerHTML = accInfo.accounts.map(acc => {
+                            const isActive = acc.status === 'ENABLE' || acc.status === 'active' || acc.status === 1 || acc.status === 'STATUS_ENABLE';
+                            const statusStr = isActive
+                                ? '<span style="color:#10B981; font-size:10px; font-weight:600;">● نشط</span>'
+                                : `<span style="color:#EF4444; font-size:10px; font-weight:600;">● غير نشط (${acc.status || 'معطل'})</span>`;
+                            
+                            return `
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); width: 100%; box-sizing: border-box; margin-bottom: 4px;">
+                                    <div style="display:flex; flex-direction:column; gap:2px;">
+                                        <span style="color:var(--text); font-weight:600; text-align:right;">${acc.name}</span>
+                                        <span style="color:var(--text3); font-size:9px; direction:ltr; text-align:right;">ID: ${acc.id}</span>
+                                    </div>
+                                    <div style="text-align:left; display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                                        <span class="mono" style="color:var(--accent); font-weight:700;">${fmt(acc.balance)} ${acc.currency || 'ر.س'}</span>
+                                        ${statusStr}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    } else if (detAccountsList) {
+                        detAccountsList.style.display = 'none';
+                    }
                 })
                 .catch(err => {
                     console.error("Failed to load account info:", err);
