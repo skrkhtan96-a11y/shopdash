@@ -25,19 +25,38 @@ router.get('/connections', authenticateUser, (req, res) => {
 });
 
 // Connect an ad platform (mock or real)
-router.post('/connections/connect', authenticateUser, (req, res) => {
+router.post('/connections/connect', authenticateUser, async (req, res) => {
     if (req.user.role !== 'admin' && !req.user.can_edit_campaigns && !req.user.can_add_campaigns) {
         return res.status(403).json({ error: 'ليس لديك صلاحية ربط منصات إعلانية.' });
     }
-    const { platform, account_id } = req.body;
+    const { platform, account_id, access_token } = req.body;
     if (!['facebook', 'snapchat', 'tiktok'].includes(platform)) {
         return res.status(400).json({ error: 'منصة غير صالحة' });
     }
-    const accId = account_id || `acc_${Math.floor(100000 + Math.random() * 900000)}`;
+
+    let accId = account_id;
+    let token = access_token || null;
+
+    if (platform === 'facebook' && token) {
+        try {
+            const FacebookService = require('../services/facebook.service');
+            const accounts = await FacebookService.fetchAdAccounts(token);
+            if (accounts.length > 0) {
+                accId = accounts.map(a => a.id).join(',');
+            } else {
+                accId = 'no_ad_accounts';
+            }
+        } catch (e) {
+            return res.status(400).json({ error: 'فشل التحقق من توكين فيسبوك: ' + e.message });
+        }
+    } else if (!accId) {
+        accId = `acc_${Math.floor(100000 + Math.random() * 900000)}`;
+    }
+
     db.run(
-        `INSERT INTO ads_connections (platform, account_id, status) VALUES (?, ?, 'connected') 
-         ON CONFLICT(platform) DO UPDATE SET account_id = ?, status = 'connected'`,
-        [platform, accId, accId],
+        `INSERT INTO ads_connections (platform, account_id, access_token, status) VALUES (?, ?, ?, 'connected') 
+         ON CONFLICT(platform) DO UPDATE SET account_id = ?, access_token = ?, status = 'connected'`,
+        [platform, accId, token, accId, token],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ success: true, platform, account_id: accId });
@@ -127,19 +146,63 @@ const handleTikTokCallback = async (req, res) => {
     }
 };
 
-// Retrieve TikTok ad account details
+// Retrieve TikTok or Facebook ad account details
 router.get('/account-info', authenticateUser, (req, res) => {
     if (req.user.role !== 'admin' && !req.user.can_view_campaigns) {
         return res.status(403).json({ error: 'ليس لديك صلاحية عرض بيانات الحساب الإعلاني.' });
     }
-    db.all("SELECT * FROM ads_connections WHERE platform = 'tiktok' AND status = 'connected'", [], async (err, rows) => {
+    const targetPlatform = req.query.platform || 'tiktok';
+    if (!['tiktok', 'facebook'].includes(targetPlatform)) {
+        return res.status(400).json({ error: 'المنصة المطلوبة غير مدعومة حالياً' });
+    }
+
+    db.all("SELECT * FROM ads_connections WHERE platform = ? AND status = 'connected'", [targetPlatform], async (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         if (rows.length === 0 || !rows[0].access_token) {
-            return res.json({ platform: 'tiktok', balance: 0, name: 'غير متصل', currency: 'SAR' });
+            return res.json({ platform: targetPlatform, balance: 0, name: 'غير متصل', currency: 'SAR', accounts: [] });
         }
         
+        const token = rows[0].access_token;
+
+        if (targetPlatform === 'facebook') {
+            try {
+                const FacebookService = require('../services/facebook.service');
+                const accounts = await FacebookService.fetchAdAccounts(token);
+                if (accounts.length > 0) {
+                    const totalBalance = accounts.reduce((sum, current) => sum + (parseFloat(current.balance) || 0), 0);
+                    const name = accounts.map(item => item.name).join(' + ');
+                    return res.json({
+                        platform: 'facebook',
+                        balance: totalBalance,
+                        name: name || 'حساب فيسبوك إعلاني',
+                        currency: accounts[0].currency || 'SAR',
+                        advertiser_id: rows[0].account_id,
+                        accounts
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch Facebook ad accounts info:", e.message);
+            }
+            const fallbackId = rows[0].account_id || 'no_ad_accounts';
+            const ids = fallbackId.split(',').map(id => id.trim());
+            const fallbackAccounts = ids.map((id, index) => ({
+                id,
+                name: `حساب فيسبوك إعلاني ${index + 1}`,
+                balance: 0,
+                currency: 'SAR',
+                status: 'active'
+            }));
+            return res.json({
+                platform: 'facebook',
+                balance: 0,
+                name: 'حساب فيسبوك إعلاني',
+                currency: 'SAR',
+                advertiser_id: fallbackId,
+                accounts: fallbackAccounts
+            });
+        }
+
         try {
-            const token = rows[0].access_token;
             const appId = process.env.TIKTOK_APP_ID || "7646601182546231297";
             const secret = process.env.TIKTOK_APP_SECRET || "abc042e1d2f83d6ac0898bb4990cd903dd1c4460";
             
@@ -244,6 +307,7 @@ router.get('/campaigns', authenticateUser, (req, res) => {
         
         const activePlatforms = connRows.map(r => r.platform);
         const tiktokConn = connRows.find(r => r.platform === 'tiktok');
+        const facebookConn = connRows.find(r => r.platform === 'facebook');
 
         if (tiktokConn && tiktokConn.access_token && tiktokConn.account_id) {
             const liveData = await TikTokService.fetchLiveCampaigns(tiktokConn.access_token, tiktokConn.account_id, from, to);
@@ -259,6 +323,28 @@ router.get('/campaigns', authenticateUser, (req, res) => {
                     });
                     stmt.finalize();
                 });
+            }
+        }
+
+        if (facebookConn && facebookConn.access_token && facebookConn.account_id) {
+            try {
+                const FacebookService = require('../services/facebook.service');
+                const liveData = await FacebookService.fetchLiveCampaigns(facebookConn.access_token, facebookConn.account_id, from, to);
+                if (liveData && liveData.length > 0) {
+                    db.serialize(() => {
+                        const stmt = db.prepare(`
+                            INSERT OR REPLACE INTO ads_campaign_metrics 
+                            (campaign_id, campaign_name, platform, status, spend, clicks, impressions, conversions, date, budget, budget_mode) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `);
+                        liveData.forEach(c => {
+                            stmt.run([c.campaign_id, c.campaign_name, c.platform, c.status, c.spend, c.clicks, c.impressions, c.conversions, c.date, c.budget || 0, c.budget_mode || 'BUDGET_MODE_INFINITE']);
+                        });
+                        stmt.finalize();
+                    });
+                }
+            } catch (e) {
+                console.error("Error updating live Facebook campaigns in DB:", e.message);
             }
         }
 

@@ -4495,6 +4495,33 @@ function loadAdsConnections() {
 
 // ربط منصة تسويقية
 function connectAdPlatform(platform) {
+    if (platform === 'facebook') {
+        const token = prompt('يرجى إدخال رمز الوصول (Access Token) الخاص بحساب فيسبوك إعلانات:');
+        if (!token) return;
+
+        toast('جاري التحقق من رمز الوصول وربط الحسابات...', 'info');
+
+        fetch('/api/ads/connections/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform, access_token: token })
+        })
+        .then(res => res.json())
+        .then(res => {
+            if (res.success) {
+                toast('تم ربط منصة فيسبوك إعلانات بنجاح!', 'ok');
+                loadAdsConnections();
+                renderCampaigns();
+            } else {
+                toast(res.error || 'فشل التحقق من رمز الوصول، يرجى التأكد والمحاولة لاحقاً', 'error');
+            }
+        })
+        .catch(err => {
+            toast('حدث خطأ أثناء الاتصال بالمخدم', 'error');
+        });
+        return;
+    }
+
     if (platform === 'tiktok') {
         const authUrl = "https://business-api.tiktok.com/portal/auth?app_id=7646601182546231297&state=nuzum_tiktok&redirect_uri=https%3A%2F%2Fshop.nuzum.sbs%2Fnuzum";
         const authWindow = window.open(authUrl, '_blank', 'width=800,height=600');
@@ -4897,7 +4924,7 @@ function openCampaignDetail(campaignName, platform, triggerNav = true) {
                 detTodaySpend.textContent = fmt(todaySpendVal) + ' ر.س';
             }
 
-            fetch('/api/ads/account-info')
+            fetch(`/api/ads/account-info?platform=${platform}`)
                 .then(res => res.json())
                 .then(accInfo => {
                     const detAvailableBalance = document.getElementById('detAvailableBalance');
