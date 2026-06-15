@@ -813,7 +813,8 @@
         <div class="tbl-wrap">
           <div class="tbl-header">
             <div class="tbl-title">جدول المصروفات والمشتريات التشغيلية <span class="tbl-count" id="expCount" style="font-size:10px;color:var(--text3)"></span></div>
-            <div>
+            <div style="display:flex; gap:8px">
+              <button class="btn btn-sm btn-success" onclick="exportExpensesToExcel()"><i class="ti ti-file-excel"></i> تصدير إلى Excel</button>
               <button class="btn btn-sm btn-primary" id="addExpBtn" onclick="openModal('expense')"><i class="ti ti-plus"></i> إضافة مصروف جديد</button>
             </div>
           </div>

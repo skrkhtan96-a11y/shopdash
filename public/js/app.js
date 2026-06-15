@@ -1753,6 +1753,8 @@ function renderExpRows(data) {
     const body = document.getElementById('expBody');
     if (!body) return;
 
+    state.filteredExpenses = data;
+
     // تحديث الداشبورد العلوي بناءً على الفلترة التاريخية
     updateExpensesDashboard();
 
@@ -1933,6 +1935,41 @@ function renderExp() {
         .then(data => {
             renderExpRows(data);
         });
+}
+
+function exportExpensesToExcel() {
+    const data = state.filteredExpenses || [];
+    if (data.length === 0) {
+        toast('لا توجد مصروفات لتصديرها', 'warning');
+        return;
+    }
+
+    const rows = data.map((e, index) => ({
+        '#': index + 1,
+        'البيان (الوصف)': e.desc,
+        'التصنيف': e.cat,
+        'فترة الاشتراك': e.period || '-',
+        'المبلغ (ر.س)': e.amt,
+        'التاريخ': fmtDate(e.date),
+        'ملاحظات': e.note || ''
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!dir'] = 'rtl';
+
+    // Auto fit column width
+    const max_len = {};
+    rows.forEach(row => {
+        Object.keys(row).forEach(key => {
+            const val = String(row[key] || '');
+            max_len[key] = Math.max(max_len[key] || 10, val.length + 3);
+        });
+    });
+    ws['!cols'] = Object.keys(max_len).map(key => ({ wch: max_len[key] }));
+
+    XLSX.utils.book_append_sheet(wb, ws, "المصروفات");
+    XLSX.writeFile(wb, `تقرير_المصروفات_المفلترة_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function openModal(type) {
