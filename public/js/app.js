@@ -5775,6 +5775,65 @@ function renderPsPlusAccounts(accounts) {
             </td>
         </tr>`;
     }).join('');
+    state.filteredPsPlusAccounts = filtered;
+}
+
+function exportPsPlusRemainingToExcel() {
+    const accounts = state.filteredPsPlusAccounts || [];
+    if (accounts.length === 0) {
+        toast('لا توجد بيانات لتصديرها', 'warning');
+        return;
+    }
+
+    const canViewDetails = state.user && (state.user.role === 'admin' || !!state.user.can_view_ps_details);
+    const rows = [];
+    let counter = 1;
+
+    accounts.forEach(c => {
+        const slots = [
+            { key: 'ps5_1', name: 'PS5 (النسخة الأولى)', status: c.ps5_1_status, code: c.ps5_1_code },
+            { key: 'ps5_2', name: 'PS5 (النسخة الثانية)', status: c.ps5_2_status, code: c.ps5_2_code },
+            { key: 'ps4', name: 'PS4', status: c.ps4_status, code: c.ps4_code }
+        ];
+
+        slots.forEach(s => {
+            if (s.status === 'available') {
+                rows.push({
+                    '#': counter++,
+                    'الإيميل': canViewDetails ? c.email : maskEmail(c.email),
+                    'كلمة المرور': canViewDetails ? c.password : '••••••••',
+                    'نوع البلس': c.plus_type,
+                    'مدة الاشتراك': c.plus_duration,
+                    'النسخة المتاحة': s.name,
+                    'كود التحقق / كود النسخة': canViewDetails ? (s.code || '-') : '••••••••',
+                    'الموظف المسؤول': c.created_by || 'غير محدد',
+                    'تاريخ الإضافة': formatToSaudiTime(c.created_at)
+                });
+            }
+        });
+    });
+
+    if (rows.length === 0) {
+        toast('لا توجد نسخ متبقية (متاحة) في الحسابات المصفاة حالياً', 'warning');
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!dir'] = 'rtl';
+
+    // Apply auto-width for columns
+    const max_len = {};
+    rows.forEach(row => {
+        Object.keys(row).forEach(key => {
+            const val = String(row[key] || '');
+            max_len[key] = Math.max(max_len[key] || 10, val.length + 3);
+        });
+    });
+    ws['!cols'] = Object.keys(max_len).map(key => ({ wch: max_len[key] }));
+
+    XLSX.utils.book_append_sheet(wb, ws, "النسخ المتاحة المتبقية");
+    XLSX.writeFile(wb, `النسخ_المتبقية_حسب_الفلترة_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {
