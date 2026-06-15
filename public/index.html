@@ -662,6 +662,7 @@
         <div class="nav-item" id="nav-ps-plus-deliveries" onclick="nav('ps-plus-deliveries')"><i class="ti ti-report"></i> تقرير تسليم بلس</div>
         <div class="nav-item" id="nav-games" onclick="nav('games')"><i class="ti ti-device-gamepad-2"></i> مخزون الألعاب</div>
         <div class="nav-item" id="nav-games-deliveries" onclick="nav('games-deliveries')"><i class="ti ti-report"></i> تقرير تسليم الألعاب</div>
+        <div class="nav-item" id="nav-inventory-dashboard" onclick="nav('inventory-dashboard')"><i class="ti ti-chart-bar"></i> داشبورد المخزون المتبقي</div>
       </div>
 
       <div class="s-sep"></div>
@@ -2341,6 +2342,128 @@
           <div class="modal-foot">
             <button class="btn" onclick="closeCertModal()">إلغاء</button>
             <button class="btn btn-primary" onclick="saveCert()"><i class="ti ti-device-floppy"></i> حفظ الشهادة</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: INVENTORY REMAINING DASHBOARD -->
+      <div class="page pad" id="page-inventory-dashboard">
+        <!-- Header -->
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div style="font-size:18px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px;">
+              <i class="ti ti-chart-bar" style="color:var(--accent);"></i>
+              داشبورد المخزون المتبقي — جميع الفئات
+            </div>
+            <div style="font-size:11px; color:var(--text3); margin-top:3px;">نظرة شاملة على الكميات المتبقية من كل صنف وفترة</div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="loadInventoryDashboard()" style="background:rgba(99,102,241,0.15); border-color:rgba(99,102,241,0.4); color:var(--accent);">
+              <i class="ti ti-refresh"></i> تحديث
+            </button>
+            <button class="btn btn-sm btn-success" onclick="exportInventoryDashboardExcel()">
+              <i class="ti ti-file-excel"></i> تصدير Excel احترافي
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div class="kpi-grid" style="margin-bottom:16px;">
+          <div class="kpi-card">
+            <div class="kpi-icon accent"><i class="ti ti-brand-playstation"></i></div>
+            <div class="kpi-val" id="invKpiPsAccounts" style="font-weight:700;">0</div>
+            <div class="kpi-label">حسابات بلس النشطة</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-device-gamepad-2"></i></div>
+            <div class="kpi-val" id="invKpiPsRemainingPS5" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS5 متبقية (بلس)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="ti ti-device-gamepad"></i></div>
+            <div class="kpi-val" id="invKpiPsRemainingPS4" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ PS4 متبقية (بلس)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-joystick"></i></div>
+            <div class="kpi-val" id="invKpiGamesRemaining" style="font-weight:700;">0</div>
+            <div class="kpi-label">نسخ ألعاب متبقية</div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar" style="margin-bottom:14px; padding:10px 14px; background:var(--bg3); border-radius:var(--r1); border:1px solid var(--border1);">
+          <label><i class="ti ti-filter"></i> تصفية بحسب:</label>
+
+          <label style="margin-right:8px">الفئة:</label>
+          <select id="invFilterCategory" onchange="renderInventoryDashboard()" style="padding:4px 8px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+            <option value="">الكل</option>
+            <option value="ps-plus">بلس PlayStation Plus</option>
+            <option value="games">الألعاب Games</option>
+          </select>
+
+          <label style="margin-right:8px">الفترة:</label>
+          <select id="invFilterPeriod" onchange="renderInventoryDashboard()" style="padding:4px 8px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+            <option value="">الكل</option>
+            <option value="يومي">يومي</option>
+            <option value="اسبوعي">اسبوعي</option>
+            <option value="شهري">شهري</option>
+            <option value="3 أشهر">3 أشهر</option>
+            <option value="4 أشهر">4 أشهر</option>
+            <option value="5 أشهر">5 أشهر</option>
+            <option value="6 أشهر">6 أشهر</option>
+            <option value="9 أشهر">9 أشهر</option>
+            <option value="سنة">سنة</option>
+            <option value="بدون فترة">بدون فترة (ألعاب)</option>
+          </select>
+
+          <label style="margin-right:8px">إظهار:</label>
+          <select id="invFilterStock" onchange="renderInventoryDashboard()" style="padding:4px 8px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+            <option value="available">المتبقي فقط (كمية > 0)</option>
+            <option value="all">الكل (بما فيها الفارغة)</option>
+          </select>
+        </div>
+
+        <!-- Main Inventory Table -->
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title"><i class="ti ti-table" style="color:var(--accent); margin-left:6px;"></i> تفاصيل المخزون المتبقي حسب الصنف والفترة</div>
+            <div id="invTotalRowsLabel" style="font-size:11px; color:var(--text3);"></div>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:40px">#</th>
+                  <th>الفئة</th>
+                  <th>اسم الصنف</th>
+                  <th>الفترة / النوع</th>
+                  <th style="text-align:center">نسخ PS5 (الأولى)</th>
+                  <th style="text-align:center">نسخ PS5 (الثانية)</th>
+                  <th style="text-align:center">نسخ PS4</th>
+                  <th style="text-align:center; font-weight:700; color:var(--accent)">إجمالي المتبقي</th>
+                  <th>إجمالي الحسابات</th>
+                </tr>
+              </thead>
+              <tbody id="invDashboardTbody">
+                <tr>
+                  <td colspan="9">
+                    <div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل بيانات المخزون...</p></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Visual Cards Section - Grouped by Category -->
+        <div style="margin-top:20px;">
+          <div style="font-size:13px; font-weight:600; color:var(--text2); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+            <i class="ti ti-layout-cards" style="color:var(--accent)"></i>
+            عرض بصري للمخزون المتبقي
+          </div>
+          <div id="invCardsContainer" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">
+            <div style="font-size:11px; color:var(--text3); padding:20px; text-align:center;">جاري التحميل...</div>
           </div>
         </div>
       </div>

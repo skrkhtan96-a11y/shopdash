@@ -504,7 +504,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -525,6 +525,7 @@ const PAGE_TITLES = {
     'ps-plus-deliveries': 'تقرير تسليم بلس',
     games: 'مخزون حسابات الألعاب',
     'games-deliveries': 'تقرير تسليم الألعاب',
+    'inventory-dashboard': 'داشبورد المخزون المتبقي — جميع الفئات',
     'activity-logs': 'سجل النشاطات والعمليات',
     'db-management': 'النسخ الاحتياطي والاستعادة لقاعدة البيانات'
 };
@@ -615,6 +616,7 @@ function nav(name, updateHash = true) {
     if (name === 'ps-plus-deliveries') loadPsPlusDeliveries();
     if (name === 'games') loadGamesAccounts();
     if (name === 'games-deliveries') loadGamesDeliveries();
+    if (name === 'inventory-dashboard') loadInventoryDashboard();
     if (name === 'activity-logs') loadActivityLogs();
     if (name === 'campaign-detail') {
         const storedName = sessionStorage.getItem('detail_campaign_name');
@@ -9642,6 +9644,241 @@ function processCustomPrompt(promptText, campaigns) {
         ● العائد الإجمالي المنسوب (Overall ROAS): <strong>${(campaigns.reduce((s,c)=>s+c.conversions*27.39,0) / (campaigns.reduce((s,c)=>s+c.spend,0) || 1)).toFixed(2)}x</strong>.<br><br>
         يمكنك أن تسألني عن: "توصيات الحملات"، "تقرير أداء فيسبوك"، أو "تحليل تيك توك".
     `;
+
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  INVENTORY DASHBOARD — ALL CATEGORIES (PS Plus + Games)
+// ══════════════════════════════════════════════════════════════════
 
+async function loadInventoryDashboard() {
+    const promises = [];
+    if (!state.psPlusAccounts || state.psPlusAccounts.length === 0) {
+        promises.push(
+            fetch('/api/ps-plus/accounts')
+                .then(r => r.json())
+                .then(data => { state.psPlusAccounts = data; })
+                .catch(() => { state.psPlusAccounts = []; })
+        );
+    }
+    if (!state.gamesAccounts || state.gamesAccounts.length === 0) {
+        promises.push(
+            fetch('/api/games/accounts')
+                .then(r => r.json())
+                .then(data => { state.gamesAccounts = data; })
+                .catch(() => { state.gamesAccounts = []; })
+        );
+    }
+    if (promises.length > 0) {
+        const tbody = document.getElementById('invDashboardTbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><i class="ti ti-refresh loading"></i><p>جاري تحميل بيانات المخزون...</p></div></td></tr>';
+        await Promise.all(promises);
+    }
+    renderInventoryDashboard();
+}
+
+function buildInventoryRows(filterCategory, filterPeriod, filterStock) {
+    const rowMap = {};
+
+    // PS Plus
+    if (!filterCategory || filterCategory === 'ps-plus') {
+        (state.psPlusAccounts || []).forEach(acc => {
+            const period = acc.plus_duration || 'غير محدد';
+            const item   = acc.plus_type || 'غير محدد';
+            if (filterPeriod && period !== filterPeriod) return;
+            const key = 'ps-plus|' + item + '|' + period;
+            if (!rowMap[key]) rowMap[key] = { category: 'بلس PlayStation Plus', categoryKey: 'ps-plus', itemName: item, period, ps5_1: 0, ps5_2: 0, ps4: 0, totalAccounts: 0 };
+            rowMap[key].totalAccounts++;
+            if (acc.ps5_1_status === 'available') rowMap[key].ps5_1++;
+            if (acc.ps5_2_status === 'available') rowMap[key].ps5_2++;
+            if (acc.ps4_status   === 'available') rowMap[key].ps4++;
+        });
+    }
+
+    // Games
+    if (!filterCategory || filterCategory === 'games') {
+        if (!filterPeriod || filterPeriod === 'بدون فترة') {
+            (state.gamesAccounts || []).forEach(acc => {
+                const item   = acc.game_name || acc.name || 'لعبة غير محددة';
+                const period = 'بدون فترة';
+                const key    = 'games|' + item + '|' + period;
+                if (!rowMap[key]) rowMap[key] = { category: 'الألعاب Games', categoryKey: 'games', itemName: item, period, ps5_1: 0, ps5_2: 0, ps4: 0, totalAccounts: 0 };
+                rowMap[key].totalAccounts++;
+                let ps5Count = 0;
+                (acc.slots || []).forEach(slot => {
+                    if (slot.status === 'available') {
+                        if (slot.slot_type === 'PS5') { ps5Count++; if (ps5Count === 1) rowMap[key].ps5_1++; else rowMap[key].ps5_2++; }
+                        else rowMap[key].ps4++;
+                    }
+                });
+            });
+        }
+    }
+
+    let rows = Object.values(rowMap).map(r => ({ ...r, totalRemaining: r.ps5_1 + r.ps5_2 + r.ps4 }));
+    if (filterStock === 'available') rows = rows.filter(r => r.totalRemaining > 0);
+    rows.sort((a, b) => {
+        if (a.categoryKey !== b.categoryKey) return a.categoryKey.localeCompare(b.categoryKey);
+        return b.totalRemaining - a.totalRemaining;
+    });
+    return rows;
+}
+
+function renderInventoryDashboard() {
+    const filterCategory = (document.getElementById('invFilterCategory') || {}).value || '';
+    const filterPeriod   = (document.getElementById('invFilterPeriod')   || {}).value || '';
+    const filterStock    = (document.getElementById('invFilterStock')     || {}).value || 'available';
+
+    // KPIs (always full data)
+    let psRemPS5 = 0, psRemPS4 = 0;
+    (state.psPlusAccounts || []).forEach(acc => {
+        if (acc.ps5_1_status === 'available') psRemPS5++;
+        if (acc.ps5_2_status === 'available') psRemPS5++;
+        if (acc.ps4_status   === 'available') psRemPS4++;
+    });
+    let gamesRem = 0;
+    (state.gamesAccounts || []).forEach(acc => {
+        (acc.slots || []).forEach(s => { if (s.status === 'available') gamesRem++; });
+    });
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('invKpiPsAccounts',     (state.psPlusAccounts || []).length);
+    setEl('invKpiPsRemainingPS5', psRemPS5);
+    setEl('invKpiPsRemainingPS4', psRemPS4);
+    setEl('invKpiGamesRemaining', gamesRem);
+
+    const rows = buildInventoryRows(filterCategory, filterPeriod, filterStock);
+    const rowsLabel = document.getElementById('invTotalRowsLabel');
+    if (rowsLabel) rowsLabel.textContent = 'إجمالي الأصناف: ' + rows.length + ' صنف';
+
+    const tbody = document.getElementById('invDashboardTbody');
+    if (!tbody) return;
+
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><i class="ti ti-box-off"></i><p>لا توجد نسخ متبقية وفق الفلترة الحالية</p></div></td></tr>';
+        renderInventoryCards([]);
+        return;
+    }
+
+    const PCOLOR = { 'يومي':'#f59e0b','اسبوعي':'#6366f1','شهري':'#3b82f6','3 أشهر':'#10b981','4 أشهر':'#0ea5e9','5 أشهر':'#8b5cf6','6 أشهر':'#f97316','9 أشهر':'#ef4444','سنة':'#ec4899','بدون فترة':'#64748b' };
+
+    tbody.innerHTML = rows.map((r, i) => {
+        const catColor  = r.categoryKey === 'ps-plus' ? 'var(--accent)' : '#f59e0b';
+        const pColor    = PCOLOR[r.period] || '#6366f1';
+        const totColor  = r.totalRemaining === 0 ? '#ef4444' : r.totalRemaining <= 2 ? '#f59e0b' : '#10b981';
+        return '<tr>' +
+            '<td style="color:var(--text3);font-size:11px;">' + (i+1) + '</td>' +
+            '<td><span style="background:' + catColor + '22;color:' + catColor + ';border:1px solid ' + catColor + '44;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">' + r.category + '</span></td>' +
+            '<td style="font-weight:600;color:var(--text);">' + r.itemName + '</td>' +
+            '<td><span style="background:' + pColor + '22;color:' + pColor + ';border:1px solid ' + pColor + '44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;">' + r.period + '</span></td>' +
+            '<td style="text-align:center;"><span style="font-size:13px;font-weight:700;color:' + (r.ps5_1>0?'#10b981':'var(--text3)') + ';">' + r.ps5_1 + '</span></td>' +
+            '<td style="text-align:center;"><span style="font-size:13px;font-weight:700;color:' + (r.ps5_2>0?'#10b981':'var(--text3)') + ';">' + r.ps5_2 + '</span></td>' +
+            '<td style="text-align:center;"><span style="font-size:13px;font-weight:700;color:' + (r.ps4>0?'#3b82f6':'var(--text3)') + ';">' + r.ps4 + '</span></td>' +
+            '<td style="text-align:center;"><span style="font-size:15px;font-weight:800;color:' + totColor + ';background:' + totColor + '15;border-radius:6px;padding:3px 10px;display:inline-block;min-width:40px;">' + r.totalRemaining + '</span></td>' +
+            '<td style="color:var(--text2);font-size:12px;">' + r.totalAccounts + ' حساب</td>' +
+        '</tr>';
+    }).join('');
+
+    renderInventoryCards(rows);
+}
+
+function renderInventoryCards(rows) {
+    const container = document.getElementById('invCardsContainer');
+    if (!container) return;
+    if (rows.length === 0) {
+        container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text3);font-size:12px;"><i class="ti ti-box-off" style="font-size:28px;display:block;margin-bottom:8px;"></i>لا توجد بيانات للعرض</div>';
+        return;
+    }
+    const PCOLOR = { 'يومي':'#f59e0b','اسبوعي':'#6366f1','شهري':'#3b82f6','3 أشهر':'#10b981','4 أشهر':'#0ea5e9','5 أشهر':'#8b5cf6','6 أشهر':'#f97316','9 أشهر':'#ef4444','سنة':'#ec4899','بدون فترة':'#64748b' };
+    container.innerHTML = rows.map(r => {
+        const accent    = r.categoryKey === 'ps-plus' ? 'var(--accent)' : '#f59e0b';
+        const pColor    = PCOLOR[r.period] || '#6366f1';
+        const totColor  = r.totalRemaining === 0 ? '#ef4444' : r.totalRemaining <= 2 ? '#f59e0b' : '#10b981';
+        const icon      = r.categoryKey === 'ps-plus' ? 'ti-brand-playstation' : 'ti-device-gamepad-2';
+        return '<div style="background:var(--bg3);border:1px solid var(--border1);border-radius:var(--r1);padding:14px;display:flex;flex-direction:column;gap:10px;border-top:3px solid ' + accent + ';">' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<div style="width:30px;height:30px;border-radius:8px;background:' + accent + '22;display:flex;align-items:center;justify-content:center;"><i class="ti ' + icon + '" style="color:' + accent + ';font-size:15px;"></i></div>' +
+              '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + r.itemName + '</div><div style="font-size:10px;color:var(--text3);margin-top:1px;">' + r.category + '</div></div>' +
+            '</div>' +
+            '<div><span style="background:' + pColor + '22;color:' + pColor + ';border:1px solid ' + pColor + '44;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;"><i class="ti ti-calendar-time" style="font-size:9px;margin-left:3px;"></i>' + r.period + '</span></div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center;">' +
+              '<div style="background:rgba(16,185,129,0.06);border-radius:6px;padding:6px 4px;"><div style="font-size:15px;font-weight:700;color:' + (r.ps5_1>0?'#10b981':'var(--text3)') + ';">' + r.ps5_1 + '</div><div style="font-size:9px;color:var(--text3);margin-top:2px;">PS5 (1)</div></div>' +
+              '<div style="background:rgba(16,185,129,0.06);border-radius:6px;padding:6px 4px;"><div style="font-size:15px;font-weight:700;color:' + (r.ps5_2>0?'#10b981':'var(--text3)') + ';">' + r.ps5_2 + '</div><div style="font-size:9px;color:var(--text3);margin-top:2px;">PS5 (2)</div></div>' +
+              '<div style="background:rgba(59,130,246,0.06);border-radius:6px;padding:6px 4px;"><div style="font-size:15px;font-weight:700;color:' + (r.ps4>0?'#3b82f6':'var(--text3)') + ';">' + r.ps4 + '</div><div style="font-size:9px;color:var(--text3);margin-top:2px;">PS4</div></div>' +
+            '</div>' +
+            '<div style="background:' + totColor + '15;border:1px solid ' + totColor + '44;border-radius:8px;padding:8px;text-align:center;">' +
+              '<div style="font-size:22px;font-weight:800;color:' + totColor + ';line-height:1;">' + r.totalRemaining + '</div>' +
+              '<div style="font-size:10px;color:var(--text3);margin-top:2px;">إجمالي النسخ المتبقية</div>' +
+            '</div>' +
+            '<div style="font-size:10px;color:var(--text3);text-align:center;padding-top:2px;border-top:1px solid var(--border1);">' + r.totalAccounts + ' حساب مسجل في هذه الفئة</div>' +
+        '</div>';
+    }).join('');
+}
+
+function exportInventoryDashboardExcel() {
+    const filterCategory = (document.getElementById('invFilterCategory') || {}).value || '';
+    const filterPeriod   = (document.getElementById('invFilterPeriod')   || {}).value || '';
+    const filterStock    = (document.getElementById('invFilterStock')     || {}).value || 'available';
+
+    const rows = buildInventoryRows(filterCategory, filterPeriod, filterStock);
+    if (rows.length === 0) { toast('لا توجد بيانات لتصديرها', 'warning'); return; }
+
+    const sheetRows = rows.map((r, i) => ({
+        '#': i + 1,
+        'الفئة': r.category,
+        'اسم الصنف': r.itemName,
+        'الفترة / النوع': r.period,
+        'نسخ PS5 (الأولى)': r.ps5_1,
+        'نسخ PS5 (الثانية)': r.ps5_2,
+        'نسخ PS4': r.ps4,
+        'إجمالي النسخ المتبقية': r.totalRemaining,
+        'إجمالي الحسابات': r.totalAccounts
+    }));
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Summary
+    const ws = XLSX.utils.json_to_sheet(sheetRows);
+    ws['!dir'] = 'rtl';
+    const maxLen = {};
+    sheetRows.forEach(row => { Object.keys(row).forEach(k => { maxLen[k] = Math.max(maxLen[k] || 10, String(row[k]||'').length + 4); }); });
+    ws['!cols'] = Object.keys(maxLen).map(k => ({ wch: maxLen[k] }));
+    XLSX.utils.book_append_sheet(wb, ws, 'ملخص المخزون المتبقي');
+
+    // Sheet 2: PS Plus Detail
+    if (!filterCategory || filterCategory === 'ps-plus') {
+        const psRows = [];
+        let psIdx = 1;
+        (state.psPlusAccounts || []).forEach(acc => {
+            const period = acc.plus_duration || 'غير محدد';
+            if (filterPeriod && period !== filterPeriod) return;
+            [
+                { name: 'PS5 (النسخة الأولى)',  status: acc.ps5_1_status },
+                { name: 'PS5 (النسخة الثانية)', status: acc.ps5_2_status },
+                { name: 'PS4',                   status: acc.ps4_status }
+            ].forEach(s => {
+                if (filterStock === 'available' && s.status !== 'available') return;
+                psRows.push({
+                    '#': psIdx++,
+                    'نوع البلس': acc.plus_type,
+                    'مدة الاشتراك': period,
+                    'البريد الإلكتروني': acc.email,
+                    'نوع النسخة': s.name,
+                    'حالة النسخة': s.status === 'available' ? 'متاحة ✅' : 'مسلمة ✔',
+                    'الموظف': acc.created_by || '-',
+                    'تاريخ الإضافة': formatToSaudiTime(acc.created_at)
+                });
+            });
+        });
+        if (psRows.length > 0) {
+            const wsPsD = XLSX.utils.json_to_sheet(psRows);
+            wsPsD['!dir'] = 'rtl';
+            const ml2 = {};
+            psRows.forEach(row => { Object.keys(row).forEach(k => { ml2[k] = Math.max(ml2[k] || 10, String(row[k]||'').length + 4); }); });
+            wsPsD['!cols'] = Object.keys(ml2).map(k => ({ wch: ml2[k] }));
+            XLSX.utils.book_append_sheet(wb, wsPsD, 'تفاصيل حسابات بلس');
+        }
+    }
+
+    XLSX.writeFile(wb, 'داشبورد_المخزون_المتبقي_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    toast('تم تصدير ملف Excel بنجاح ✅', 'success');
+}
