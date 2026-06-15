@@ -5879,76 +5879,116 @@ function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {
     document.getElementById('kpiPsAvailable4').textContent = ps4;
     document.getElementById('kpiPsCompleted').textContent = completed;
 
-    // Calculate stock by duration
-    const durationStocks = {};
-    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '4 أشهر', '5 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
-    standardDurations.forEach(d => durationStocks[d] = { ps5: 0, ps4: 0, total: 0 });
+    renderPsStockByDuration('psStockByDurationContainer', accounts);
+}
 
-    if (accounts) {
-        accounts.forEach(c => {
-            let ps5Slots = 0;
-            let ps4Slots = 0;
-            if (c.ps5_1_status === 'available') ps5Slots++;
-            if (c.ps5_2_status === 'available') ps5Slots++;
-            if (c.ps4_status === 'available') ps4Slots++;
+function renderPsStockByDuration(containerId, accounts, filterType = '', filterSearch = '') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.innerHTML = '';
+    const stockMap = {};
+
+    let targetAccounts = accounts || [];
+    if (filterType || filterSearch) {
+        targetAccounts = targetAccounts.filter(c => {
+            if (filterType && c.plus_type !== filterType) return false;
+            if (filterSearch && !c.email.toLowerCase().includes(filterSearch)) return false;
+            return true;
+        });
+    }
+
+    targetAccounts.forEach(c => {
+        let ps5Slots = 0;
+        let ps4Slots = 0;
+        if (c.ps5_1_status === 'available') ps5Slots++;
+        if (c.ps5_2_status === 'available') ps5Slots++;
+        if (c.ps4_status === 'available') ps4Slots++;
+
+        const type = c.plus_type || 'غير محدد';
+        const dur = c.plus_duration || 'غير محدد';
+        const key = `${type} - ${dur}`;
+
+        if (!stockMap[key]) {
+            stockMap[key] = { type, dur, ps5: 0, ps4: 0, total: 0 };
+        }
+        stockMap[key].ps5 += ps5Slots;
+        stockMap[key].ps4 += ps4Slots;
+        stockMap[key].total += (ps5Slots + ps4Slots);
+    });
+
+    const activeStocks = Object.values(stockMap).filter(item => item.total > 0);
+    
+    // Sort: Deluxe, Extra, Essential (Alphabetically: فاخر, اضافي, اساسي)
+    const orderScore = { 'فاخر': 1, 'اضافي': 2, 'اساسي': 3 };
+    activeStocks.sort((a, b) => {
+        const scoreA = orderScore[a.type] || 99;
+        const scoreB = orderScore[b.type] || 99;
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return a.dur.localeCompare(b.dur);
+    });
+
+    if (activeStocks.length === 0) {
+        container.innerHTML = '<div style="font-size:11.5px; color:var(--text3); padding:4px 8px;"><i class="ti ti-info-circle"></i> لا يوجد نسخ متبقية متاح حالياً للبيع بناءً على خيارات البحث والتصفية</div>';
+        return;
+    }
+
+    activeStocks.forEach(data => {
+        const card = document.createElement('div');
+        card.style.background = 'rgba(157, 78, 221, 0.05)';
+        card.style.border = '1px solid rgba(157, 78, 221, 0.18)';
+        card.style.borderRadius = '8px';
+        card.style.padding = '10px 12px';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.alignItems = 'center';
+        card.style.justifyContent = 'center';
+        card.style.transition = 'all 0.2s ease';
+        card.style.boxShadow = '0 2px 6px rgba(0,0,0,0.12)';
+        card.style.minWidth = '130px';
+        
+        card.onmouseover = () => {
+            card.style.transform = 'translateY(-2px)';
+            card.style.boxShadow = '0 5px 12px rgba(157, 78, 221, 0.18)';
+            card.style.borderColor = 'rgba(157, 78, 221, 0.4)';
+            card.style.background = 'rgba(157, 78, 221, 0.08)';
+        };
+        card.onmouseout = () => {
+            card.style.transform = 'none';
+            card.style.boxShadow = '0 2px 6px rgba(0,0,0,0.12)';
+            card.style.borderColor = 'rgba(157, 78, 221, 0.18)';
+            card.style.background = 'rgba(157, 78, 221, 0.05)';
+        };
+
+        let badgeColor = 'var(--text3)';
+        let badgeBg = 'rgba(255,255,255,0.04)';
+        if (data.type === 'اساسي') {
+            badgeColor = '#4cc9f0';
+            badgeBg = 'rgba(76, 201, 240, 0.12)';
+        } else if (data.type === 'اضافي') {
+            badgeColor = '#f72585';
+            badgeBg = 'rgba(247, 37, 133, 0.12)';
+        } else if (data.type === 'فاخر') {
+            badgeColor = '#72efdd';
+            badgeBg = 'rgba(114, 239, 221, 0.12)';
+        }
+
+        card.innerHTML = `
+            <div style="font-size: 9.5px; color: ${badgeColor}; background: ${badgeBg}; font-weight: 700; padding: 1px 6px; border-radius: 12px; margin-bottom: 4px; border: 1px solid ${badgeColor}20;">
+                ${data.type}
+            </div>
+            <span style="font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 4px;">${data.dur}</span>
+            <span style="font-size: 18px; font-weight: 800; color: #c77dff; line-height: 1.1; margin-bottom: 2px;">${data.total}</span>
+            <span style="font-size: 8.5px; color: var(--text3); opacity: 0.8; margin-bottom: 4px;">نسخة متبقية</span>
             
-            const dur = c.plus_duration || 'أخرى';
-            if (!durationStocks[dur]) {
-                durationStocks[dur] = { ps5: 0, ps4: 0, total: 0 };
-            }
-            durationStocks[dur].ps5 += ps5Slots;
-            durationStocks[dur].ps4 += ps4Slots;
-            durationStocks[dur].total += (ps5Slots + ps4Slots);
-        });
-    }
-
-    const container = document.getElementById('psStockByDurationContainer');
-    if (container) {
-        container.innerHTML = '';
-        Object.entries(durationStocks).forEach(([dur, data]) => {
-            const count = data.total;
-            if (count > 0 || standardDurations.includes(dur)) {
-                const card = document.createElement('div');
-                card.style.background = count > 0 ? 'rgba(157, 78, 221, 0.08)' : 'rgba(255, 255, 255, 0.01)';
-                card.style.border = count > 0 ? '1px solid rgba(157, 78, 221, 0.25)' : '1px dashed var(--border2)';
-                card.style.borderRadius = '8px';
-                card.style.padding = '8px 12px';
-                card.style.display = 'flex';
-                card.style.flexDirection = 'column';
-                card.style.alignItems = 'center';
-                card.style.justifyContent = 'center';
-                card.style.transition = 'all 0.2s ease';
-                card.style.opacity = count > 0 ? '1' : '0.35';
-                
-                card.onmouseover = () => {
-                    card.style.transform = 'translateY(-2px)';
-                    if (count > 0) {
-                        card.style.boxShadow = '0 4px 12px rgba(157, 78, 221, 0.15)';
-                        card.style.borderColor = 'rgba(157, 78, 221, 0.5)';
-                    }
-                };
-                card.onmouseout = () => {
-                    card.style.transform = 'none';
-                    card.style.boxShadow = 'none';
-                    card.style.borderColor = count > 0 ? 'rgba(157, 78, 221, 0.25)' : 'var(--border2)';
-                };
-
-                card.innerHTML = `
-                    <span style="font-size: 10px; color: var(--text3); font-weight: 500; margin-bottom: 2px;">${dur}</span>
-                    <span style="font-size: 15px; font-weight: 700; color: ${count > 0 ? '#c77dff' : 'var(--text3)'};">${count}</span>
-                    <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
-                    ${count > 0 ? `
-                    <span style="font-size: 8.5px; color: #72efdd; font-weight: 600; margin-top: 3px; display: flex; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px; width: 100%; justify-content: center;">
-                        <span>${data.ps5} PS5</span>
-                        <span style="color:var(--text3); opacity:0.3">|</span>
-                        <span>${data.ps4} PS4</span>
-                    </span>
-                    ` : ''}
-                `;
-                container.appendChild(card);
-            }
-        });
-    }
+            <div style="font-size: 8.5px; color: #72efdd; font-weight: 600; margin-top: auto; display: flex; gap: 6px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4px; width: 100%; justify-content: center; direction: ltr;">
+                <span>PS5: <strong>${data.ps5}</strong></span>
+                <span style="color:var(--text3); opacity:0.3">|</span>
+                <span>PS4: <strong>${data.ps4}</strong></span>
+            </div>
+        `;
+        container.appendChild(card);
+    });
 }
 
 function showPsPlusDetails(accountId) {
@@ -6167,84 +6207,7 @@ function renderPsPlusDeliveries(accounts) {
         percentageLabel.textContent = isFiltered ? 'النسبة من إجمالي التسليمات' : 'نسبة التسليم من المخزون العام';
     }
 
-    // Calculate stock by duration
-    const durationStocks = {};
-    const standardDurations = ['يومي', 'اسبوعي', 'شهري', '3 أشهر', '4 أشهر', '5 أشهر', '6 أشهر', '9 أشهر', 'سنة'];
-    standardDurations.forEach(d => durationStocks[d] = { ps5: 0, ps4: 0, total: 0 });
-
-    // Compute remaining stock from accounts that match active type or search filter
-    let targetAccounts = accounts || [];
-    if (filterType || filterSearch) {
-        targetAccounts = targetAccounts.filter(c => {
-            if (filterType && c.plus_type !== filterType) return false;
-            if (filterSearch && !c.email.toLowerCase().includes(filterSearch)) return false;
-            return true;
-        });
-    }
-
-    targetAccounts.forEach(c => {
-        let ps5Slots = 0;
-        let ps4Slots = 0;
-        if (c.ps5_1_status === 'available') ps5Slots++;
-        if (c.ps5_2_status === 'available') ps5Slots++;
-        if (c.ps4_status === 'available') ps4Slots++;
-        
-        const dur = c.plus_duration || 'أخرى';
-        if (!durationStocks[dur]) {
-            durationStocks[dur] = { ps5: 0, ps4: 0, total: 0 };
-        }
-        durationStocks[dur].ps5 += ps5Slots;
-        durationStocks[dur].ps4 += ps4Slots;
-        durationStocks[dur].total += (ps5Slots + ps4Slots);
-    });
-
-    const durationContainer = document.getElementById('psdStockByDurationContainer');
-    if (durationContainer) {
-        durationContainer.innerHTML = '';
-        Object.entries(durationStocks).forEach(([dur, data]) => {
-            const count = data.total;
-            if (count > 0 || standardDurations.includes(dur)) {
-                const card = document.createElement('div');
-                card.style.background = count > 0 ? 'rgba(157, 78, 221, 0.08)' : 'rgba(255, 255, 255, 0.01)';
-                card.style.border = count > 0 ? '1px solid rgba(157, 78, 221, 0.25)' : '1px dashed var(--border2)';
-                card.style.borderRadius = '8px';
-                card.style.padding = '8px 12px';
-                card.style.display = 'flex';
-                card.style.flexDirection = 'column';
-                card.style.alignItems = 'center';
-                card.style.justifyContent = 'center';
-                card.style.transition = 'all 0.2s ease';
-                card.style.opacity = count > 0 ? '1' : '0.35';
-                
-                card.onmouseover = () => {
-                    card.style.transform = 'translateY(-2px)';
-                    if (count > 0) {
-                        card.style.boxShadow = '0 4px 12px rgba(157, 78, 221, 0.15)';
-                        card.style.borderColor = 'rgba(157, 78, 221, 0.5)';
-                    }
-                };
-                card.onmouseout = () => {
-                    card.style.transform = 'none';
-                    card.style.boxShadow = 'none';
-                    card.style.borderColor = count > 0 ? 'rgba(157, 78, 221, 0.25)' : 'var(--border2)';
-                };
-
-                card.innerHTML = `
-                    <span style="font-size: 10px; color: var(--text3); font-weight: 500; margin-bottom: 2px;">${dur}</span>
-                    <span style="font-size: 15px; font-weight: 700; color: ${count > 0 ? '#c77dff' : 'var(--text3)'};">${count}</span>
-                    <span style="font-size: 9px; color: var(--text3); opacity: 0.8; margin-top: 1px;">نسخة متبقية</span>
-                    ${count > 0 ? `
-                    <span style="font-size: 8.5px; color: #72efdd; font-weight: 600; margin-top: 3px; display: flex; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px; width: 100%; justify-content: center;">
-                        <span>${data.ps5} PS5</span>
-                        <span style="color:var(--text3); opacity:0.3">|</span>
-                        <span>${data.ps4} PS4</span>
-                    </span>
-                    ` : ''}
-                `;
-                durationContainer.appendChild(card);
-            }
-        });
-    }
+    renderPsStockByDuration('psdStockByDurationContainer', accounts, filterType, filterSearch);
 
     if (filtered.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11"><div class="empty"><i class="ti ti-report"></i><p>لا توجد نسخ مسلمة تطابق خيارات التصفية الحالية</p></div></td></tr>';
