@@ -9882,3 +9882,376 @@ function exportInventoryDashboardExcel() {
     XLSX.writeFile(wb, 'داشبورد_المخزون_المتبقي_' + new Date().toISOString().split('T')[0] + '.xlsx');
     toast('تم تصدير ملف Excel بنجاح ✅', 'success');
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  EXPORT EXTERNAL SALES — PROFESSIONAL PDF REPORT
+// ══════════════════════════════════════════════════════════════════
+
+async function exportExternalSalesPDF() {
+    const filterBank = (document.getElementById('extFilterBank') || {}).value || '';
+    const searchVal  = ((document.getElementById('extSearch')    || {}).value || '').trim().toLowerCase();
+
+    // Apply same filters as renderExternalSales
+    const filtered = stateExternalSales.filter(item => {
+        if (filterBank && item.bank_account !== filterBank) return false;
+        if (searchVal) {
+            const prodMatch = (item.product_name || '').toLowerCase().includes(searchVal);
+            const custMatch = (item.customer_name || '').toLowerCase().includes(searchVal);
+            const refMatch  = (item.transfer_reference || '').toLowerCase().includes(searchVal);
+            const ordMatch  = (item.order_number || '').toLowerCase().includes(searchVal);
+            if (!prodMatch && !custMatch && !refMatch && !ordMatch) return false;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        toast('لا توجد بيانات لتصديرها في التصفية الحالية', 'warning');
+        return;
+    }
+
+    toast('جاري تحضير تقرير PDF...', 'info');
+
+    // ── Compute summary stats ──
+    const totalAmount = filtered.reduce((s, i) => s + (i.amount || 0), 0);
+    const totalQty    = filtered.reduce((s, i) => s + (i.quantity || 1), 0);
+    const bankGroups  = {};
+    filtered.forEach(i => {
+        bankGroups[i.bank_account] = (bankGroups[i.bank_account] || 0) + (i.amount || 0);
+    });
+
+    // ── Bank colors map ──
+    const BANK_COLORS = {
+        'حساب الوثيقة': '#9d4edd',
+        'حساب نجم':     '#ff9e00',
+        'حساب القطيبي': '#3dba7e',
+        'حساب الكريمي': '#5b9bd6',
+        'حساب USD':     '#1a8fe3',
+        'حساب زاد':     '#f25c05'
+    };
+
+    // ── Generate printable HTML page ──
+    const reportDate = new Date().toLocaleDateString('ar-SA', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        calendar: 'gregory'
+    });
+
+    // Build summary cards HTML
+    const bankSummaryHtml = Object.entries(bankGroups).map(([bank, amt]) => {
+        const color = BANK_COLORS[bank] || '#6366f1';
+        return `
+        <div style="border:1.5px solid ${color}44; border-radius:10px; padding:12px 16px; min-width:130px; text-align:center; background:${color}08;">
+            <div style="font-size:11px; color:#666; margin-bottom:4px;">${bank}</div>
+            <div style="font-size:15px; font-weight:800; color:${color};">${amt.toFixed(2)} ر.س</div>
+        </div>`;
+    }).join('');
+
+    // Build rows HTML — each row is a full transaction card
+    const rowsHtml = filtered.map((item, idx) => {
+        const bankColor = BANK_COLORS[item.bank_account] || '#6366f1';
+        const hasReceipt = !!item.receipt_url;
+        let receiptSection = '';
+        if (hasReceipt) {
+            // Convert Google Drive link to direct image if possible
+            let imgSrc = item.receipt_url;
+            const driveMatch = item.receipt_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || item.receipt_url.match(/id=([a-zA-Z0-9_-]+)/);
+            if (driveMatch && driveMatch[1]) {
+                imgSrc = `https://lh3.googleusercontent.com/u/0/d/${driveMatch[1]}=w600-h600-no`;
+            }
+            const isImg = /\.(jpeg|jpg|gif|png|webp)/i.test(item.receipt_url) || item.receipt_url.includes('drive.google.com') || item.receipt_url.includes('docs.google.com');
+            receiptSection = `
+            <div style="margin-top:12px; padding:10px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1;">
+                <div style="font-size:10px; color:#94a3b8; margin-bottom:6px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                    📎 إيصال التحويل
+                </div>
+                ${isImg ? `<img src="${imgSrc}" alt="إيصال العملية" style="max-width:100%; max-height:200px; border-radius:8px; object-fit:contain; border:1px solid #e2e8f0;" onerror="this.parentElement.style.display='none'">` : ''}
+                <div style="margin-top:6px;">
+                    <a href="${item.receipt_url}" style="font-size:10px; color:#3b82f6; word-break:break-all;">🔗 ${item.receipt_url}</a>
+                </div>
+            </div>`;
+        }
+
+        return `
+        <div style="
+            background:#fff;
+            border:1.5px solid #e2e8f0;
+            border-radius:12px;
+            margin-bottom:16px;
+            overflow:hidden;
+            page-break-inside:avoid;
+            box-shadow:0 1px 8px rgba(0,0,0,0.06);
+        ">
+            <!-- Row Header -->
+            <div style="
+                background:${bankColor}12;
+                border-bottom:2px solid ${bankColor}33;
+                padding:10px 16px;
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+            ">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="
+                        background:${bankColor};
+                        color:#fff;
+                        border-radius:50%;
+                        width:28px;
+                        height:28px;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        font-size:12px;
+                        font-weight:800;
+                        flex-shrink:0;
+                    ">${idx + 1}</div>
+                    <div>
+                        <div style="font-size:14px; font-weight:700; color:#1e293b;">${item.product_name || '-'}</div>
+                        <div style="font-size:10px; color:#94a3b8; margin-top:1px;">${item.created_at || ''}</div>
+                    </div>
+                </div>
+                <div style="text-align:left;">
+                    <div style="font-size:20px; font-weight:900; color:${bankColor};">${(item.amount || 0).toFixed(2)} ر.س</div>
+                    <div style="font-size:10px; color:#64748b; margin-top:1px;">${item.bank_account}</div>
+                </div>
+            </div>
+
+            <!-- Row Body — Grid of fields -->
+            <div style="padding:14px 16px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+                <div style="background:#f8fafc; border-radius:8px; padding:8px 10px;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">🎮 الكمية</div>
+                    <div style="font-size:13px; font-weight:700; color:#1e293b;">${item.quantity || 1} قطعة</div>
+                </div>
+                <div style="background:#f8fafc; border-radius:8px; padding:8px 10px;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">🌍 الدولة</div>
+                    <div style="font-size:13px; font-weight:700; color:#1e293b;">${item.country || 'غير محددة'}</div>
+                </div>
+                <div style="background:#f8fafc; border-radius:8px; padding:8px 10px;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">📋 رقم الطلب</div>
+                    <div style="font-size:12px; font-weight:700; color:#1e293b; font-family:monospace;">${item.order_number || '-'}</div>
+                </div>
+                <div style="background:#f8fafc; border-radius:8px; padding:8px 10px;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">🏷️ رقم المرجع / الحوالة</div>
+                    <div style="font-size:12px; font-weight:700; color:#3b82f6; font-family:monospace;">${item.transfer_reference || '-'}</div>
+                </div>
+                <div style="background:#f8fafc; border-radius:8px; padding:8px 10px;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">👤 اسم العميل</div>
+                    <div style="font-size:12px; font-weight:700; color:#1e293b;">${item.customer_name || '-'}</div>
+                </div>
+                <div style="background:#f8fafc; border-radius:8px; padding:8px 10px;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">📱 جوال العميل</div>
+                    <div style="font-size:12px; font-weight:700; color:#1e293b; font-family:monospace; direction:ltr; text-align:right;">${item.customer_phone || '-'}</div>
+                </div>
+                <div style="background:#f8fafc; border-radius:8px; padding:8px 10px; grid-column:span 2;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">📝 ملاحظات</div>
+                    <div style="font-size:12px; color:#475569;">${item.notes || 'لا توجد ملاحظات'}</div>
+                </div>
+                <div style="background:#f0fdf4; border-radius:8px; padding:8px 10px;">
+                    <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">👨‍💼 سجّله</div>
+                    <div style="font-size:12px; font-weight:700; color:#16a34a;">${item.created_by || '-'}</div>
+                </div>
+            </div>
+            ${receiptSection}
+        </div>`;
+    }).join('');
+
+    // ── Full HTML Page ──
+    const htmlContent = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقرير المبيعات الخارجية — شوب ستور</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'IBM Plex Sans Arabic', Arial, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            padding: 20px;
+            direction: rtl;
+        }
+        @media print {
+            body { background:#fff; padding:0; }
+            .no-print { display:none !important; }
+            .print-page { box-shadow:none; margin:0; }
+        }
+        .print-page {
+            max-width: 860px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .report-header {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+            color: #fff;
+            padding: 32px 36px 24px;
+        }
+        .report-header h1 {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        .report-header .subtitle {
+            font-size: 13px;
+            color: rgba(255,255,255,0.7);
+        }
+        .report-header .date-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+        .summary-section {
+            padding: 24px 36px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .summary-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .summary-main {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .summary-main .main-card {
+            flex: 1;
+            background: linear-gradient(135deg, #4338ca, #7c3aed);
+            border-radius: 12px;
+            padding: 16px 20px;
+            color: #fff;
+        }
+        .summary-main .main-card .label {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+        .summary-main .main-card .value {
+            font-size: 28px;
+            font-weight: 900;
+            margin-top: 4px;
+        }
+        .bank-cards {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .content-section {
+            padding: 24px 36px;
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title::after {
+            content:'';
+            flex:1;
+            height:1px;
+            background:#e2e8f0;
+        }
+        .print-btn {
+            display: block;
+            width: fit-content;
+            margin: 20px auto;
+            padding: 12px 32px;
+            background: linear-gradient(135deg, #4338ca, #7c3aed);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px 36px;
+            font-size: 10px;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn no-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+
+    <div class="print-page">
+        <!-- Header -->
+        <div class="report-header">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <h1>📊 تقرير المبيعات الخارجية</h1>
+                    <div class="subtitle">شوب ستور — تقرير شامل لجميع العمليات المسجلة</div>
+                    <div class="date-badge">📅 ${reportDate}</div>
+                </div>
+                <div style="text-align:left; font-size:11px; opacity:0.7;">
+                    <div>الفلتر المطبق:</div>
+                    <div style="margin-top:4px; font-weight:600;">${filterBank || 'كل الحسابات'}</div>
+                    <div>${searchVal ? 'بحث: "' + searchVal + '"' : 'بدون بحث'}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-section">
+            <div class="summary-title">📈 الملخص الإجمالي</div>
+            <div class="summary-main">
+                <div class="main-card">
+                    <div class="label">إجمالي المبيعات الخارجية</div>
+                    <div class="value">${totalAmount.toFixed(2)} ر.س</div>
+                    <div style="font-size:11px; opacity:0.8; margin-top:4px;">${filtered.length} عملية · ${totalQty} قطعة</div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px; flex:1;">
+                    <div style="background:#f0fdf4; border-radius:10px; padding:12px 16px; border:1px solid #86efac;">
+                        <div style="font-size:11px; color:#16a34a;">⚡ متوسط قيمة العملية</div>
+                        <div style="font-size:18px; font-weight:800; color:#15803d; margin-top:2px;">${(totalAmount / (filtered.length || 1)).toFixed(2)} ر.س</div>
+                    </div>
+                    <div style="background:#eff6ff; border-radius:10px; padding:12px 16px; border:1px solid #93c5fd;">
+                        <div style="font-size:11px; color:#2563eb;">📦 إجمالي الكميات</div>
+                        <div style="font-size:18px; font-weight:800; color:#1d4ed8; margin-top:2px;">${totalQty} قطعة</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-title" style="margin-top:16px;">🏦 التوزيع حسب الحساب البنكي</div>
+            <div class="bank-cards">${bankSummaryHtml}</div>
+        </div>
+
+        <!-- Transactions -->
+        <div class="content-section">
+            <div class="section-title">📋 تفاصيل العمليات (${filtered.length} عملية)</div>
+            ${rowsHtml}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            تقرير صادر من لوحة تحكم شوب ستور الإدارية · تاريخ الإصدار: ${new Date().toLocaleDateString('ar-SA')} · إجمالي ${filtered.length} عملية بقيمة ${totalAmount.toFixed(2)} ر.س
+        </div>
+    </div>
+</body>
+</html>`;
+
+    // Open in new window and trigger print
+    const win = window.open('', '_blank', 'width=960,height=800,scrollbars=yes,resizable=yes');
+    if (!win) {
+        toast('يرجى السماح بفتح النوافذ المنبثقة في المتصفح', 'warning');
+        return;
+    }
+    win.document.write(htmlContent);
+    win.document.close();
+    win.focus();
+    toast('تم فتح نافذة التقرير — اضغط "طباعة / حفظ PDF" ✅', 'ok');
+}

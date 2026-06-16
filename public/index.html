@@ -2124,7 +2124,7 @@
         <div class="tbl-wrap">
           <div class="tbl-header">
             <div class="tbl-title">سجل العمليات الخارجية المسجلة</div>
-            <div style="display:flex; gap:8px; align-items:center;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <select id="extFilterBank" onchange="renderExternalSales()" style="width:140px; font-size:11px; padding:4px 6px;">
                 <option value="">كل الحسابات</option>
                 <option value="حساب الوثيقة">حساب الوثيقة</option>
@@ -2135,6 +2135,9 @@
                 <option value="حساب زاد">حساب زاد</option>
               </select>
               <input type="text" id="extSearch" placeholder="بحث بالمنتج، العميل، المرجع..." oninput="renderExternalSales()" style="width:220px; font-size:11px; padding:4px 6px;">
+              <button class="btn btn-sm" onclick="exportExternalSalesPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#ef4444; color:#fff; white-space:nowrap;">
+                <i class="ti ti-file-type-pdf"></i> تصدير PDF
+              </button>
             </div>
           </div>
           
