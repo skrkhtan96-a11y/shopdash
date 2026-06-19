@@ -10657,17 +10657,25 @@ function renderExtAnCharts(byWallet, byCountry) {
     const ctxWallet = document.getElementById('extAnWalletChartCanvas');
     const ctxCountry = document.getElementById('extAnCountryChartCanvas');
 
-    // Destroy existing charts to prevent memory leaks and hover bugs
-    if (extAnWalletChart) {
-        extAnWalletChart.destroy();
-        extAnWalletChart = null;
+    if (!ctxWallet || !ctxCountry) return;
+
+    // Foolproof chart lifecycle management using Chart.getChart
+    try {
+        const existingWallet = Chart.getChart(ctxWallet);
+        if (existingWallet) existingWallet.destroy();
+    } catch(e) {
+        console.error("Error cleaning up wallet chart:", e);
     }
-    if (extAnCountryChart) {
-        extAnCountryChart.destroy();
-        extAnCountryChart = null;
+    
+    try {
+        const existingCountry = Chart.getChart(ctxCountry);
+        if (existingCountry) existingCountry.destroy();
+    } catch(e) {
+        console.error("Error cleaning up country chart:", e);
     }
 
-    if (!ctxWallet || !ctxCountry) return;
+    extAnWalletChart = null;
+    extAnCountryChart = null;
 
     // Get chart colors from computed CSS styles or fallback
     const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text')?.trim() || '#dde1f0';
@@ -10680,6 +10688,8 @@ function renderExtAnCharts(byWallet, byCountry) {
     const walletData = walletEntries.map(([, info]) => info.amount);
     const walletColors = walletLabels.map(w => EXT_BANK_COLORS[w] || '#6366f1');
 
+    const legendCont = document.getElementById('extAnWalletLegend');
+
     if (walletEntries.length === 0) {
         // Clear canvas if no data
         const ctx = ctxWallet.getContext('2d');
@@ -10690,6 +10700,7 @@ function renderExtAnCharts(byWallet, byCountry) {
             ctx.textAlign = 'center';
             ctx.fillText('لا توجد بيانات للمحافظ', ctxWallet.width / 2, ctxWallet.height / 2);
         }
+        if (legendCont) legendCont.innerHTML = '';
     } else {
         extAnWalletChart = new Chart(ctxWallet, {
             type: 'doughnut',
@@ -10707,12 +10718,7 @@ function renderExtAnCharts(byWallet, byCountry) {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        position: 'right',
-                        rtl: true,
-                        labels: {
-                            color: textColor,
-                            font: { family: 'IBM Plex Sans Arabic', size: 10 }
-                        }
+                        display: false // DISABLED to prevent resize-loop bugs!
                     },
                     tooltip: {
                         callbacks: {
@@ -10720,13 +10726,27 @@ function renderExtAnCharts(byWallet, byCountry) {
                                 const val = context.raw || 0;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const pct = ((val / total) * 100).toFixed(1);
-                                return ` ${context.label}: ${val.toLocaleString('ar-SA')} - ${pct}%`;
+                                return ` ${context.label}: ${val.toLocaleString('ar-SA')} ر.س - ${pct}%`;
                             }
                         }
                     }
                 }
             }
         });
+
+        // Generate Custom HTML Legend
+        if (legendCont) {
+            const total = walletData.reduce((a, b) => a + b, 0) || 1;
+            legendCont.innerHTML = walletEntries.map(([w, info]) => {
+                const color = EXT_BANK_COLORS[w] || '#6366f1';
+                const pct = ((info.amount / total) * 100).toFixed(1);
+                return `<div style="display:inline-flex; align-items:center; gap:6px; font-weight:600; padding:2px 6px;">
+                    <span style="width:8px; height:8px; border-radius:50%; background:${color}; display:inline-block;"></span>
+                    <span style="color:var(--text);">${w}</span>
+                    <span style="color:${color}; font-size:10px;">(${pct}%)</span>
+                </div>`;
+            }).join('');
+        }
     }
 
     // ── 2. Country Chart (Horizontal Bar) ──
