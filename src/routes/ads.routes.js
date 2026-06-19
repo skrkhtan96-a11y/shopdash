@@ -490,6 +490,158 @@ async function generateMockCampaignsForPeriod(platforms, fromDate, toDate) {
     });
 }
 
+// Retrieve highly detailed campaign metrics directly from Meta Graph API
+router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
+    if (req.user.role !== 'admin' && !req.user.can_view_campaigns) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية عرض تفاصيل الحملات.' });
+    }
+
+    const campaignId = req.query.campaign_id;
+    if (!campaignId) {
+        return res.status(400).json({ error: 'معرّف الحملة (campaign_id) مطلوب.' });
+    }
+
+    const since = req.query.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const until = req.query.to || new Date().toISOString().split('T')[0];
+
+    // Fetch Facebook connection from database to get the token
+    db.get("SELECT access_token FROM ads_connections WHERE platform = 'facebook' AND status = 'connected'", [], async (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row || !row.access_token) {
+            return res.status(400).json({ error: 'منصة فيسبوك غير متصلة أو التوكن غير صالح.' });
+        }
+
+        const token = row.access_token;
+        const timeRange = JSON.stringify({ since, until });
+
+        try {
+            // Helpers to make Graph API calls null-safe
+            const safeGet = async (url, params) => {
+                try {
+                    const response = await axios.get(url, { params: { ...params, access_token: token } });
+                    return response.data;
+                } catch (e) {
+                    console.error(`[Meta API Err] Failed request to ${url}:`, e.response?.data || e.message);
+                    return null;
+                }
+            };
+
+            // Run requests in parallel
+            const [
+                campaignData,
+                campaignDailyInsights,
+                adsetsData,
+                adsetInsights,
+                adsData,
+                adInsights,
+                ageGenderBreakdown,
+                deviceBreakdown
+            ] = await Promise.all([
+                // 1. Campaign general metadata
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}`, {
+                    fields: 'id,name,status,objective,daily_budget,lifetime_budget,budget_remaining,start_time,stop_time'
+                }),
+                // 2. Campaign daily insights
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}/insights`, {
+                    fields: 'spend,impressions,reach,clicks,actions,action_values,cpc,cpm,ctr',
+                    time_range: timeRange,
+                    time_increment: 1
+                }),
+                // 3. Adsets list
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}/adsets`, {
+                    fields: 'id,name,status,daily_budget,lifetime_budget',
+                    limit: 50
+                }),
+                // 4. Adsets insights
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}/insights`, {
+                    fields: 'adset_id,spend,impressions,clicks,actions,action_values',
+                    time_range: timeRange,
+                    level: 'adset',
+                    limit: 50
+                }),
+                // 5. Ads list
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}/ads`, {
+                    fields: 'id,name,status,creative{id,name,thumbnail_url}',
+                    limit: 100
+                }),
+                // 6. Ads insights
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}/insights`, {
+                    fields: 'ad_id,spend,impressions,clicks,actions,action_values',
+                    time_range: timeRange,
+                    level: 'ad',
+                    limit: 100
+                }),
+                // 7. Breakdown: Age & Gender
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}/insights`, {
+                    fields: 'spend,impressions,clicks,actions',
+                    breakdowns: 'age,gender',
+                    time_range: timeRange
+                }),
+                // 8. Breakdown: Device platform
+                safeGet(`https://graph.facebook.com/v21.0/${campaignId}/insights`, {
+                    fields: 'spend,impressions,clicks,actions',
+                    breakdowns: 'device_platform',
+                    time_range: timeRange
+                })
+            ]);
+
+            // Formulate response object
+            const result = {
+                campaign: campaignData ? {
+                    id: campaignData.id,
+                    name: campaignData.name,
+                    status: campaignData.status,
+                    objective: campaignData.objective,
+                    daily_budget: campaignData.daily_budget ? parseFloat(campaignData.daily_budget) / 100 : 0,
+                    lifetime_budget: campaignData.lifetime_budget ? parseFloat(campaignData.lifetime_budget) / 100 : 0,
+                    budget_remaining: campaignData.budget_remaining ? parseFloat(campaignData.budget_remaining) / 100 : 0,
+                    start_time: campaignData.start_time,
+                    stop_time: campaignData.stop_time
+                } : null,
+                daily_insights: campaignDailyInsights?.data || [],
+                adsets: (adsetsData?.data || []).map(as => {
+                    const insights = (adsetInsights?.data || []).find(i => i.adset_id === as.id) || {};
+                    return {
+                        id: as.id,
+                        name: as.name,
+                        status: as.status,
+                        daily_budget: as.daily_budget ? parseFloat(as.daily_budget) / 100 : 0,
+                        lifetime_budget: as.lifetime_budget ? parseFloat(as.lifetime_budget) / 100 : 0,
+                        spend: parseFloat(insights.spend || 0),
+                        impressions: parseInt(insights.impressions || 0),
+                        clicks: parseInt(insights.clicks || 0),
+                        actions: insights.actions || [],
+                        action_values: insights.action_values || []
+                    };
+                }),
+                ads: (adsData?.data || []).map(ad => {
+                    const insights = (adInsights?.data || []).find(i => i.ad_id === ad.id) || {};
+                    return {
+                        id: ad.id,
+                        name: ad.name,
+                        status: ad.status,
+                        creative: ad.creative || null,
+                        spend: parseFloat(insights.spend || 0),
+                        impressions: parseInt(insights.impressions || 0),
+                        clicks: parseInt(insights.clicks || 0),
+                        actions: insights.actions || [],
+                        action_values: insights.action_values || []
+                    };
+                }),
+                breakdowns: {
+                    age_gender: ageGenderBreakdown?.data || [],
+                    device: deviceBreakdown?.data || []
+                }
+            };
+
+            res.json(result);
+
+        } catch (e) {
+            next(e);
+        }
+    });
+});
+
 module.exports = {
     router,
     handleTikTokCallback

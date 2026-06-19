@@ -1054,7 +1054,8 @@
 
       <!-- PAGE: CAMPAIGN DETAIL (TIKTOK ADS MANAGER CLONE) -->
       <div class="page pad" id="page-campaign-detail">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:10px; flex-wrap:wrap;">
+        <div id="detDefaultCampaignView">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:10px; flex-wrap:wrap;">
           <div>
             <button class="btn btn-sm" onclick="nav('campaigns')" style="margin-bottom:8px; border: 1px solid var(--border); background: rgba(255,255,255,0.03);"><i class="ti ti-arrow-right"></i> العودة للحملات</button>
             <h2 id="detCampaignName" style="margin:0; font-size:1.8rem; font-weight:700; color:var(--accent);">اسم الحملة الإعلانية</h2>
@@ -1347,6 +1348,12 @@
               <span>تحديث تلقائي</span>
             </div>
           </div>
+        </div>
+        </div> <!-- End of detDefaultCampaignView -->
+
+        <!-- Dynamic Facebook/Meta Campaign View -->
+        <div id="detFacebookCampaignView" style="display:none; width: 100%;">
+          <!-- Populated dynamically via renderFacebookCampaignDetail -->
         </div>
       </div>
 
