@@ -10274,15 +10274,28 @@ const EXT_BANK_COLORS = {
 };
 
 async function loadExtSalesAnalytics() {
-    // Reuse stateExternalSales if already loaded, otherwise fetch
-    if (!stateExternalSales || stateExternalSales.length === 0) {
-        try {
-            const res = await fetch('/api/external-sales');
-            if (res.ok) {
-                const data = await res.json();
-                stateExternalSales = data.sales || [];
-            }
-        } catch (e) { stateExternalSales = []; }
+    // Show loading skeleton first
+    const skeletonHtml = '<div style="font-size:11px; color:var(--text3); padding:20px; text-align:center; grid-column:1/-1;"><i class="ti ti-refresh" style="animation:spin 1s linear infinite;"></i> جاري التحميل...</div>';
+    const walletGrid = document.getElementById('extAnByWalletGrid');
+    const countryTbody = document.getElementById('extAnByCountryTbody');
+    const crosstabCont = document.getElementById('extAnCrosstabContainer');
+    const detailCont   = document.getElementById('extAnWalletDetailCards');
+    if (walletGrid)   walletGrid.innerHTML   = skeletonHtml;
+    if (countryTbody) countryTbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:16px; color:var(--text3);"><i class="ti ti-refresh"></i> جاري التحميل...</td></tr>';
+    if (crosstabCont) crosstabCont.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text3);"><i class="ti ti-refresh"></i> جاري التحميل...</div>';
+    if (detailCont)   detailCont.innerHTML   = '<div style="padding:20px; text-align:center; color:var(--text3);"><i class="ti ti-refresh"></i> جاري التحميل...</div>';
+
+    try {
+        const res = await fetch('/api/external-sales');
+        if (res.ok) {
+            const data = await res.json();
+            stateExternalSales = data.sales || [];
+        } else {
+            toast('فشل تحميل بيانات المبيعات الخارجية', 'error');
+        }
+    } catch (e) {
+        toast('خطأ في الاتصال بالخادم', 'error');
+        stateExternalSales = stateExternalSales || [];
     }
     renderExtSalesAnalytics();
 }
