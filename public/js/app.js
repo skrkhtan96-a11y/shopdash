@@ -11050,4 +11050,205 @@ function exportExpensesPDF() {
     win.focus();
     toast('تم فتح تقرير المصروفات بصيغة PDF ✅', 'ok');
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  EXPORT EXPENSES WITH RECEIPTS — DETAILED PDF REPORT
+// ══════════════════════════════════════════════════════════════════
+
+function exportExpensesWithReceiptsPDF() {
+    const data = state.filteredExpenses || [];
+    if (data.length === 0) {
+        toast('لا توجد مصروفات لتصديرها', 'warning');
+        return;
+    }
+
+    toast('جاري تحضير تقرير الإيصالات...', 'info');
+
+    const total = data.reduce((s, e) => s + (e.amt || 0), 0);
+    const reportDate = new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    let itemsHtml = data.map((item, idx) => {
+        const hasReceipt = !!item.receipt_url;
+        let receiptImgHtml = '';
+        if (hasReceipt) {
+            let imgSrc = item.receipt_url;
+            const driveMatch = item.receipt_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || item.receipt_url.match(/id=([a-zA-Z0-9_-]+)/);
+            if (driveMatch && driveMatch[1]) {
+                imgSrc = `https://lh3.googleusercontent.com/u/0/d/${driveMatch[1]}=w800-h800-no`;
+            }
+            const isImg = /\.(jpeg|jpg|gif|png|webp)/i.test(item.receipt_url) || item.receipt_url.includes('drive.google.com') || item.receipt_url.includes('docs.google.com');
+            
+            if (isImg) {
+                receiptImgHtml = `
+                    <div style="margin-top: 12px; text-align: center; background: #fafafa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                        <div style="font-size: 10px; color: #94a3b8; margin-bottom: 8px; font-weight: bold; text-align: right;">📸 صورة إيصال العملية:</div>
+                        <img src="${imgSrc}" style="max-width: 100%; max-height: 380px; border-radius: 6px; border: 1px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.05);" alt="إيصال" onerror="this.parentElement.innerHTML='<div style=\'color:#94a3b8; font-size:11px;\'>⚠️ تعذر تحميل صورة الإيصال تلقائياً (رابط خارجي)</div>'">
+                    </div>
+                `;
+            } else {
+                receiptImgHtml = `
+                    <div style="margin-top: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; font-size: 11px;">
+                        📎 رابط المستند أو الملف المرفق: <a href="${item.receipt_url}" target="_blank" style="color: #2563eb; word-break: break-all;">${item.receipt_url}</a>
+                    </div>
+                `;
+            }
+        } else {
+            receiptImgHtml = `
+                <div style="margin-top: 12px; background: #fffbeb; border: 1px dashed #fef3c7; border-radius: 8px; padding: 10px; font-size: 11px; color: #b45309; text-align: center;">
+                    ℹ️ لا يوجد إيصال مرفق لهذه العملية
+                </div>
+            `;
+        }
+
+        const catColors = {
+            'رواتب': '#0d9488',
+            'تسويق': '#ef4444',
+            'شراء منتجات': '#4f46e5',
+            'سلف': '#b45309',
+            'أرباح': '#16a34a',
+            'أخرى': '#4b5563'
+        };
+        const catColor = catColors[item.cat] || '#6b7280';
+
+        return `
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px; page-break-inside: avoid; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                <!-- Header of Expense Item -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="width: 24px; height: 24px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: #64748b;">${idx + 1}</span>
+                        <span style="font-size: 13.5px; font-weight: 800; color: #1e1b4b;">${escapeHtml(item.desc)}</span>
+                    </div>
+                    <span style="background: ${catColor}; color: #ffffff; border-radius: 20px; padding: 3px 12px; font-size: 10.5px; font-weight: bold;">${item.cat}</span>
+                </div>
+
+                <!-- Expense Metadata Details -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; font-size: 11.5px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #f1f5f9;">
+                    <div>
+                        <span style="color: #64748b; font-size: 10px; display: block; margin-bottom: 2px;">القيمة:</span>
+                        <strong style="color: #be123c; font-size: 13px;">${(item.amt || 0).toFixed(2)} ر.س</strong>
+                    </div>
+                    <div>
+                        <span style="color: #64748b; font-size: 10px; display: block; margin-bottom: 2px;">التاريخ:</span>
+                        <strong>${(item.date || '').substring(0, 10)}</strong>
+                    </div>
+                    ${item.period ? `
+                    <div>
+                        <span style="color: #64748b; font-size: 10px; display: block; margin-bottom: 2px;">الفترة:</span>
+                        <strong style="color: #4f46e5;">${item.period}</strong>
+                    </div>` : ''}
+                    ${item.product_name ? `
+                    <div>
+                        <span style="color: #64748b; font-size: 10px; display: block; margin-bottom: 2px;">المنتج المشتري:</span>
+                        <strong style="color: #0369a1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px; display:inline-block;" title="${escapeHtml(item.product_name)}">${escapeHtml(item.product_name)}</strong>
+                    </div>` : ''}
+                    ${item.quantity ? `
+                    <div>
+                        <span style="color: #64748b; font-size: 10px; display: block; margin-bottom: 2px;">الكمية:</span>
+                        <strong>${item.quantity} قطعة</strong>
+                    </div>` : ''}
+                </div>
+
+                <!-- Notes -->
+                ${item.note ? `
+                <div style="margin-top: 10px; padding: 8px 12px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; font-size: 11px; color: #451a03; line-height: 1.5;">
+                    📝 <strong>ملاحظات:</strong> ${escapeHtml(item.note)}
+                </div>` : ''}
+
+                <!-- Receipt Image Section -->
+                ${receiptImgHtml}
+            </div>
+        `;
+    }).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير المصروفات مع صور الإيصالات</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'IBM Plex Sans Arabic', Arial, sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 20px;
+            direction: rtl;
+        }
+        @media print {
+            body { background:#fff; padding:0; }
+            .no-print { display:none !important; }
+            .print-page { box-shadow:none; margin:0; }
+        }
+        .print-page {
+            max-width: 880px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+            padding: 28px;
+        }
+        .hdr {
+            background: linear-gradient(135deg, #1e1b4b 0%, #db2777 100%);
+            color: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 22px;
+        }
+        .btn {
+            display: block;
+            width: fit-content;
+            margin: 10px auto 20px;
+            padding: 11px 36px;
+            background: #db2777;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            box-shadow: 0 4px 12px rgba(219,39,119,0.3);
+        }
+    </style>
+</head>
+<body>
+    <button class="btn no-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+    <div class="print-page">
+        <div class="hdr">
+            <h1 style="font-size: 21px; font-weight: 900;">🧾 تقرير العمليات والمصروفات مع صور الإيصالات</h1>
+            <p style="font-size: 12px; opacity: 0.8; margin-top: 4px;">لوحة تحكم شوب ستور الإدارية</p>
+            <span style="display: inline-block; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 20px; padding: 3px 12px; font-size: 11px; margin-top: 10px;">📅 ${reportDate}</span>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 11px; color: #64748b;">إجمالي المصروفات للفترة المفلترة</div>
+                <div style="font-size: 24px; font-weight: 900; color: #db2777; margin-top: 4px;">${total.toFixed(2)} ر.س</div>
+            </div>
+            <div style="text-align: left; font-size: 12px; color: #64748b; font-weight: 600;">
+                عدد البنود: ${data.length} بند مصروفات
+            </div>
+        </div>
+
+        <!-- Expense Items List -->
+        <div>
+            ${itemsHtml}
+        </div>
+
+        <div style="text-align: center; padding-top: 20px; margin-top: 40px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            تقرير إيصالات تلقائي صادر من لوحة تحكم شوب ستور · تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=850,scrollbars=yes,resizable=yes');
+    if (!win) { toast('يرجى السماح بفتح النوافذ المنبثقة في المتصفح', 'warning'); return; }
+    win.document.write(htmlContent);
+    win.document.close();
+    win.focus();
+    toast('تم فتح تقرير الإيصالات بنجاح ✅', 'ok');
+}
 

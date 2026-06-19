@@ -817,7 +817,8 @@
             <div class="tbl-title">جدول المصروفات والمشتريات التشغيلية <span class="tbl-count" id="expCount" style="font-size:10px;color:var(--text3)"></span></div>
             <div style="display:flex; gap:8px">
               <button class="btn btn-sm btn-success" onclick="exportExpensesToExcel()"><i class="ti ti-file-excel"></i> تصدير إلى Excel</button>
-              <button class="btn btn-sm" onclick="exportExpensesPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#ef4444; color:#fff;"><i class="ti ti-file-type-pdf"></i> تصدير تقرير PDF</button>
+              <button class="btn btn-sm" onclick="exportExpensesPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#ef4444; color:#fff;"><i class="ti ti-file-type-pdf"></i> تقرير تحليلي PDF</button>
+              <button class="btn btn-sm" onclick="exportExpensesWithReceiptsPDF()" style="background:linear-gradient(135deg,#db2777,#be185d); border-color:#db2777; color:#fff;"><i class="ti ti-receipt"></i> تقرير بالإيصالات PDF</button>
               <button class="btn btn-sm btn-primary" id="addExpBtn" onclick="openModal('expense')"><i class="ti ti-plus"></i> إضافة مصروف جديد</button>
             </div>
           </div>
