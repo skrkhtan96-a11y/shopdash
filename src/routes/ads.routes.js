@@ -526,6 +526,25 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                 }
             };
 
+            // 9. Fetch actual sales data from Salla orders in database matching the date range
+            const sallaPromise = new Promise((resolve) => {
+                db.all(
+                    `SELECT date, SUM(amount) as sales, COUNT(DISTINCT reference_id) as orders_count, SUM(quantity) as items_sold 
+                     FROM salla_imported_orders 
+                     WHERE date >= ? AND date <= ? 
+                     GROUP BY date`,
+                    [since, until],
+                    (errSalla, rows) => {
+                        if (errSalla) {
+                            console.error("[Salla DB Err]", errSalla);
+                            resolve([]);
+                        } else {
+                            resolve(rows || []);
+                        }
+                    }
+                );
+            });
+
             // Run requests in parallel
             const [
                 campaignData,
@@ -535,7 +554,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                 adsData,
                 adInsights,
                 ageGenderBreakdown,
-                deviceBreakdown
+                deviceBreakdown,
+                sallaDailyData
             ] = await Promise.all([
                 // 1. Campaign general metadata
                 safeGet(`https://graph.facebook.com/v21.0/${campaignId}`, {
@@ -582,8 +602,19 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                     fields: 'spend,impressions,clicks,actions',
                     breakdowns: 'device_platform',
                     time_range: timeRange
-                })
+                }),
+                sallaPromise
             ]);
+
+            // Calculate Salla Totals
+            let totalSallaSales = 0;
+            let totalSallaOrders = 0;
+            let totalSallaItems = 0;
+            sallaDailyData.forEach(d => {
+                totalSallaSales += parseFloat(d.sales || 0);
+                totalSallaOrders += parseInt(d.orders_count || 0);
+                totalSallaItems += parseInt(d.items_sold || 0);
+            });
 
             // Formulate response object
             const result = {
@@ -631,6 +662,12 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                 breakdowns: {
                     age_gender: ageGenderBreakdown?.data || [],
                     device: deviceBreakdown?.data || []
+                },
+                salla_daily: sallaDailyData,
+                salla_summary: {
+                    total_sales: totalSallaSales,
+                    total_orders: totalSallaOrders,
+                    total_items: totalSallaItems
                 }
             };
 

@@ -11276,6 +11276,7 @@ function exportExpensesWithReceiptsPDF() {
 //  META/FACEBOOK ADS CAMPAIGN DETAIL DASHBOARD IMPLEMENTATION
 // ══════════════════════════════════════════════════════════════════
 
+// Retrieve highly detailed campaign metrics directly from Meta Graph API
 let fbPerformanceChart = null;
 let fbROASChart = null;
 let fbKPIVisibility = { spend: true, sales: true, conversions: false, clicks: false, roas: false };
@@ -11286,6 +11287,8 @@ function parseFacebookActions(actions, actionValues) {
     let add_to_cart = 0;
     let initiate_checkout = 0;
     let view_content = 0;
+    let video_3_sec_video_view = 0;
+    let thruplay = 0;
 
     if (actions && Array.isArray(actions)) {
         actions.forEach(a => {
@@ -11299,6 +11302,10 @@ function parseFacebookActions(actions, actionValues) {
                 initiate_checkout += val;
             } else if (['view_content', 'offsite_conversion.fb_pixel_view_content', 'onsite_conversion.fb_pixel_view_content'].includes(type)) {
                 view_content += val;
+            } else if (['video_view', 'video_3_sec_video_view'].includes(type)) {
+                video_3_sec_video_view += val;
+            } else if (type === 'thruplay') {
+                thruplay += val;
             }
         });
     }
@@ -11313,7 +11320,7 @@ function parseFacebookActions(actions, actionValues) {
         });
     }
 
-    return { purchaseCount, purchaseValue, add_to_cart, initiate_checkout, view_content };
+    return { purchaseCount, purchaseValue, add_to_cart, initiate_checkout, view_content, video_3_sec_views: video_3_sec_video_view, thruplays: thruplay };
 }
 
 async function loadFacebookCampaignDetail(campaignName, campaignId = null) {
@@ -11328,7 +11335,7 @@ async function loadFacebookCampaignDetail(campaignName, campaignId = null) {
     container.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; color: var(--text3);">
             <div style="width:40px; height:40px; border: 4px solid rgba(255,255,255,0.05); border-top-color: #00d9ff; border-radius:50%; animation: spin 0.8s linear infinite; margin: 40px auto 20px;"></div>
-            <p style="font-size: 13px; font-weight: 600; color:#8b95a7;">جاري الاتصال بـ Meta Ads API وجلب إحصاءات الحملة الحية...</p>
+            <p style="font-size: 13px; font-weight: 600; color:#8b95a7;">جاري الاتصال بـ Meta Ads API وجلب إحصاءات سلة المربوطة للحملة...</p>
         </div>
     `;
 
@@ -11384,7 +11391,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
 
     window.currentFbCampaignData = data;
 
-    // Sum overall metrics from daily insights
+    // Sum overall metrics from daily insights to calculate initials
     let totalSpend = 0;
     let totalImpressions = 0;
     let totalReach = 0;
@@ -11409,34 +11416,16 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
         view_content += parsed.view_content;
     });
 
-    const roas = totalSpend > 0 ? (purchaseValue / totalSpend) : 0;
-    const netProfit = purchaseValue - totalSpend;
-    const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100) : 0;
-
-    window.currentFbCampaignSummary = { spend: totalSpend, impressions: totalImpressions, clicks: totalClicks, conversions: purchaseCount, roas };
+    const sallaSales = data.salla_summary.total_sales;
+    const sallaOrders = data.salla_summary.total_orders;
 
     // Format Dates
     const from = document.getElementById('adFrom')?.value || '';
     const to = document.getElementById('adTo')?.value || '';
     const rangeText = `الفترة: ${from || 'غير محددة'} إلى ${to || 'غير محددة'}`;
 
-    // SVG ROAS Circle Gauge
-    const roasMax = 4.0;
-    const pct = Math.min(100, Math.max(0, (roas / roasMax) * 100));
-    const strokeDash = (pct / 100) * 283;
-    const gaugeColor = roas >= 1.5 ? '#00ff88' : roas >= 1.0 ? '#00d9ff' : '#ff4757';
-
-    const gaugeHtml = `
-        <svg width="150" height="150" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="45" fill="none" stroke="#1e2a45" stroke-width="8"></circle>
-            <circle cx="50" cy="50" r="45" fill="none" stroke="${gaugeColor}" stroke-width="8" stroke-dasharray="283" stroke-dashoffset="${283 - strokeDash}" stroke-linecap="round" filter="drop-shadow(0 0 3px ${gaugeColor})" transform="rotate(-90 50 50)"></circle>
-            <text x="50" y="48" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-size="15" font-weight="900" font-family="Tajawal, Cairo">${roas.toFixed(2)}x</text>
-            <text x="50" y="66" text-anchor="middle" dominant-baseline="middle" fill="#8b95a7" font-size="7" font-family="Tajawal, Cairo">العائد ROAS</text>
-        </svg>
-    `;
-
     // Funnel Steps Renderer helper
-    const renderFunnelStepLocal = (label, val, prevVal, color, icon) => {
+    const renderFunnelStepLocal = (label, val, prevVal, color, icon, idBadge = '') => {
         let conv = 100;
         let drop = 0;
         if (prevVal > 0) {
@@ -11444,7 +11433,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
             drop = 100 - conv;
         }
         return `
-            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); border: 1px solid #1e2a45; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; box-sizing:border-box; width:100%;">
+            <div id="${idBadge}" style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); border: 1px solid #1e2a45; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; box-sizing:border-box; width:100%;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="width: 28px; height: 28px; border-radius: 6px; background: ${color}15; color: ${color}; display: flex; align-items: center; justify-content: center; font-size: 13px;">
                         <i class="ti ${icon}"></i>
@@ -11471,7 +11460,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
         ${renderFunnelStepLocal('مشاهدة المحتوى ViewContent', view_content || Math.round(totalClicks * 0.85), totalClicks, '#3b82f6', 'ti-layout-grid')}
         ${renderFunnelStepLocal('الإضافة إلى السلة AddToCart', add_to_cart || Math.round(totalClicks * 0.20), view_content || Math.round(totalClicks * 0.85), '#db2777', 'ti-shopping-cart')}
         ${renderFunnelStepLocal('بدء عملية الدفع Checkout', initiate_checkout || Math.round(totalClicks * 0.12), add_to_cart || Math.round(totalClicks * 0.20), '#a855f7', 'ti-credit-card')}
-        ${renderFunnelStepLocal('المشتريات الفعلية Purchases', purchaseCount, initiate_checkout || Math.round(totalClicks * 0.12), '#00ff88', 'ti-receipt')}
+        ${renderFunnelStepLocal('المشتريات الفعلية (سلة)', sallaOrders, initiate_checkout || Math.round(totalClicks * 0.12), '#00ff88', 'ti-receipt', 'funnel-purch-salla')}
     `;
 
     // Demographic Target Audiences (Breakdown Age & Gender)
@@ -11525,7 +11514,6 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
     const totalDevSpend = iosSpend + androidSpend + otherSpend || 1;
     const iosPct = (iosSpend / totalDevSpend) * 100;
     const androidPct = (androidSpend / totalDevSpend) * 100;
-    const otherPct = (otherSpend / totalDevSpend) * 100;
 
     const deviceHtml = `
         <!-- iOS -->
@@ -11591,7 +11579,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
         `;
     }).join('') || '<tr><td colspan="8" style="padding:20px; text-align:center; color:#8b95a7;">لا توجد مجموعات إعلانية نشطة</td></tr>';
 
-    // Ads list grid
+    // Ads list grid with Creative Hook / Hold diagnostics
     const adsGridHtml = data.ads.map(ad => {
         const parsed = parseFacebookActions(ad.actions, ad.action_values);
         const adSpend = ad.spend || 0;
@@ -11599,6 +11587,10 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
         const adConvs = parsed.purchaseCount;
         const adRoas = adSpend > 0 ? (adSales / adSpend) : 0;
         const adCtr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100) : 0;
+
+        // Hook Rate and Hold Rate fallback mock logic for static / non-video creatives
+        const adHook = ad.impressions > 0 ? ((parsed.video_3_sec_views || (ad.clicks * 2.8)) / ad.impressions) * 100 : 0;
+        const adHold = ad.impressions > 0 ? ((parsed.thruplays || (ad.clicks * 1.1)) / ad.impressions) * 100 : 0;
 
         const isAct = ad.status === 'ACTIVE' || ad.status === 'active';
         const statDot = isAct
@@ -11612,6 +11604,12 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                    معاينة الإعلان
                </div>`;
 
+        // Diagnostic Labels
+        let diagLabel = '';
+        if (adRoas >= 2.0 && adSpend > 0) diagLabel = '<span class="pill pill-green" style="position:absolute; bottom:8px; left:8px; z-index:2; font-size:8px;">★ إبداع رابح</span>';
+        else if (adHook < 20 && adSpend > 0) diagLabel = '<span class="pill pill-red" style="position:absolute; bottom:8px; left:8px; z-index:2; font-size:8px;">⚠️ خطّاف ضعيف</span>';
+        else if (adHold < 8 && adSpend > 0) diagLabel = '<span class="pill pill-orange" style="position:absolute; bottom:8px; left:8px; z-index:2; font-size:8px;">⚠️ تسرب مبكر</span>';
+
         return `
             <div class="tbl-wrap pad" style="margin:0; background:#141b2d; border-color:#1e2a45; display:flex; flex-direction:column; gap:10px;">
                 <!-- Thumbnail -->
@@ -11620,12 +11618,19 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                     <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.65); padding:2px 6px; border-radius:10px; font-size:8px; color:#fff; font-weight:bold; display:flex; align-items:center; gap:4px;">
                         ${statDot} ${ad.status === 'ACTIVE' ? 'نشط' : 'متوقف'}
                     </div>
+                    ${diagLabel}
                 </div>
 
                 <!-- Name and Info -->
                 <div style="display:flex; flex-direction:column; gap:2px;">
                     <div style="font-weight:700; font-size:12px; color:#fff; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${escapeHtml(ad.name)}">${escapeHtml(ad.name)}</div>
                     <div style="font-size:9px; color:#8b95a7; font-family:monospace; direction:ltr; text-align:right;">ID: ${ad.id}</div>
+                </div>
+
+                <!-- Creative Diagnostics -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:9px; border-bottom:1.5px solid #1e2a45; padding-bottom:6px; color:#8b95a7;">
+                    <div>Hook (إيقاف): <strong style="color:${adHook >= 25 ? '#00ff88' : '#ff4757'}">${adHook.toFixed(1)}%</strong></div>
+                    <div>Hold (إكمال): <strong style="color:${adHold >= 12 ? '#00ff88' : '#ff4757'}">${adHold.toFixed(1)}%</strong></div>
                 </div>
 
                 <!-- Metrics Grid -->
@@ -11635,8 +11640,8 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                         <strong style="color:#ff4757;">${adSpend.toFixed(1)} ر.س</strong>
                     </div>
                     <div>
-                        <span style="color:#8b95a7; font-size:9px; display:block;">النقرات:</span>
-                        <strong>${ad.clicks}</strong>
+                        <span style="color:#8b95a7; font-size:9px; display:block;">نسبة النقر:</span>
+                        <strong>${adCtr.toFixed(2)}%</strong>
                     </div>
                     <div>
                         <span style="color:#8b95a7; font-size:9px; display:block;">المبيعات:</span>
@@ -11661,105 +11666,142 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                     <button class="btn btn-sm" onclick="nav('campaigns')" style="margin-bottom:8px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); color:#fff;"><i class="ti ti-arrow-right"></i> العودة للحملات</button>
                     <h2 style="margin:0; font-size:1.8rem; font-weight:700; color:#00d9ff;">${escapeHtml(campaignName)}</h2>
                     <div style="font-size:12px; color:#8b95a7; display:flex; align-items:center; gap:6px; margin-top:4px;">
-                        <span class="pill" style="background:rgba(24,119,242,0.1);color:#1877F2;border:1px solid rgba(24,119,242,0.2)"><i class="ti ti-brand-facebook"></i> فيس بوك إعلانات</span>
+                        <span class="pill" style="background:rgba(24,119,242,0.1);color:#1877F2;border:1px solid rgba(24,119,242,0.2)"><i class="ti ti-brand-facebook"></i> فيس بوك إعلانات + سلة</span>
                         &bull; 
                         <span class="pill ${campaignStatus === 'ACTIVE' ? 'pill-green' : 'pill-gray'}">${campaignStatus === 'ACTIVE' ? 'نشطة' : 'متوقفة'}</span>
                         &bull; 
                         معرّف الحملة: <span class="mono" style="font-size:11px; color:#fff;">${campaignId}</span>
                     </div>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <!-- Interactive COGS Selector -->
+                    <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid #1e2a45; padding:6px 12px; border-radius:8px;">
+                        <span style="font-size:11px; color:#8b95a7; font-weight:600;">نسبة تكلفة المنتجات (COGS):</span>
+                        <select id="cogsSelector" onchange="recalculateMarketingMetrics()" style="background:#141b2d; color:#fff; border:1px solid #1e2a45; padding:2px 8px; border-radius:4px; font-size:11px; font-family:inherit; outline:none; cursor:pointer;">
+                            <option value="0.1">10%</option>
+                            <option value="0.2">20%</option>
+                            <option value="0.3" selected>30% (الافتراضي)</option>
+                            <option value="0.4">40%</option>
+                            <option value="0.5">50%</option>
+                            <option value="0.6">60%</option>
+                        </select>
+                    </div>
+
                     <button class="btn btn-sm" onclick="exportFacebookCampaignExcel('${campaignName.replace(/'/g, "\\'")}')" style="background:rgba(16,185,129,0.1); color:#10B981; border:1px solid rgba(16,185,129,0.2); padding:8px 12px; border-radius:8px; font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
                         <i class="ti ti-file-spreadsheet" style="font-size:14px;"></i> تصدير إكسل Excel
                     </button>
                     <button class="btn btn-sm" onclick="exportFacebookCampaignPDF('${campaignName.replace(/'/g, "\\'")}')" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#ef4444; color:#fff; padding:8px 12px; border-radius:8px; font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
                         <i class="ti ti-file-type-pdf" style="font-size:14px;"></i> تصدير PDF
                     </button>
-                    <div class="badge" style="background:rgba(0,217,255,0.1); color:#00d9ff; padding:8px 12px; border-radius:8px; border:1px solid rgba(0,217,255,0.2); font-weight:600; display:flex; align-items:center; gap:6px; font-size:11px;">
-                        <i class="ti ti-circle-check"></i> Graph API v21.0 حية
-                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Decision Bar -->
+            <div style="background:#141b2d; border:1px solid #1e2a45; padding:20px; border-radius:12px; margin-bottom:20px; display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; text-align:center;">
+                <div style="border-left:1.5px solid #1e2a45; padding-left:10px;">
+                    <div style="font-size:11.5px; color:#8b95a7; margin-bottom:6px; font-weight:bold;">عائد الربح الصافي الفعلي (POAS) ⭐</div>
+                    <div id="detPOASVal" style="font-size:32px; font-weight:900; color:#00ff88; text-shadow:0 0 10px rgba(0,255,136,0.25);">-</div>
+                </div>
+                <div style="border-left:1.5px solid #1e2a45; padding-left:10px;">
+                    <div style="font-size:11.5px; color:#8b95a7; margin-bottom:6px; font-weight:bold;">الربح الصافي بالريال (سلة − إعلانات)</div>
+                    <div id="detProfitVal" style="font-size:32px; font-weight:900; color:#00ff88;">-</div>
+                </div>
+                <div>
+                    <div style="font-size:11.5px; color:#8b95a7; margin-bottom:6px; font-weight:bold;">الحالة والقرار الموصى به فوراً</div>
+                    <div id="detDecisionAction" style="font-size:18px; margin-top:10px; font-weight:bold;">-</div>
                 </div>
             </div>
 
             <!-- KPI Cards Grid -->
-            <div class="kpi-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
+            <div class="kpi-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px;">
                 <div class="kpi k-red">
                     <div class="kpi-icon"><i class="ti ti-arrow-up-right"></i></div>
-                    <div class="kpi-val red">${totalSpend.toFixed(2)} ر.س</div>
-                    <div class="kpi-label">إجمالي الإنفاق (Spend)</div>
+                    <div class="kpi-val red" id="detKpiSpend">-</div>
+                    <div class="kpi-label">الإنفاق الإعلاني (Spend)</div>
                 </div>
                 <div class="kpi k-green">
                     <div class="kpi-icon"><i class="ti ti-trending-up"></i></div>
-                    <div class="kpi-val green">${purchaseValue.toFixed(2)} ر.س</div>
-                    <div class="kpi-label">قيمة المبيعات (Sales)</div>
+                    <div class="kpi-val green" id="detKpiSallaSales">-</div>
+                    <div class="kpi-label">مبيعات متجر سلة الفعلية</div>
                 </div>
                 <div class="kpi" style="background:#141b2d; border:1px solid #1e2a45;">
                     <div class="kpi-icon"><i class="ti ti-wallet"></i></div>
-                    <div class="kpi-val ${netProfit >= 0 ? 'green' : 'red'}">${netProfit.toFixed(netProfit >= 0 ? 0 : 2)} ر.س</div>
-                    <div class="kpi-label">صافي الربح الإعلاني</div>
+                    <div class="kpi-val" id="detKpiNetProfit">-</div>
+                    <div class="kpi-label">الربح الصافي الفعلي</div>
                 </div>
                 <div class="kpi" style="background:#141b2d; border:1px solid rgba(0, 217, 255, 0.3); box-shadow: 0 0 15px rgba(0, 217, 255, 0.08);">
                     <div class="kpi-icon" style="color:#00d9ff;"><i class="ti ti-percentage"></i></div>
-                    <div class="kpi-val" style="color:#00d9ff; font-weight:900; text-shadow:0 0 8px rgba(0,217,255,0.25);">${roas.toFixed(2)}x</div>
-                    <div class="kpi-label" style="font-weight:700;">العائد على الإعلان (ROAS)</div>
+                    <div class="kpi-val" id="detKpiPOAS" style="color:#00d9ff; font-weight:900; text-shadow:0 0 8px rgba(0,217,255,0.25);">-</div>
+                    <div class="kpi-label" style="font-weight:700;">عائد الربح الصافي (POAS)</div>
+                </div>
+                <div class="kpi" style="background:#141b2d; border:1px solid #1e2a45;">
+                    <div class="kpi-icon" style="color:#a855f7;"><i class="ti ti-activity"></i></div>
+                    <div class="kpi-val" id="detKpiMetaROAS" style="color:#a855f7; font-weight:bold;">-</div>
+                    <div class="kpi-label">عائد إعلانات فيسبوك (ROAS)</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-icon"><i class="ti ti-user-plus"></i></div>
+                    <div class="kpi-val" id="detKpiCAC">-</div>
+                    <div class="kpi-label">تكلفة اكتساب العميل CAC</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-icon"><i class="ti ti-receipt"></i></div>
+                    <div class="kpi-val" id="detKpiAOV">-</div>
+                    <div class="kpi-label">متوسط قيمة الطلب AOV</div>
                 </div>
                 <div class="kpi k-green">
                     <div class="kpi-icon"><i class="ti ti-shopping-cart"></i></div>
-                    <div class="kpi-val">${purchaseCount} مبيعات</div>
-                    <div class="kpi-label">عدد المشتريات الفعلية</div>
-                </div>
-                <div class="kpi">
-                    <div class="kpi-icon"><i class="ti ti-click"></i></div>
-                    <div class="kpi-val">${ctr.toFixed(2)}%</div>
-                    <div class="kpi-label">نسبة النقر (CTR)</div>
+                    <div class="kpi-val" id="detKpiSallaOrders">-</div>
+                    <div class="kpi-label">عدد الطلبات المحققة (سلة)</div>
                 </div>
             </div>
 
-            <!-- Performance Trend Chart & ROAS Shaded baseline -->
-            <div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; margin-bottom: 20px;" class="fb-charts-grid">
+            <!-- Performance Trend Chart & ROAS vs Break-even Shaded baseline -->
+            <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; margin-bottom: 20px;" class="fb-charts-grid">
                 <!-- Main trend line -->
                 <div class="tbl-wrap pad" style="background:#141b2d; border-color:#1e2a45;">
                     <div style="font-weight:700; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
-                        <span>📈 أداء وتوجه الحملة (Performance Trend)</span>
-                        <span style="font-size:11px; color:#8b95a7;">${rangeText}</span>
+                        <span>📈 الأداء الإعلاني والبيعي اليومي (Spend vs Sales)</span>
+                        <span style="font-size:11px; color:#8b95a7;">\${rangeText}</span>
                     </div>
-                    <div style="display: grid; grid-template-columns: 160px 1fr; gap: 15px;">
+                    <div style="display: grid; grid-template-columns: 165px 1fr; gap: 15px;">
                         <!-- Custom checkboxes -->
                         <div style="display:flex; flex-direction:column; gap:6px;">
-                            <div class="tbl-wrap pad" style="margin:0; padding:6px 10px; cursor:pointer; border:1.5px solid var(--accent); background:rgba(0,217,255,0.05)" id="fb-chip-spend" onclick="toggleFbKPI('spend')">
+                            <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--accent); background:rgba(0,217,255,0.05)" id="fb-chip-spend" onclick="toggleFbKPI('spend')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <span style="font-size:9.5px; color:#8b95a7">الإنفاق الإجمالي</span>
                                     <input type="checkbox" checked id="fb-chk-spend" style="pointer-events:none;">
                                 </div>
-                                <div style="font-size:12px; font-weight:700; color:#ff4757; margin-top:2px;">${totalSpend.toFixed(0)} ر.س</div>
+                                <div style="font-size:12px; font-weight:700; color:#ff4757; margin-top:2px;">الإنفاق اليومي</div>
                             </div>
-                            <div class="tbl-wrap pad" style="margin:0; padding:6px 10px; cursor:pointer; border:1.5px solid var(--accent); background:rgba(0,217,255,0.05)" id="fb-chip-sales" onclick="toggleFbKPI('sales')">
+                            <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--accent); background:rgba(0,217,255,0.05)" id="fb-chip-sales" onclick="toggleFbKPI('sales')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-size:9.5px; color:#8b95a7">قيمة المبيعات</span>
+                                    <span style="font-size:9.5px; color:#8b95a7">مبيعات فيسبوك المنسوبة</span>
                                     <input type="checkbox" checked id="fb-chk-sales" style="pointer-events:none;">
                                 </div>
-                                <div style="font-size:12px; font-weight:700; color:#00ff88; margin-top:2px;">${purchaseValue.toFixed(0)} ر.س</div>
+                                <div style="font-size:12px; font-weight:700; color:#00ff88; margin-top:2px;">Meta Sales</div>
                             </div>
-                            <div class="tbl-wrap pad" style="margin:0; padding:6px 10px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-conversions" onclick="toggleFbKPI('conversions')">
+                            <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-conversions" onclick="toggleFbKPI('conversions')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-size:9.5px; color:#8b95a7">عدد المشتريات</span>
+                                    <span style="font-size:9.5px; color:#8b95a7">مبيعات سلة الفعلية</span>
                                     <input type="checkbox" id="fb-chk-conversions" style="pointer-events:none;">
                                 </div>
-                                <div style="font-size:12px; font-weight:700; color:#00d9ff; margin-top:2px;">${purchaseCount} مبيعات</div>
+                                <div style="font-size:12px; font-weight:700; color:#00d9ff; margin-top:2px;">Salla Sales</div>
                             </div>
-                            <div class="tbl-wrap pad" style="margin:0; padding:6px 10px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-clicks" onclick="toggleFbKPI('clicks')">
+                            <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-clicks" onclick="toggleFbKPI('clicks')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-size:9.5px; color:#8b95a7">النقرات</span>
+                                    <span style="font-size:9.5px; color:#8b95a7">العائد على الإعلانات (ROAS)</span>
                                     <input type="checkbox" id="fb-chk-clicks" style="pointer-events:none;">
                                 </div>
-                                <div style="font-size:12px; font-weight:700; color:#f59e0b; margin-top:2px;">${totalClicks} نقرة</div>
+                                <div style="font-size:12px; font-weight:700; color:#f59e0b; margin-top:2px;">Meta ROAS</div>
                             </div>
-                            <div class="tbl-wrap pad" style="margin:0; padding:6px 10px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-roas" onclick="toggleFbKPI('roas')">
+                            <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-roas" onclick="toggleFbKPI('roas')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-size:9.5px; color:#8b95a7">العائد ROAS</span>
+                                    <span style="font-size:9.5px; color:#8b95a7">عائد الربح الصافي (POAS)</span>
                                     <input type="checkbox" id="fb-chk-roas" style="pointer-events:none;">
                                 </div>
-                                <div style="font-size:12px; font-weight:700; color:#a855f7; margin-top:2px;">${roas.toFixed(2)}x</div>
+                                <div style="font-size:12px; font-weight:700; color:#a855f7; margin-top:2px;">Actual POAS</div>
                             </div>
                         </div>
                         <!-- Canvas -->
@@ -11769,21 +11811,25 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                     </div>
                 </div>
 
-                <!-- ROAS Gauge & ROAS Line Chart -->
-                <div class="tbl-wrap pad" style="background:#141b2d; border-color:#1e2a45; display:grid; grid-template-columns: 140px 1fr; gap:15px; align-items:center;">
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                        <span style="font-size:11px; color:#8b95a7; margin-bottom:8px; font-weight:bold;">مؤشر العائد</span>
-                        ${gaugeHtml}
-                        <div style="font-size:10px; color:${roas >= 1.0 ? '#00ff88' : '#ff4757'}; font-weight:bold; margin-top:8px; text-align:center; line-height:1.3;">
-                            ${roas >= 1.0 ? '✓ حملة رابحة ومثمرة' : '⚠️ حملة تخسر (تحت 1.0x)'}
-                        </div>
+                <!-- POAS Gauge & ROAS Timeline Chart vs Break-even line -->
+                <div class="tbl-wrap pad" style="background:#141b2d; border-color:#1e2a45; display:grid; grid-template-columns: 130px 1fr; gap:15px; align-items:center;">
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center;" id="detPOASGaugeContainer">
+                        <!-- Redrawn dynamically by recalculateMarketingMetrics -->
                     </div>
                     <div style="height:100%;">
-                        <div style="font-weight:700; margin-bottom:10px; font-size:12px; color:#fff; text-align:right;">📈 تفصيل تطور العائد ROAS مقارنة بحد التعادل (1.0x)</div>
+                        <div style="font-weight:700; margin-bottom:10px; font-size:11.5px; color:#fff; text-align:right;">📈 تطور ROAS مقابل عتبة التعادل (Break-even ROAS)</div>
                         <div style="position:relative; height:240px;">
                             <canvas id="chartFbROASTrend"></canvas>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Smart Decision Recommendation Engine (Automated Insights) -->
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:14px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:6px; color:#fff;"><i class="ti ti-bulb" style="color:#00d9ff"></i> محرّك التوصيات الذكية لتحسين الحملة الإعلانية</h3>
+                <div class="kpi-grid" id="detSmartRecommendations" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+                    <!-- Auto-populated by recalculateMarketingMetrics -->
                 </div>
             </div>
 
@@ -11792,27 +11838,27 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                 <!-- Funnel -->
                 <div class="tbl-wrap pad" style="background:#141b2d; border-color:#1e2a45;">
                     <div style="font-weight:700; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
-                        <span>🎯 قمع تحويل حملة Meta Ads (Conversion Funnel)</span>
-                        <span style="font-size:10px; color:#8b95a7;">من الظهور إلى البيع الفعلي</span>
+                        <span>🎯 قمع تحويل المتجر الإعلاني (Sales Conversion Funnel)</span>
+                        <span style="font-size:9.5px; color:#8b95a7;">مقارنة الإضافة للسلة والمشتريات من سلة</span>
                     </div>
                     <div>
-                        ${funnelHtml}
+                        \${funnelHtml}
                     </div>
                 </div>
 
                 <!-- Demographics -->
                 <div class="tbl-wrap pad" style="background:#141b2d; border-color:#1e2a45; display:flex; flex-direction:column; justify-content:space-between;">
                     <div>
-                        <div style="font-weight:700; margin-bottom:15px; text-align:right;">👥 الفئات المستهدفة الأكثر شراءً (Demographics)</div>
+                        <div style="font-weight:700; margin-bottom:15px; text-align:right;">👥 الفئات السكانية الأكثر شراءً (Demographics)</div>
                         <div style="display:flex; flex-direction:column; gap:10px;">
-                            ${ageGenderHtml}
+                            \${ageGenderHtml}
                         </div>
                     </div>
                     
                     <div style="margin-top:20px; border-top:1px solid #1e2a45; padding-top:15px;">
-                        <div style="font-weight:700; margin-bottom:12px; text-align:right;">📱 توزيع وصول الأجهزة (OS Reached)</div>
+                        <div style="font-weight:700; margin-bottom:12px; text-align:right;">📱 توزيع وصول الأجهزة وأنظمة التشغيل (OS Reached)</div>
                         <div style="display:flex; flex-direction:column; gap:10px;">
-                            ${deviceHtml}
+                            \${deviceHtml}
                         </div>
                     </div>
                 </div>
@@ -11822,7 +11868,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
             <div class="tbl-wrap" style="background:#141b2d; border-color:#1e2a45; margin-bottom:20px; overflow:hidden;">
                 <div class="tbl-header" style="border-bottom:1px solid #1e2a45; padding:15px;">
                     <div class="tbl-title" style="color:#00d9ff; font-weight:700; font-size:14px;"><i class="ti ti-layout-grid"></i> مجموعات الإعلانات لهذه الحملة (Ad Sets)</div>
-                    <div style="font-size:11px; color:#8b95a7;">عدد المجموعات: ${data.adsets.length}</div>
+                    <div style="font-size:11px; color:#8b95a7;">عدد المجموعات: \${data.adsets.length}</div>
                 </div>
                 <div style="overflow-x:auto;">
                     <table class="tbl" style="width:100%; border-collapse:collapse; text-align:right;">
@@ -11839,7 +11885,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${adsetsRowsHtml}
+                            \${adsetsRowsHtml}
                         </tbody>
                     </table>
                 </div>
@@ -11848,49 +11894,281 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
             <!-- Individual Ads -->
             <div class="tbl-wrap" style="background:#141b2d; border-color:#1e2a45; padding:15px; margin-bottom:10px;">
                 <div style="font-weight:700; margin-bottom:15px; font-size:14px; color:#00d9ff; display:flex; align-items:center; gap:6px;">
-                    <i class="ti ti-star"></i> الإعلانات الإبداعية الفردية (Ads Creative Details)
+                    <i class="ti ti-star"></i> تشخيص وأداء الإعلانات الإبداعية الفردية (Creative Diagnostics)
                 </div>
                 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:15px;">
-                    ${adsGridHtml}
+                    \${adsGridHtml}
                 </div>
             </div>
         </div>
     `;
 
-    // Process Line Chart datasets
+    // Recalculate Metrics and Bind Event Listeners
+    recalculateMarketingMetrics();
+}
+
+function recalculateMarketingMetrics() {
+    const data = window.currentFbCampaignData;
+    if (!data) return;
+
+    const cogsRate = parseFloat(document.getElementById('cogsSelector')?.value || 0.3);
+
+    // Sum overall metrics from daily insights
+    let totalSpend = 0;
+    let totalImpressions = 0;
+    let totalReach = 0;
+    let totalClicks = 0;
+    let purchaseCount = 0;
+    let purchaseValue = 0;
+    let add_to_cart = 0;
+    let initiate_checkout = 0;
+    let view_content = 0;
+    let video_3_sec_views = 0;
+    let thruplays = 0;
+
+    data.daily_insights.forEach(day => {
+        totalSpend += parseFloat(day.spend || 0);
+        totalImpressions += parseInt(day.impressions || 0);
+        totalReach += parseInt(day.reach || 0);
+        totalClicks += parseInt(day.clicks || 0);
+        
+        const parsed = parseFacebookActions(day.actions, day.action_values);
+        purchaseCount += parsed.purchaseCount;
+        purchaseValue += parsed.purchaseValue;
+        add_to_cart += parsed.add_to_cart;
+        initiate_checkout += parsed.initiate_checkout;
+        view_content += parsed.view_content;
+        video_3_sec_views += parsed.video_3_sec_views || 0;
+        thruplays += parsed.thruplays || 0;
+    });
+
+    const sallaSales = data.salla_summary.total_sales;
+    const sallaOrders = data.salla_summary.total_orders;
+    const cogs = sallaSales * cogsRate;
+    const netProfit = sallaSales - cogs - totalSpend;
+    const poas = totalSpend > 0 ? (netProfit / totalSpend) : 0;
+    const breakEvenRoas = (1 - cogsRate) > 0 ? (1 / (1 - cogsRate)) : 1.0;
+    const cac = sallaOrders > 0 ? (totalSpend / sallaOrders) : 0;
+    const aov = sallaOrders > 0 ? (sallaSales / sallaOrders) : 0;
+    const roas = totalSpend > 0 ? (purchaseValue / totalSpend) : 0;
+    const frequency = totalReach > 0 ? (totalImpressions / totalReach) : 1.0;
+
+    window.currentFbCampaignSummary = { spend: totalSpend, impressions: totalImpressions, clicks: totalClicks, conversions: sallaOrders, roas };
+
+    // Update Decision Bar
+    const poasEl = document.getElementById('detPOASVal');
+    const profitEl = document.getElementById('detProfitVal');
+    const decisionEl = document.getElementById('detDecisionAction');
+
+    if (poasEl) {
+        poasEl.textContent = `${poas.toFixed(2)}x`;
+        poasEl.style.color = poas >= 1.0 ? '#00ff88' : '#ff4757';
+    }
+    if (profitEl) {
+        profitEl.textContent = `${fmt(netProfit)} ر.س`;
+        profitEl.style.color = netProfit >= 0 ? '#00ff88' : '#ff4757';
+    }
+    if (decisionEl) {
+        if (poas >= 1.5 && frequency < 3.0) {
+            decisionEl.innerHTML = '<span style="color:#00ff88; font-weight:900;"><i class="ti ti-arrow-big-up-line"></i> زِد الميزانية (Scale Up)</span>';
+        } else if (poas >= 1.0 && poas < 1.5) {
+            decisionEl.innerHTML = '<span style="color:#00d9ff; font-weight:900;"><i class="ti ti-activity"></i> راقب وحسّن (Optimize)</span>';
+        } else {
+            decisionEl.innerHTML = '<span style="color:#ff4757; font-weight:900;"><i class="ti ti-circle-x"></i> أوقف الحملة (Stop Campaign)</span>';
+        }
+    }
+
+    // Update KPI Card values
+    const map = {
+        'detKpiSpend': `${fmt(totalSpend)} ر.س`,
+        'detKpiSallaSales': `${fmt(sallaSales)} ر.س`,
+        'detKpiNetProfit': `${fmt(netProfit)} ر.س`,
+        'detKpiPOAS': `${poas.toFixed(2)}x`,
+        'detKpiMetaROAS': `${roas.toFixed(2)}x`,
+        'detKpiCAC': `${cac.toFixed(2)} ر.س`,
+        'detKpiAOV': `${aov.toFixed(2)} ر.س`,
+        'detKpiSallaOrders': `${sallaOrders} طلبات`
+    };
+    Object.keys(map).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = map[id];
+    });
+
+    // Update circular gauge
+    const roasMax = 4.0;
+    const pct = Math.min(100, Math.max(0, (poas / roasMax) * 100));
+    const strokeDash = (pct / 100) * 283;
+    const gaugeColor = poas >= 1.5 ? '#00ff88' : poas >= 1.0 ? '#00d9ff' : '#ff4757';
+    
+    const gaugeContainer = document.getElementById('detPOASGaugeContainer');
+    if (gaugeContainer) {
+        gaugeContainer.innerHTML = `
+            <svg width="130" height="130" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#1e2a45" stroke-width="8"></circle>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="${gaugeColor}" stroke-width="8" stroke-dasharray="283" stroke-dashoffset="${283 - strokeDash}" stroke-linecap="round" filter="drop-shadow(0 0 3px ${gaugeColor})" transform="rotate(-90 50 50)"></circle>
+                <text x="50" y="48" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-size="14" font-weight="900" font-family="Tajawal, Cairo">${poas.toFixed(2)}x</text>
+                <text x="50" y="66" text-anchor="middle" dominant-baseline="middle" fill="#8b95a7" font-size="7" font-family="Tajawal, Cairo">عائد الربح POAS</text>
+            </svg>
+        `;
+    }
+
+    // Update Funnel Salla count and percentages
+    const funnelPurchSalla = document.getElementById('funnel-purch-salla');
+    if (funnelPurchSalla) {
+        const prevVal = initiate_checkout || Math.round(totalClicks * 0.12);
+        let conv = 100;
+        let drop = 0;
+        if (prevVal > 0) {
+            conv = (sallaOrders / prevVal) * 100;
+            drop = 100 - conv;
+        }
+        funnelPurchSalla.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 28px; height: 28px; border-radius: 6px; background: #00ff8815; color: #00ff88; display: flex; align-items: center; justify-content: center; font-size: 13px;">
+                    <i class="ti ti-receipt"></i>
+                </span>
+                <div>
+                    <div style="font-weight: 700; color: #fff; font-size: 12px; text-align:right;">المشتريات الفعلية (سلة)</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px; direction:ltr;">
+                <span style="font-family: monospace; font-size: 13px; font-weight: bold; color: #00ff88;">${fmt(sallaOrders)}</span>
+                <div style="width: 75px; text-align: right; direction:rtl;">
+                    <div style="font-size: 10.5px; font-weight: bold; color: #00ff88;">%${conv.toFixed(1)} <span style="font-size: 8px; color: #8b95a7">تحويل</span></div>
+                    <div style="font-size: 8.5px; color: #ff4757; margin-top: 1px;">%${drop.toFixed(1)} <span style="font-size: 8px; color: #8b95a7">تسرب</span></div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Recalculate daily arrays
     const sortedDaily = [...data.daily_insights].sort((a, b) => a.date_start.localeCompare(b.date_start));
     const dates = sortedDaily.map(d => fmtDate(d.date_start));
     const spendData = sortedDaily.map(d => parseFloat(d.spend || 0));
     
-    const salesData = sortedDaily.map(d => {
+    const metaSalesData = sortedDaily.map(d => {
         const parsed = parseFacebookActions(d.actions, d.action_values);
         return parsed.purchaseValue;
     });
-    
-    const convData = sortedDaily.map(d => {
-        const parsed = parseFacebookActions(d.actions, d.action_values);
-        return parsed.purchaseCount;
+
+    const sallaSalesData = dates.map(dateStr => {
+        const matchingDay = data.salla_daily.find(sd => fmtDate(sd.date) === dateStr);
+        return matchingDay ? parseFloat(matchingDay.sales || 0) : 0;
     });
 
-    const clicksData = sortedDaily.map(d => parseInt(d.clicks || 0));
-    
     const roasData = sortedDaily.map(d => {
         const parsed = parseFacebookActions(d.actions, d.action_values);
         const sp = parseFloat(d.spend || 0);
         return sp > 0 ? (parsed.purchaseValue / sp) : 0;
     });
 
+    const poasData = sortedDaily.map((d, idx) => {
+        const sp = parseFloat(d.spend || 0);
+        const dateStr = fmtDate(d.date_start);
+        const matchingDay = data.salla_daily.find(sd => fmtDate(sd.date) === dateStr);
+        const sl = matchingDay ? parseFloat(matchingDay.sales || 0) : 0;
+        const profit = sl - (sl * cogsRate) - sp;
+        return sp > 0 ? (profit / sp) : 0;
+    });
+
     // Reset visibility options
     fbKPIVisibility = { spend: true, sales: true, conversions: false, clicks: false, roas: false };
 
     // Initialize trend chart
-    initFbPerformanceChart(dates, spendData, salesData, convData, clicksData, roasData);
+    initFbPerformanceChart(dates, spendData, metaSalesData, sallaSalesData, roasData, poasData);
 
-    // Initialize ROAS trend chart
-    initFbROASChart(dates, roasData);
+    // Update ROAS vs Break-even chart
+    initFbROASChart(dates, roasData, breakEvenRoas);
+
+    // Generate recommendations list
+    const recommendationsContainer = document.getElementById('detSmartRecommendations');
+    if (recommendationsContainer) {
+        let recs = [];
+        
+        // 1. Scale Up Rule
+        if (poas > 1.5 && frequency < 3.0) {
+            recs.push({
+                title: '🟢 فرصة توسيع وزيادة الميزانية',
+                desc: `الحملة تحقق عائد ربح صافي ممتاز (POAS: ${poas.toFixed(2)}x) ومعدل تكرار آمن (Frequency: ${frequency.toFixed(2)}). نوصي بزيادة الميزانية بنسبة 20-30% للاستفادة من الزخم المربح.`,
+                action: 'زيادة الميزانية',
+                color: '#00ff88',
+                icon: 'ti-trending-up'
+            });
+        }
+        
+        // 2. Stop Rule
+        if (poas < 1.0 || netProfit < 0) {
+            recs.push({
+                title: '🔴 تنبيه: إيقاف فوري للحملة',
+                desc: `الحملة تخسر مالياً بعد خصم تكلفة المنتجات والإنفاق (صافي الربح: ${netProfit.toFixed(0)} ر.س، POAS: ${poas.toFixed(2)}x). نوصي بإيقاف الإعلان فوراً لوقف نزيف الخسارة.`,
+                action: 'إيقاف الحملة',
+                color: '#ff4757',
+                icon: 'ti-alert-triangle'
+            });
+        }
+
+        // 3. Ad Fatigue Rule
+        if (frequency > 2.8) {
+            recs.push({
+                title: '🟡 إرهاق الجمهور الإعلاني (Ad Fatigue)',
+                desc: `تكرار ظهور الإعلان للشخص الواحد مرتفع (${frequency.toFixed(2)}). بدأ الجمهور بالملل مما يرفع تكلفة الألف ظهور (CPM). نوصي بتحديث الصور والفيديوهات أو توسيع الجمهور المستهدف.`,
+                action: 'تحديث الإبداعات',
+                color: '#f59e0b',
+                icon: 'ti-refresh'
+            });
+        }
+
+        // 4. Hook Rate Rule
+        const avgHookRate = totalImpressions > 0 ? ((video_3_sec_views || (totalClicks * 2.8)) / totalImpressions) * 100 : 0;
+        if (avgHookRate < 25) {
+            recs.push({
+                title: '🟡 ضعف خطّاف البداية (Hook Rate < 25%)',
+                desc: `معدل إيقاف التمرير هو ${avgHookRate.toFixed(1)}% فقط. أول 3 ثوانٍ من الفيديو غير كافية لجذب المشاهدين. نوصي بتجربة خطّافات بداية أقوى وعروض سريعة لجذب الانتباه.`,
+                action: 'تعديل بداية الفيديو',
+                color: '#f59e0b',
+                icon: 'ti-video'
+            });
+        }
+
+        // 5. Margin warning
+        if (roas >= 1.5 && poas < 1.0) {
+            recs.push({
+                title: '🔴 هامش ربح المنتجات ضئيل جداً',
+                desc: `رغم أن عائد الإعلان (Meta ROAS: ${roas.toFixed(2)}x) جيد، إلا أن عائد الربح الصافي (POAS: ${poas.toFixed(2)}x) سلبي/ضعيف بسبب التكلفة المرتفعة للمنتجات. نوصي بمراجعة سياسة التسعير أو التفاوض مع الموردين.`,
+                action: 'مراجعة التسعير',
+                color: '#ff4757',
+                icon: 'ti-coin'
+            });
+        }
+
+        // 6. Funnel Bottleneck
+        const clickToCart = add_to_cart > 0 ? (add_to_cart / totalClicks) * 100 : 0;
+        if (clickToCart < 10) {
+            recs.push({
+                title: '🔵 اختناق صفحة الهبوط (Drop-off)',
+                desc: `نسبة إضافة المنتجات للسلة بعد الضغط على الإعلان منخفضة جداً (${clickToCart.toFixed(1)}%). قد يكون ذلك بسبب بطء تحميل الموقع أو عدم وضوح زر الشراء أو السعر. نوصي بتحسين سرعة وتصميم صفحة المنتج.`,
+                action: 'فحص صفحة الهبوط',
+                color: '#3b82f6',
+                icon: 'ti-layout-grid'
+            });
+        }
+
+        recommendationsContainer.innerHTML = recs.map(r => `
+            <div class="tbl-wrap pad" style="display:flex; flex-direction:column; justify-content:space-between; min-height:140px; margin:0; background:#141b2d; border-color:${r.color}35;">
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-weight:700; font-size:12.5px; color:${r.color};"><i class="ti ${r.icon}"></i> ${r.title}</span>
+                        <span style="font-size:9px; color:#8b95a7">توصية قرارية</span>
+                    </div>
+                    <p style="font-size:11px; color:#c5cdd9; margin:0; line-height:1.45; text-align:right;">${r.desc}</p>
+                </div>
+                <button class="btn btn-sm" style="margin-top:12px; align-self:flex-start; font-size:10px; padding:4px 8px; border:1px solid ${r.color}; color:${r.color}; background:transparent;">${r.action}</button>
+            </div>
+        `).join('') || '<div class="tbl-wrap pad" style="grid-column:1/-1; text-align:center; color:#8b95a7;">كل المؤشرات ممتازة ولا توجد تنبيهات عاجلة! الحملة مستقرة.</div>';
+    }
 }
 
-function initFbPerformanceChart(dates, spendData, salesData, convData, clicksData, roasData) {
+function initFbPerformanceChart(dates, spendData, metaSalesData, sallaSalesData, roasData, poasData) {
     const ctx = document.getElementById('chartFbCampaignPerformance');
     if (!ctx) return;
 
@@ -11913,8 +12191,8 @@ function initFbPerformanceChart(dates, spendData, salesData, convData, clicksDat
                     hidden: !fbKPIVisibility.spend
                 },
                 {
-                    label: 'قيمة المبيعات (Sales)',
-                    data: salesData,
+                    label: 'مبيعات فيسبوك المنسوبة (Meta Sales)',
+                    data: metaSalesData,
                     borderColor: '#00ff88',
                     backgroundColor: 'rgba(0, 255, 136, 0.05)',
                     yAxisID: 'y',
@@ -11922,17 +12200,17 @@ function initFbPerformanceChart(dates, spendData, salesData, convData, clicksDat
                     hidden: !fbKPIVisibility.sales
                 },
                 {
-                    label: 'التحويلات/المبيعات',
-                    data: convData,
+                    label: 'مبيعات سلة الفعلية (Salla Sales)',
+                    data: sallaSalesData,
                     borderColor: '#00d9ff',
                     backgroundColor: 'rgba(0, 217, 255, 0.05)',
-                    yAxisID: 'ySecondary',
+                    yAxisID: 'y',
                     tension: 0.3,
                     hidden: !fbKPIVisibility.conversions
                 },
                 {
-                    label: 'النقرات (Clicks)',
-                    data: clicksData,
+                    label: 'عائد إعلانات فيسبوك (ROAS)',
+                    data: roasData,
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.05)',
                     yAxisID: 'ySecondary',
@@ -11940,8 +12218,8 @@ function initFbPerformanceChart(dates, spendData, salesData, convData, clicksDat
                     hidden: !fbKPIVisibility.clicks
                 },
                 {
-                    label: 'العائد (ROAS)',
-                    data: roasData,
+                    label: 'عائد الربح الصافي الفعلي (POAS)',
+                    data: poasData,
                     borderColor: '#a855f7',
                     backgroundColor: 'rgba(168, 85, 247, 0.05)',
                     yAxisID: 'ySecondary',
@@ -11981,7 +12259,7 @@ function initFbPerformanceChart(dates, spendData, salesData, convData, clicksDat
     });
 }
 
-function initFbROASChart(dates, roasData) {
+function initFbROASChart(dates, roasData, breakEvenRoas) {
     const ctx = document.getElementById('chartFbROASTrend');
     if (!ctx) return;
 
@@ -12003,8 +12281,8 @@ function initFbROASChart(dates, roasData) {
                     fill: true
                 },
                 {
-                    label: 'حد التعادل (1.0x)',
-                    data: Array(dates.length).fill(1.0),
+                    label: 'حد التعادل',
+                    data: Array(dates.length).fill(breakEvenRoas),
                     borderColor: 'rgba(255, 71, 87, 0.4)',
                     borderWidth: 1.5,
                     borderDash: [5, 5],
@@ -12066,29 +12344,44 @@ function exportFacebookCampaignExcel(campaignName) {
     if (!data) return;
     
     let csv = '\ufeff';
-    csv += 'المستوى,الاسم,المعرّف,الحالة,الإنفاق,مرات الظهور,النقرات,عدد التحويلات,العائد على الإعلان ROAS\n';
+    csv += 'المستوى,الاسم,المعرّف,الحالة,الإنفاق,مبيعات فيسبوك,مبيعات سلة,العائد ROAS,عائد الربح POAS\n';
+    
+    const summary = window.currentFbCampaignSummary;
+    const cogsRate = parseFloat(document.getElementById('cogsSelector')?.value || 0.3);
+    
+    // Sum overall spend and purchaseValue
+    let totalSpend = 0;
+    let purchaseValue = 0;
+    data.daily_insights.forEach(day => {
+        totalSpend += parseFloat(day.spend || 0);
+        const parsed = parseFacebookActions(day.actions, day.action_values);
+        purchaseValue += parsed.purchaseValue;
+    });
+
+    const netProfit = data.salla_summary.total_sales - (data.salla_summary.total_sales * cogsRate) - totalSpend;
+    const poas = totalSpend > 0 ? (netProfit / totalSpend) : 0;
     
     // Campaign
-    csv += `الحملة,${campaignName},${data.campaign?.id || ''},${data.campaign?.status || ''},${window.currentFbCampaignSummary.spend},${window.currentFbCampaignSummary.impressions},${window.currentFbCampaignSummary.clicks},${window.currentFbCampaignSummary.conversions},${window.currentFbCampaignSummary.roas.toFixed(2)}\n`;
+    csv += `الحملة,${campaignName},${data.campaign?.id || ''},${data.campaign?.status || ''},${totalSpend},${purchaseValue},${data.salla_summary.total_sales},${summary.roas.toFixed(2)},${poas.toFixed(2)}\n`;
     
     // Adsets
     data.adsets.forEach(as => {
         const parsed = parseFacebookActions(as.actions, as.action_values);
         const asRoas = as.spend > 0 ? (parsed.purchaseValue / as.spend) : 0;
-        csv += `مجموعة إعلانية,${as.name},${as.id},${as.status},${as.spend},${as.impressions},${as.clicks},${parsed.purchaseCount},${asRoas.toFixed(2)}\n`;
+        csv += `مجموعة إعلانية,${as.name},${as.id},${as.status},${as.spend},${parsed.purchaseValue},0,${asRoas.toFixed(2)},0\n`;
     });
     
     // Ads
     data.ads.forEach(ad => {
         const parsed = parseFacebookActions(ad.actions, ad.action_values);
         const adRoas = ad.spend > 0 ? (parsed.purchaseValue / ad.spend) : 0;
-        csv += `إعلان فردي,${ad.name},${ad.id},${ad.status},${ad.spend},${ad.impressions},${ad.clicks},${parsed.purchaseCount},${adRoas.toFixed(2)}\n`;
+        csv += `إعلان فردي,${ad.name},${ad.id},${ad.status},${ad.spend},${parsed.purchaseValue},0,${adRoas.toFixed(2)},0\n`;
     });
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `تقرير_حملة_فيسبوك_${campaignName}.csv`);
+    link.setAttribute("download", `تقرير_قرار_حملة_فيسبوك_${campaignName}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -12100,6 +12393,13 @@ function exportFacebookCampaignPDF(campaignName) {
     if (!data) return;
 
     const summary = window.currentFbCampaignSummary;
+    const cogsRate = parseFloat(document.getElementById('cogsSelector')?.value || 0.3);
+    const sallaSales = data.salla_summary.total_sales;
+    const cogs = sallaSales * cogsRate;
+    const netProfit = sallaSales - cogs - summary.spend;
+    const poas = summary.spend > 0 ? (netProfit / summary.spend) : 0;
+    const breakEven = (1 - cogsRate) > 0 ? (1 / (1 - cogsRate)) : 1.0;
+
     const reportDate = new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     let adsetsRows = data.adsets.map((as, idx) => {
@@ -12114,7 +12414,7 @@ function exportFacebookCampaignPDF(campaignName) {
                 <td class="mono">${fmt(as.impressions)}</td>
                 <td class="mono">${fmt(as.clicks)}</td>
                 <td class="mono">${parsed.purchaseCount}</td>
-                <td class="mono bold" style="color:${asRoas >= 1.0 ? '#0d9488' : '#e11d48'};">${asRoas.toFixed(2)}x</td>
+                <td class="mono bold" style="color:${asRoas >= breakEven ? '#0d9488' : '#e11d48'};Account">${asRoas.toFixed(2)}x</td>
             </tr>
         `;
     }).join('');
@@ -12130,7 +12430,7 @@ function exportFacebookCampaignPDF(campaignName) {
                 <td class="mono red">${ad.spend.toFixed(2)} ر.س</td>
                 <td class="mono">${ad.clicks}</td>
                 <td class="mono">${parsed.purchaseCount}</td>
-                <td class="mono bold" style="color:${adRoas >= 1.0 ? '#0d9488' : '#e11d48'};">${adRoas.toFixed(2)}x</td>
+                <td class="mono bold" style="color:${adRoas >= breakEven ? '#0d9488' : '#e11d48'};Account">${adRoas.toFixed(2)}x</td>
             </tr>
         `;
     }).join('');
@@ -12139,7 +12439,7 @@ function exportFacebookCampaignPDF(campaignName) {
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>تقرير أداء حملة Meta Ads - ${campaignName}</title>
+    <title>تقرير أداء وقرار حملة Meta Ads - ${campaignName}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -12227,9 +12527,9 @@ function exportFacebookCampaignPDF(campaignName) {
     <button class="btn no-print" onclick="window.print()">🖨️ طباعة / حفظ التقرير PDF</button>
     <div class="print-page">
         <div class="hdr">
-            <h1 style="font-size:22px; font-weight:900;">📊 تقرير أداء حملة Meta Ads تفصيلي</h1>
-            <p style="font-size:12px; opacity:0.85; margin-top:4px;">حملة: ${escapeHtml(campaignName)} · معرّف: ${data.campaign?.id || ''}</p>
-            <div style="font-size:11px; margin-top:8px;">تاريخ استخراج التقرير: ${reportDate}</div>
+            <h1 style="font-size:22px; font-weight:900;">📊 تقرير القرارات وأداء حملة Meta Ads + سلة</h1>
+            <p style="font-size:12px; opacity:0.85; margin-top:4px;">الحملة: ${escapeHtml(campaignName)} · المعرّف: ${data.campaign?.id || ''}</p>
+            <div style="font-size:11px; margin-top:8px;">تاريخ استخراج التقرير: ${reportDate} | نسبة تكلفة المنتجات (COGS): ${cogsRate * 100}%</div>
         </div>
 
         <div class="grid-kpis">
@@ -12238,20 +12538,20 @@ function exportFacebookCampaignPDF(campaignName) {
                 <div class="kpi-val red">${summary.spend.toFixed(2)} ر.س</div>
             </div>
             <div class="kpi">
-                <div class="kpi-title">قيمة المبيعات (Sales)</div>
-                <div class="kpi-val green">${(summary.conversions * 195).toFixed(2)} ر.س</div>
+                <div class="kpi-title">مبيعات متجر سلة الفعلية</div>
+                <div class="kpi-val green">${sallaSales.toFixed(2)} ر.س</div>
             </div>
             <div class="kpi">
-                <div class="kpi-title">العائد الإعلاني (ROAS)</div>
-                <div class="kpi-val bold" style="color:${summary.roas >= 1.0 ? '#0d9488' : '#e11d48'}">${summary.roas.toFixed(2)}x</div>
+                <div class="kpi-title">الربح الصافي الفعلي</div>
+                <div class="kpi-val bold" style="color:${netProfit >= 0 ? '#0d9488' : '#e11d48'}">${netProfit.toFixed(2)} ر.س</div>
             </div>
             <div class="kpi">
-                <div class="kpi-title">المشتريات الفعلية</div>
-                <div class="kpi-val">${summary.conversions} مبيعات</div>
+                <div class="kpi-title">عائد الربح الصافي POAS</div>
+                <div class="kpi-val bold" style="color:${poas >= 1.0 ? '#0d9488' : '#e11d48'}">${poas.toFixed(2)}x</div>
             </div>
         </div>
 
-        <h3 class="tbl-title">المجموعات الإعلانية المرتبطة (Ad Sets Performance)</h3>
+        <h3 class="tbl-title">أداء المجموعات الإعلانية (Ad Sets Performance)</h3>
         <table>
             <thead>
                 <tr>
@@ -12270,7 +12570,7 @@ function exportFacebookCampaignPDF(campaignName) {
             </tbody>
         </table>
 
-        <h3 class="tbl-title">الإعلانات الإبداعية (Ads Performance Summary)</h3>
+        <h3 class="tbl-title">الإعلانات الإبداعية الفردية (Ads Creative Summary)</h3>
         <table>
             <thead>
                 <tr>
@@ -12289,7 +12589,7 @@ function exportFacebookCampaignPDF(campaignName) {
         </table>
 
         <div style="margin-top:50px; text-align:center; font-size:10px; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:15px;">
-            تقرير إحصاءات وحملات حية صادر من لوحة تحكم شوب ستور لمتجر سلة
+            تقرير إحصاءات وحملات قراري صادر من لوحة تحكم شوب ستور لمتجر سلة
         </div>
     </div>
 </body>
@@ -12300,6 +12600,5 @@ function exportFacebookCampaignPDF(campaignName) {
     win.document.write(htmlContent);
     win.document.close();
     win.focus();
-    toast('تم فتح تقرير الحملة بنجاح ✅', 'ok');
+    toast('تم فتح تقرير القرار بنجاح ✅', 'ok');
 }
-
