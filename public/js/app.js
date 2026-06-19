@@ -129,6 +129,7 @@ function hasPageAccess(page) {
     }
     if (page === 'expenses') return !!state.user.can_view_expenses;
     if (page === 'external-sales') return !!state.user.can_view_external_sales;
+    if (page === 'ext-sales-analytics') return !!state.user.can_view_external_sales;
     if (page === 'campaigns') return !!state.user.can_view_campaigns;
     if (page === 'certificates') return !!state.user.can_view_certificates;
     if (page === 'ps-plus') return !!state.user.can_view_ps;
@@ -182,6 +183,7 @@ async function init() {
             { id: 'nav-overview', name: 'overview' },
             { id: 'nav-expenses', name: 'expenses' },
             { id: 'nav-external-sales', name: 'external-sales' },
+            { id: 'nav-ext-sales-analytics', name: 'ext-sales-analytics' },
             { id: 'nav-campaigns', name: 'campaigns' },
             { id: 'nav-certificates', name: 'certificates' },
             { id: 'nav-ps-plus', name: 'ps-plus' },
@@ -504,11 +506,12 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-sales-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
     'external-sales': 'المبيعات الخارجية',
+    'ext-sales-analytics': 'تحليل المبيعات الخارجية — المحافظ والدول',
     campaigns: 'الحملات الإعلانية',
     'campaign-detail': 'تفاصيل الحملة الإعلانية',
     'ai-analysis': 'التحليل الذكي والتوصيات (AI)',
@@ -602,6 +605,7 @@ function nav(name, updateHash = true) {
     if (name === 'overview') renderOverview();
     if (name === 'expenses') renderExp();
     if (name === 'external-sales') loadExternalSales();
+    if (name === 'ext-sales-analytics') loadExtSalesAnalytics();
     if (name === 'campaigns') renderCampaigns();
     if (name === 'ai-analysis') initAiAnalysisPage();
     if (name === 'salla-orders') renderOrders();
@@ -10254,4 +10258,489 @@ async function exportExternalSalesPDF() {
     win.document.close();
     win.focus();
     toast('تم فتح نافذة التقرير — اضغط "طباعة / حفظ PDF" ✅', 'ok');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EXT SALES ANALYTICS — BY WALLET & COUNTRY
+// ══════════════════════════════════════════════════════════════════
+
+const EXT_BANK_COLORS = {
+    'حساب الوثيقة': '#9d4edd',
+    'حساب نجم':     '#ff9e00',
+    'حساب القطيبي': '#3dba7e',
+    'حساب الكريمي': '#5b9bd6',
+    'حساب USD':     '#1a8fe3',
+    'حساب زاد':     '#f25c05'
+};
+
+async function loadExtSalesAnalytics() {
+    // Reuse stateExternalSales if already loaded, otherwise fetch
+    if (!stateExternalSales || stateExternalSales.length === 0) {
+        try {
+            const res = await fetch('/api/external-sales');
+            if (res.ok) {
+                const data = await res.json();
+                stateExternalSales = data.sales || [];
+            }
+        } catch (e) { stateExternalSales = []; }
+    }
+    renderExtSalesAnalytics();
+}
+
+function extAnGetFiltered() {
+    const period = (document.getElementById('extAnFilterPeriod') || {}).value || '';
+    if (!period) return stateExternalSales;
+
+    const now = new Date();
+    return stateExternalSales.filter(item => {
+        if (!item.created_at) return false;
+        // created_at format: "2025-06-15 10:30:00" or ISO string
+        const d = new Date(item.created_at.replace(' ', 'T'));
+        if (isNaN(d)) return false;
+        if (period === 'today') {
+            return d.toDateString() === now.toDateString();
+        } else if (period === 'week') {
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - now.getDay());
+            weekStart.setHours(0, 0, 0, 0);
+            return d >= weekStart;
+        } else if (period === 'month') {
+            return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        } else if (period === 'last3') {
+            const cutoff = new Date(now);
+            cutoff.setMonth(now.getMonth() - 3);
+            return d >= cutoff;
+        }
+        return true;
+    });
+}
+
+function renderExtSalesAnalytics() {
+    const data = extAnGetFiltered();
+    const totalAmount  = data.reduce((s, i) => s + (i.amount || 0), 0);
+    const totalCount   = data.length;
+    const countriesSet = new Set(data.map(i => i.country || 'غير محددة'));
+
+    // ── KPI ──
+    const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setEl('extAnTotalAmt',       totalAmount.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س');
+    setEl('extAnTotalCount',     totalCount);
+    setEl('extAnTotalCountries', countriesSet.size);
+    setEl('extAnAvgAmt',         (totalAmount / (totalCount || 1)).toFixed(2) + ' ر.س');
+
+    // ── Build aggregations ──
+    const byWallet  = {};  // { walletName: { amount, count, countries: {} } }
+    const byCountry = {};  // { country: { amount, count, wallets: Set } }
+    const crosstab  = {};  // { walletName: { countryName: { amount, count } } }
+
+    data.forEach(item => {
+        const wallet  = item.bank_account || 'غير محدد';
+        const country = item.country || 'غير محددة';
+        const amt     = item.amount || 0;
+        const qty     = item.quantity || 1;
+
+        // byWallet
+        if (!byWallet[wallet]) byWallet[wallet] = { amount: 0, count: 0, qty: 0, countries: {} };
+        byWallet[wallet].amount += amt;
+        byWallet[wallet].count  += 1;
+        byWallet[wallet].qty    += qty;
+        byWallet[wallet].countries[country] = (byWallet[wallet].countries[country] || 0) + amt;
+
+        // byCountry
+        if (!byCountry[country]) byCountry[country] = { amount: 0, count: 0, wallets: new Set() };
+        byCountry[country].amount += amt;
+        byCountry[country].count  += 1;
+        byCountry[country].wallets.add(wallet);
+
+        // crosstab
+        if (!crosstab[wallet]) crosstab[wallet] = {};
+        if (!crosstab[wallet][country]) crosstab[wallet][country] = { amount: 0, count: 0 };
+        crosstab[wallet][country].amount += amt;
+        crosstab[wallet][country].count  += 1;
+    });
+
+    // ── Section 1: Wallet cards ──
+    const walletGrid = document.getElementById('extAnByWalletGrid');
+    if (walletGrid) {
+        const wallets = Object.entries(byWallet).sort((a, b) => b[1].amount - a[1].amount);
+        if (wallets.length === 0) {
+            walletGrid.innerHTML = '<div style="font-size:11px; color:var(--text3); padding:20px; text-align:center; grid-column:1/-1;">لا توجد بيانات</div>';
+        } else {
+            const topAmt = wallets[0][1].amount || 1;
+            walletGrid.innerHTML = wallets.map(([wallet, info]) => {
+                const color = EXT_BANK_COLORS[wallet] || '#6366f1';
+                const pct   = ((info.amount / totalAmount) * 100).toFixed(1);
+                const barW  = ((info.amount / topAmt) * 100).toFixed(0);
+                const countryList = Object.entries(info.countries).sort((a, b) => b[1] - a[1])
+                    .slice(0, 4)
+                    .map(([c, a]) => `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid var(--border1);">
+                        <span style="font-size:10px; color:var(--text2);">${c}</span>
+                        <span style="font-size:10px; font-weight:700; color:${color};">${a.toFixed(2)} ر.س</span>
+                    </div>`).join('');
+                const moreCountries = Object.keys(info.countries).length > 4
+                    ? `<div style="font-size:9px; color:var(--text3); margin-top:4px;">+${Object.keys(info.countries).length - 4} دول أخرى</div>` : '';
+
+                return `<div style="
+                    background:var(--bg3);
+                    border:1px solid ${color}44;
+                    border-radius:var(--r1);
+                    padding:14px;
+                    border-top:3px solid ${color};
+                    display:flex; flex-direction:column; gap:8px;
+                ">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="width:32px; height:32px; border-radius:8px; background:${color}22; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                            <i class="ti ti-building-bank" style="color:${color}; font-size:16px;"></i>
+                        </div>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${wallet}</div>
+                            <div style="font-size:10px; color:var(--text3); margin-top:1px;">${info.count} عملية · ${Object.keys(info.countries).length} دول</div>
+                        </div>
+                        <div style="text-align:left; flex-shrink:0;">
+                            <div style="font-size:11px; font-weight:600; color:var(--text3);">${pct}%</div>
+                        </div>
+                    </div>
+                    <div style="font-size:22px; font-weight:900; color:${color};">${info.amount.toLocaleString('ar-SA', {minimumFractionDigits:2, maximumFractionDigits:2})} ر.س</div>
+                    <div style="background:${color}15; border-radius:4px; height:6px; overflow:hidden;">
+                        <div style="background:${color}; height:100%; width:${barW}%; border-radius:4px; transition:width 0.6s;"></div>
+                    </div>
+                    <div style="margin-top:4px;">
+                        <div style="font-size:9px; color:var(--text3); margin-bottom:4px; font-weight:600;">أعلى الدول:</div>
+                        ${countryList}
+                        ${moreCountries}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    // ── Section 2: Country table ──
+    const countryTbody = document.getElementById('extAnByCountryTbody');
+    if (countryTbody) {
+        const countries = Object.entries(byCountry).sort((a, b) => b[1].amount - a[1].amount);
+        if (countries.length === 0) {
+            countryTbody.innerHTML = '<tr><td colspan="7"><div class="empty"><i class="ti ti-world-off"></i><p>لا توجد بيانات</p></div></td></tr>';
+        } else {
+            const flagMap = { 'السعودية':'🇸🇦','الكويت':'🇰🇼','الإمارات':'🇦🇪','قطر':'🇶🇦','البحرين':'🇧🇭','عُمان':'🇴🇲','اليمن':'🇾🇪','العراق':'🇮🇶','مصر':'🇪🇬','الأردن':'🇯🇴','المغرب':'🇲🇦','ليبيا':'🇱🇾','تونس':'🇹🇳','الجزائر':'🇩🇿','سوريا':'🇸🇾','لبنان':'🇱🇧','فلسطين':'🇵🇸','السودان':'🇸🇩' };
+            countryTbody.innerHTML = countries.map(([country, info], idx) => {
+                const pct    = ((info.amount / totalAmount) * 100).toFixed(1);
+                const barW   = ((info.amount / countries[0][1].amount) * 100).toFixed(0);
+                const flag   = flagMap[country] || '🌍';
+                const wallets = [...info.wallets].map(w => {
+                    const c = EXT_BANK_COLORS[w] || '#6366f1';
+                    return `<span style="background:${c}22; color:${c}; border:1px solid ${c}44; border-radius:4px; padding:1px 6px; font-size:9px; font-weight:600; white-space:nowrap;">${w}</span>`;
+                }).join(' ');
+                return `<tr>
+                    <td style="color:var(--text3); font-size:11px;">${idx + 1}</td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-size:18px;">${flag}</span>
+                            <span style="font-weight:600; color:var(--text);">${country}</span>
+                        </div>
+                    </td>
+                    <td style="text-align:center; font-weight:700; color:var(--text);">${info.count}</td>
+                    <td style="text-align:center; font-weight:800; color:var(--accent); font-size:13px;">${info.amount.toLocaleString('ar-SA', {minimumFractionDigits:2, maximumFractionDigits:2})} ر.س</td>
+                    <td style="text-align:center;">${wallets}</td>
+                    <td style="text-align:center; color:var(--text2); font-size:12px;">${(info.amount / info.count).toFixed(2)} ر.س</td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <div style="flex:1; background:var(--bg4); border-radius:4px; height:8px; overflow:hidden; min-width:80px;">
+                                <div style="background:linear-gradient(90deg,var(--accent),#7c3aed); height:100%; width:${barW}%; border-radius:4px; transition:width 0.5s;"></div>
+                            </div>
+                            <span style="font-size:11px; font-weight:700; color:var(--text2); white-space:nowrap;">${pct}%</span>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+    }
+
+    // ── Section 3: Crosstab Wallet × Country ──
+    renderExtAnCrosstab(crosstab, byWallet, byCountry, totalAmount);
+
+    // ── Section 4: Detailed wallet cards ──
+    renderExtAnWalletDetailCards(crosstab, byWallet, totalAmount);
+}
+
+function renderExtAnCrosstab(crosstab, byWallet, byCountry, totalAmount) {
+    const container = document.getElementById('extAnCrosstabContainer');
+    if (!container) return;
+
+    const wallets   = Object.keys(byWallet).sort((a, b) => byWallet[b].amount - byWallet[a].amount);
+    const countries = Object.keys(byCountry).sort((a, b) => byCountry[b].amount - byCountry[a].amount);
+
+    if (wallets.length === 0 || countries.length === 0) {
+        container.innerHTML = '<div class="empty"><i class="ti ti-table-off"></i><p>لا توجد بيانات</p></div>';
+        return;
+    }
+
+    // Limit to top 15 countries for readability
+    const topCountries = countries.slice(0, 15);
+
+    let html = `<table style="min-width:600px; width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background:var(--bg4);">
+                <th style="padding:8px 10px; font-size:10px; color:var(--text3); text-align:right; white-space:nowrap; position:sticky; right:0; background:var(--bg4); z-index:2;">المحفظة \\ الدولة</th>
+                ${topCountries.map(c => `<th style="padding:8px 6px; font-size:9px; color:var(--text2); text-align:center; white-space:nowrap; min-width:80px;">${c}</th>`).join('')}
+                <th style="padding:8px 6px; font-size:10px; color:var(--accent); text-align:center; white-space:nowrap; background:rgba(99,102,241,0.08);">المجموع</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    wallets.forEach((wallet, wi) => {
+        const color = EXT_BANK_COLORS[wallet] || '#6366f1';
+        const rowBg = wi % 2 === 0 ? 'var(--bg3)' : 'var(--bg2)';
+        html += `<tr style="background:${rowBg};">
+            <td style="padding:8px 10px; font-size:11px; font-weight:700; color:${color}; white-space:nowrap; position:sticky; right:0; background:${rowBg}; border-right:3px solid ${color}; z-index:1;">${wallet}</td>
+            ${topCountries.map(country => {
+                const cell = (crosstab[wallet] || {})[country];
+                if (!cell || cell.amount === 0) return `<td style="padding:6px; text-align:center; font-size:10px; color:var(--text3);">—</td>`;
+                const maxInCountry = Math.max(...wallets.map(w => ((crosstab[w] || {})[country] || {}).amount || 0));
+                const cellPct = maxInCountry > 0 ? ((cell.amount / maxInCountry) * 100) : 0;
+                const bgOpacity = Math.round(cellPct * 0.6) / 100;
+                return `<td style="padding:6px; text-align:center;">
+                    <div style="background:${color}; opacity:${0.1 + bgOpacity}; position:absolute; inset:0; border-radius:4px; pointer-events:none;"></div>
+                    <div style="position:relative; z-index:1;">
+                        <div style="font-size:11px; font-weight:700; color:${color};">${cell.amount.toFixed(0)} ر.س</div>
+                        <div style="font-size:9px; color:var(--text3);">${cell.count} ع</div>
+                    </div>
+                </td>`;
+            }).join('')}
+            <td style="padding:6px; text-align:center; background:rgba(99,102,241,0.08);">
+                <div style="font-size:12px; font-weight:800; color:${color};">${byWallet[wallet].amount.toFixed(0)} ر.س</div>
+                <div style="font-size:9px; color:var(--text3);">${byWallet[wallet].count} ع</div>
+            </td>
+        </tr>`;
+    });
+
+    // Total row
+    html += `<tr style="background:rgba(99,102,241,0.1); border-top:2px solid rgba(99,102,241,0.3);">
+        <td style="padding:8px 10px; font-size:11px; font-weight:700; color:var(--accent); position:sticky; right:0; background:rgba(99,102,241,0.15); z-index:1;">المجموع</td>
+        ${topCountries.map(country => {
+            const countryAmt = byCountry[country] ? byCountry[country].amount : 0;
+            return `<td style="padding:6px; text-align:center;">
+                <div style="font-size:11px; font-weight:700; color:var(--accent);">${countryAmt > 0 ? countryAmt.toFixed(0) + ' ر.س' : '—'}</div>
+            </td>`;
+        }).join('')}
+        <td style="padding:6px; text-align:center; background:rgba(99,102,241,0.2);">
+            <div style="font-size:13px; font-weight:900; color:var(--accent);">${totalAmount.toFixed(0)} ر.س</div>
+        </td>
+    </tr>`;
+
+    if (countries.length > 15) {
+        html += `<tr><td colspan="${topCountries.length + 2}" style="text-align:center; padding:8px; font-size:10px; color:var(--text3);">يتم عرض أعلى 15 دولة فقط. إجمالي ${countries.length} دولة.</td></tr>`;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderExtAnWalletDetailCards(crosstab, byWallet, totalAmount) {
+    const container = document.getElementById('extAnWalletDetailCards');
+    if (!container) return;
+
+    const wallets = Object.keys(byWallet).sort((a, b) => byWallet[b].amount - a[1]);
+
+    if (wallets.length === 0) {
+        container.innerHTML = '<div class="empty"><i class="ti ti-credit-card-off"></i><p>لا توجد بيانات</p></div>';
+        return;
+    }
+
+    container.innerHTML = wallets.map(wallet => {
+        const color   = EXT_BANK_COLORS[wallet] || '#6366f1';
+        const info    = byWallet[wallet];
+        const pct     = ((info.amount / totalAmount) * 100).toFixed(1);
+        const details = crosstab[wallet] || {};
+        const countrySorted = Object.entries(details).sort((a, b) => b[1].amount - a[1].amount);
+        const topCountryAmt = countrySorted.length > 0 ? countrySorted[0][1].amount : 1;
+
+        const rows = countrySorted.map(([country, cd], idx) => {
+            const barW = ((cd.amount / topCountryAmt) * 100).toFixed(0);
+            return `<tr style="${idx % 2 === 0 ? 'background:var(--bg4);' : ''}">
+                <td style="padding:6px 10px; font-size:10px; color:var(--text3);">${idx + 1}</td>
+                <td style="padding:6px 10px; font-weight:600; color:var(--text); font-size:11px;">${country}</td>
+                <td style="padding:6px 10px; text-align:center; font-size:11px; color:var(--text2);">${cd.count}</td>
+                <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700; color:${color};">${cd.amount.toFixed(2)} ر.س</td>
+                <td style="padding:6px 10px; text-align:center; font-size:11px; color:var(--text2);">${(cd.amount / cd.count).toFixed(2)} ر.س</td>
+                <td style="padding:6px 10px; min-width:120px;">
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <div style="flex:1; background:var(--bg4); border-radius:3px; height:6px; overflow:hidden;">
+                            <div style="background:${color}; height:100%; width:${barW}%; border-radius:3px;"></div>
+                        </div>
+                        <span style="font-size:9px; color:var(--text3); white-space:nowrap;">${((cd.amount / info.amount) * 100).toFixed(1)}%</span>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+
+        return `<div style="
+            background:var(--bg3);
+            border:1px solid ${color}33;
+            border-radius:var(--r1);
+            margin-bottom:16px;
+            overflow:hidden;
+        ">
+            <!-- Card Header -->
+            <div style="
+                background:${color}18;
+                border-bottom:2px solid ${color}33;
+                padding:12px 16px;
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                gap:10px;
+                flex-wrap:wrap;
+            ">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="width:36px; height:36px; border-radius:10px; background:${color}22; display:flex; align-items:center; justify-content:center; border:2px solid ${color}44;">
+                        <i class="ti ti-building-bank" style="color:${color}; font-size:18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:14px; font-weight:800; color:var(--text);">${wallet}</div>
+                        <div style="font-size:10px; color:var(--text3); margin-top:1px;">${info.count} عملية · ${Object.keys(details).length} دول · ${pct}% من الإجمالي</div>
+                    </div>
+                </div>
+                <div style="text-align:left;">
+                    <div style="font-size:22px; font-weight:900; color:${color};">${info.amount.toLocaleString('ar-SA', {minimumFractionDigits:2, maximumFractionDigits:2})} ر.س</div>
+                    <div style="font-size:10px; color:var(--text3); margin-top:1px;">متوسط ${(info.amount / (info.count || 1)).toFixed(2)} ر.س/عملية</div>
+                </div>
+            </div>
+            <!-- Card Table -->
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <thead>
+                        <tr style="background:var(--bg2);">
+                            <th style="padding:6px 10px; text-align:right; width:36px; color:var(--text3);">#</th>
+                            <th style="padding:6px 10px; text-align:right; color:var(--text3);">الدولة</th>
+                            <th style="padding:6px 10px; text-align:center; color:var(--text3);">العمليات</th>
+                            <th style="padding:6px 10px; text-align:center; color:${color};">إجمالي المبلغ</th>
+                            <th style="padding:6px 10px; text-align:center; color:var(--text3);">المتوسط</th>
+                            <th style="padding:6px 10px; min-width:120px; color:var(--text3);">النسبة</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                    <tfoot>
+                        <tr style="background:${color}10; border-top:1.5px solid ${color}44;">
+                            <td colspan="2" style="padding:7px 10px; font-weight:700; color:${color}; font-size:11px;">المجموع</td>
+                            <td style="padding:7px 10px; text-align:center; font-weight:700; color:var(--text);">${info.count}</td>
+                            <td style="padding:7px 10px; text-align:center; font-weight:900; color:${color}; font-size:13px;">${info.amount.toFixed(2)} ر.س</td>
+                            <td style="padding:7px 10px; text-align:center; color:var(--text2);">${(info.amount / (info.count || 1)).toFixed(2)} ر.س</td>
+                            <td style="padding:7px 10px; font-size:11px; font-weight:700; color:${color};">${pct}%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function exportExtSalesAnalyticsPDF() {
+    const data = extAnGetFiltered();
+    if (data.length === 0) { toast('لا توجد بيانات لتصديرها', 'warning'); return; }
+
+    toast('جاري تحضير التقرير التحليلي...', 'info');
+
+    const totalAmount = data.reduce((s, i) => s + (i.amount || 0), 0);
+
+    // Build aggregations
+    const byWallet  = {};
+    const byCountry = {};
+    data.forEach(item => {
+        const wallet  = item.bank_account || 'غير محدد';
+        const country = item.country || 'غير محددة';
+        const amt = item.amount || 0;
+        if (!byWallet[wallet])  byWallet[wallet]  = { amount: 0, count: 0, countries: {} };
+        byWallet[wallet].amount += amt;
+        byWallet[wallet].count  += 1;
+        byWallet[wallet].countries[country] = (byWallet[wallet].countries[country] || 0) + amt;
+        if (!byCountry[country]) byCountry[country] = { amount: 0, count: 0, wallets: [] };
+        byCountry[country].amount += amt;
+        byCountry[country].count  += 1;
+        if (!byCountry[country].wallets.includes(wallet)) byCountry[country].wallets.push(wallet);
+    });
+
+    const reportDate = new Date().toLocaleDateString('ar-SA', { weekday:'long', year:'numeric', month:'long', day:'numeric', calendar:'gregory' });
+
+    const walletCards = Object.entries(byWallet).sort((a, b) => b[1].amount - a[1].amount).map(([wallet, info]) => {
+        const color = EXT_BANK_COLORS[wallet] || '#6366f1';
+        const pct   = ((info.amount / totalAmount) * 100).toFixed(1);
+        const countryRows = Object.entries(info.countries).sort((a, b) => b[1] - a[1]).map(([c, a], i) =>
+            `<tr style="${i%2===0?'background:#f8fafc;':''}"><td style="padding:5px 10px; font-size:11px;">${c}</td><td style="padding:5px 10px; text-align:left; font-weight:700; font-size:11px; color:${color};">${a.toFixed(2)} ر.س</td><td style="padding:5px 10px; text-align:center; font-size:10px; color:#64748b;">%${((a / info.amount)*100).toFixed(1)}</td></tr>`
+        ).join('');
+        return `<div style="border:1.5px solid ${color}44; border-radius:10px; margin-bottom:14px; overflow:hidden; page-break-inside:avoid;">
+            <div style="background:${color}15; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid ${color}33;">
+                <div><div style="font-size:14px; font-weight:800; color:#1e293b;">${wallet}</div><div style="font-size:10px; color:#64748b;">${info.count} عملية · ${Object.keys(info.countries).length} دول · ${pct}% من الإجمالي</div></div>
+                <div style="font-size:18px; font-weight:900; color:${color};">${info.amount.toFixed(2)} ر.س</div>
+            </div>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr style="background:#f1f5f9;"><th style="padding:5px 10px; text-align:right; font-size:10px; color:#64748b;">الدولة</th><th style="padding:5px 10px; text-align:left; font-size:10px; color:#64748b;">إجمالي المبلغ</th><th style="padding:5px 10px; text-align:center; font-size:10px; color:#64748b;">النسبة</th></tr></thead>
+                <tbody>${countryRows}</tbody>
+                <tfoot><tr style="background:${color}10; border-top:1.5px solid ${color}33;"><td style="padding:6px 10px; font-weight:700; color:${color}; font-size:11px;">المجموع</td><td style="padding:6px 10px; text-align:left; font-weight:900; color:${color}; font-size:13px;">${info.amount.toFixed(2)} ر.س</td><td style="padding:6px 10px; text-align:center; font-weight:700; color:${color};">100%</td></tr></tfoot>
+            </table>
+        </div>`;
+    }).join('');
+
+    const countryRows = Object.entries(byCountry).sort((a, b) => b[1].amount - a[1].amount).map(([country, info], i) => {
+        const pct = ((info.amount / totalAmount) * 100).toFixed(1);
+        return `<tr style="${i%2===0?'background:#f8fafc;':''}">
+            <td style="padding:7px 10px; font-size:11px; color:#64748b;">${i+1}</td>
+            <td style="padding:7px 10px; font-weight:600; font-size:12px;">${country}</td>
+            <td style="padding:7px 10px; text-align:center; font-size:11px;">${info.count}</td>
+            <td style="padding:7px 10px; text-align:center; font-weight:800; font-size:13px; color:#4338ca;">${info.amount.toFixed(2)} ر.س</td>
+            <td style="padding:7px 10px; text-align:center; font-size:10px; color:#64748b;">${info.wallets.join(' · ')}</td>
+            <td style="padding:7px 10px; text-align:center; font-weight:700; color:#4338ca;">${pct}%</td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير تحليل المبيعات الخارجية</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>* {margin:0;padding:0;box-sizing:border-box;} body {font-family:'IBM Plex Sans Arabic',Arial,sans-serif;background:#f1f5f9;padding:20px;direction:rtl;} .page {max-width:900px;margin:0 auto;background:#fff;border-radius:14px;box-shadow:0 4px 30px rgba(0,0,0,0.1);overflow:hidden;} @media print {body{background:#fff;padding:0;} .no-print{display:none;} .page{box-shadow:none;border-radius:0;}} .hdr {background:linear-gradient(135deg,#1e1b4b,#4338ca);color:#fff;padding:28px 32px;} .sec {padding:24px 32px; border-bottom:1px solid #e2e8f0;} .btn {display:block;width:fit-content;margin:16px auto;padding:10px 28px;background:linear-gradient(135deg,#4338ca,#7c3aed);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;} table {border-collapse:collapse; width:100%;}</style>
+    </head><body>
+    <button class="btn no-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+    <div class="page">
+      <div class="hdr">
+        <div style="font-size:24px;font-weight:900;">📊 تقرير تحليل المبيعات الخارجية</div>
+        <div style="font-size:12px;opacity:0.75;margin-top:4px;">التوزيع حسب المحفظة والدولة — شوب ستور</div>
+        <div style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;padding:3px 12px;font-size:11px;margin-top:10px;">📅 ${reportDate}</div>
+      </div>
+      <div class="sec">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div style="flex:1;background:linear-gradient(135deg,#4338ca,#7c3aed);border-radius:10px;padding:14px 18px;color:#fff;">
+            <div style="font-size:11px;opacity:0.8;">إجمالي المبيعات</div>
+            <div style="font-size:24px;font-weight:900;">${totalAmount.toFixed(2)} ر.س</div>
+            <div style="font-size:10px;opacity:0.8;margin-top:4px;">${data.length} عملية</div>
+          </div>
+          <div style="flex:1;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px 18px;">
+            <div style="font-size:11px;color:#16a34a;">متوسط قيمة العملية</div>
+            <div style="font-size:20px;font-weight:800;color:#15803d;">${(totalAmount/(data.length||1)).toFixed(2)} ر.س</div>
+          </div>
+          <div style="flex:1;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:14px 18px;">
+            <div style="font-size:11px;color:#2563eb;">عدد الدول</div>
+            <div style="font-size:20px;font-weight:800;color:#1d4ed8;">${Object.keys(byCountry).length} دولة</div>
+          </div>
+        </div>
+      </div>
+      <div class="sec">
+        <div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:14px;">🏦 التوزيع حسب المحفظة</div>
+        ${walletCards}
+      </div>
+      <div class="sec">
+        <div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:14px;">🌍 التوزيع حسب الدولة</div>
+        <table>
+          <thead><tr style="background:#f1f5f9;"><th style="padding:8px 10px;font-size:10px;color:#64748b;text-align:right;">#</th><th style="padding:8px 10px;font-size:10px;color:#64748b;text-align:right;">الدولة</th><th style="padding:8px 10px;font-size:10px;color:#64748b;text-align:center;">العمليات</th><th style="padding:8px 10px;font-size:10px;color:#4338ca;text-align:center;">إجمالي المبلغ</th><th style="padding:8px 10px;font-size:10px;color:#64748b;text-align:center;">المحافظ</th><th style="padding:8px 10px;font-size:10px;color:#64748b;text-align:center;">النسبة</th></tr></thead>
+          <tbody>${countryRows}</tbody>
+          <tfoot><tr style="background:#ede9fe;border-top:2px solid #6d28d9;"><td colspan="2" style="padding:8px 10px;font-weight:800;color:#4338ca;">المجموع الكلي</td><td style="padding:8px 10px;text-align:center;font-weight:700;">${data.length}</td><td style="padding:8px 10px;text-align:center;font-weight:900;font-size:14px;color:#4338ca;">${totalAmount.toFixed(2)} ر.س</td><td></td><td style="padding:8px 10px;text-align:center;font-weight:700;color:#4338ca;">100%</td></tr></tfoot>
+        </table>
+      </div>
+      <div style="text-align:center;padding:16px 32px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;">
+        تقرير صادر من لوحة تحكم شوب ستور · ${new Date().toLocaleDateString('ar-SA')} · إجمالي ${data.length} عملية بقيمة ${totalAmount.toFixed(2)} ر.س
+      </div>
+    </div></body></html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=850,scrollbars=yes,resizable=yes');
+    if (!win) { toast('يرجى السماح بالنوافذ المنبثقة', 'warning'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    toast('تم فتح نافذة التقرير التحليلي ✅', 'ok');
 }
