@@ -1901,6 +1901,7 @@ function renderExp() {
     const from = document.getElementById('expFrom')?.value || '';
     const to = document.getElementById('expTo')?.value || '';
     const descsParam = (state.expSelectedDescs && state.expSelectedDescs.length > 0) ? state.expSelectedDescs.join(',') : '';
+    const searchVal = document.getElementById('expSearch')?.value.toLowerCase().trim() || '';
 
     if (state.viewingArc) {
         let data = [...state.expenses];
@@ -1912,6 +1913,12 @@ function renderExp() {
         }
         if (state.expSelectedDescs && state.expSelectedDescs.length > 0) {
             data = data.filter(e => state.expSelectedDescs.includes(e.desc));
+        }
+        if (searchVal) {
+            data = data.filter(e => 
+                (e.desc || '').toLowerCase().includes(searchVal) || 
+                (e.note || '').toLowerCase().includes(searchVal)
+            );
         }
         if (from) {
             data = data.filter(e => e.date >= from);
@@ -1934,7 +1941,7 @@ function renderExp() {
         return;
     }
 
-    let url = `/api/expenses?cat=${cat}&period=${encodeURIComponent(period)}&descs=${encodeURIComponent(descsParam)}&sort=${sort}&from=${from}&to=${to}`;
+    let url = `/api/expenses?cat=${cat}&period=${encodeURIComponent(period)}&descs=${encodeURIComponent(descsParam)}&sort=${sort}&from=${from}&to=${to}&q=${encodeURIComponent(searchVal)}`;
     
     fetch(url)
         .then(res => res.json())
@@ -10709,5 +10716,338 @@ function exportExtCountryAnalyticsPDF() {
     win.document.close();
     win.focus();
     toast('تم فتح تقرير المناطق بصيغة PDF ✅', 'ok');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EXPORT EXPENSES — DETAILED & ANALYTICAL PDF REPORT
+// ══════════════════════════════════════════════════════════════════
+
+function exportExpensesPDF() {
+    const data = state.filteredExpenses || [];
+    if (data.length === 0) {
+        toast('لا توجد مصروفات لتصديرها', 'warning');
+        return;
+    }
+
+    toast('جاري تحضير التقرير التحليلي للمصروفات...', 'info');
+
+    // Aggregations
+    const purchases = {};
+    const salaries = {};
+    const others = {};
+    let totalPurchases = 0;
+    let totalSalaries = 0;
+    let totalOthers = 0;
+    let totalQty = 0;
+
+    data.forEach(item => {
+        const amt = item.amt || 0;
+        if (item.cat === 'شراء منتجات') {
+            const prodName = (item.product_name || item.desc || 'غير محدد').trim();
+            const qty = item.quantity || 1;
+            if (!purchases[prodName]) {
+                purchases[prodName] = { amount: 0, count: 0, quantity: 0 };
+            }
+            purchases[prodName].amount += amt;
+            purchases[prodName].count += 1;
+            purchases[prodName].quantity += qty;
+            totalPurchases += amt;
+            totalQty += qty;
+        } else if (item.cat === 'رواتب') {
+            const empName = (item.desc || 'غير محدد').trim();
+            if (!salaries[empName]) {
+                salaries[empName] = { amount: 0, count: 0 };
+            }
+            salaries[empName].amount += amt;
+            salaries[empName].count += 1;
+            totalSalaries += amt;
+        } else {
+            const category = item.cat || 'أخرى';
+            if (!others[category]) {
+                others[category] = { amount: 0, count: 0 };
+            }
+            others[category].amount += amt;
+            others[category].count += 1;
+            totalOthers += amt;
+        }
+    });
+
+    const grandTotal = totalPurchases + totalSalaries + totalOthers;
+    const reportDate = new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    // Build Purchases Table Rows
+    const sortedPurchases = Object.entries(purchases).sort((a, b) => b[1].amount - a[1].amount);
+    let purchasesRowsHtml = '';
+    if (sortedPurchases.length === 0) {
+        purchasesRowsHtml = `<tr><td colspan="6" style="text-align:center; color:#64748b; padding:12px;">لا توجد مشتريات منتجات في الفترة المحددة</td></tr>`;
+    } else {
+        purchasesRowsHtml = sortedPurchases.map(([name, info], idx) => {
+            const pct = totalPurchases > 0 ? ((info.amount / totalPurchases) * 100).toFixed(1) : '0.0';
+            const shareOfGrand = grandTotal > 0 ? ((info.amount / grandTotal) * 100).toFixed(1) : '0.0';
+            return `
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size:11.5px;">
+                    <td style="padding:8px 10px; color:#64748b;">${idx + 1}</td>
+                    <td style="padding:8px 10px; font-weight:700; color:#1e293b;">${escapeHtml(name)}</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:600;">${info.count}</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:600;">${info.quantity} قطعة</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:800; color:#ef4444;">${info.amount.toFixed(2)} ر.س</td>
+                    <td style="padding:8px 10px; text-align:center;">
+                        <div style="font-weight:700; color:#4f46e5;">%${pct}</div>
+                        <div style="font-size:9px; color:#94a3b8; margin-top:2px;">(%${shareOfGrand} من الكل)</div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // Build Salaries Table Rows
+    const sortedSalaries = Object.entries(salaries).sort((a, b) => b[1].amount - a[1].amount);
+    let salariesRowsHtml = '';
+    if (sortedSalaries.length === 0) {
+        salariesRowsHtml = `<tr><td colspan="5" style="text-align:center; color:#64748b; padding:12px;">لا توجد رواتب مدفوعة في الفترة المحددة</td></tr>`;
+    } else {
+        salariesRowsHtml = sortedSalaries.map(([name, info], idx) => {
+            const pct = totalSalaries > 0 ? ((info.amount / totalSalaries) * 100).toFixed(1) : '0.0';
+            const shareOfGrand = grandTotal > 0 ? ((info.amount / grandTotal) * 100).toFixed(1) : '0.0';
+            return `
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size:11.5px;">
+                    <td style="padding:8px 10px; color:#64748b;">${idx + 1}</td>
+                    <td style="padding:8px 10px; font-weight:700; color:#1e293b;">${escapeHtml(name)}</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:600;">${info.count}</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:800; color:#ef4444;">${info.amount.toFixed(2)} ر.س</td>
+                    <td style="padding:8px 10px; text-align:center;">
+                        <div style="font-weight:700; color:#0d9488;">%${pct}</div>
+                        <div style="font-size:9px; color:#94a3b8; margin-top:2px;">(%${shareOfGrand} من الكل)</div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // Build Others Table Rows
+    const sortedOthers = Object.entries(others).sort((a, b) => b[1].amount - a[1].amount);
+    let othersRowsHtml = '';
+    if (sortedOthers.length === 0) {
+        othersRowsHtml = `<tr><td colspan="5" style="text-align:center; color:#64748b; padding:12px;">لا توجد مصروفات أخرى في الفترة المحددة</td></tr>`;
+    } else {
+        othersRowsHtml = sortedOthers.map(([name, info], idx) => {
+            const pct = grandTotal > 0 ? ((info.amount / grandTotal) * 100).toFixed(1) : '0.0';
+            return `
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size:11.5px;">
+                    <td style="padding:8px 10px; color:#64748b;">${idx + 1}</td>
+                    <td style="padding:8px 10px; font-weight:700; color:#1e293b;">${escapeHtml(name)}</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:600;">${info.count}</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:800; color:#ef4444;">${info.amount.toFixed(2)} ر.س</td>
+                    <td style="padding:8px 10px; text-align:center; font-weight:700; color:#ea580c;">%${pct}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير تحليل المصروفات والمشتريات</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'IBM Plex Sans Arabic', Arial, sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 20px;
+            direction: rtl;
+        }
+        @media print {
+            body { background:#fff; padding:0; }
+            .no-print { display:none !important; }
+            .print-page { box-shadow:none; margin:0; }
+        }
+        .print-page {
+            max-width: 880px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+            padding: 28px;
+        }
+        .hdr {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+            color: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 22px;
+        }
+        .btn {
+            display: block;
+            width: fit-content;
+            margin: 10px auto 20px;
+            padding: 11px 36px;
+            background: #e11d48;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            box-shadow: 0 4px 12px rgba(225,29,72,0.3);
+        }
+        .kpis {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .kpi {
+            flex: 1;
+            min-width: 170px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px;
+            background: #f8fafc;
+            text-align: center;
+        }
+        .kpi-title { font-size: 11px; color: #64748b; font-weight: bold; }
+        .kpi-val { font-size: 18px; font-weight: 900; color: #0f172a; margin-top: 4px; }
+        .sec { margin-bottom: 26px; page-break-inside: avoid; }
+        .sec-title {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: #1e1b4b;
+            border-bottom: 2px solid #cbd5e1;
+            padding-bottom: 5px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        table { border-collapse: collapse; width: 100%; }
+        th { background: #f1f5f9; padding: 8px 10px; font-size: 10.5px; color: #64748b; font-weight: 700; text-align: right; }
+        td { padding: 8px 10px; text-align: right; }
+    </style>
+</head>
+<body>
+    <button class="btn no-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+    <div class="print-page">
+        <div class="hdr">
+            <h1 style="font-size: 21px; font-weight: 900;">📊 تقرير المصروفات والمشتريات الإجمالي والتحليلي</h1>
+            <p style="font-size: 12px; opacity: 0.8; margin-top: 4px;">لوحة تحكم شوب ستور الإدارية</p>
+            <span style="display: inline-block; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 20px; padding: 3px 12px; font-size: 11px; margin-top: 10px;">📅 ${reportDate}</span>
+        </div>
+
+        <div class="kpis">
+            <div class="kpi" style="border-right: 4px solid #4f46e5;">
+                <div class="kpi-title" style="color:#4f46e5;">إجمالي مشتريات المنتجات</div>
+                <div class="kpi-val">${totalPurchases.toFixed(2)} ر.س</div>
+                <div style="font-size:9.5px; color:#64748b; margin-top:2px;">${totalQty} قطعة في ${sortedPurchases.length} صنف</div>
+            </div>
+            <div class="kpi" style="border-right: 4px solid #0d9488;">
+                <div class="kpi-title" style="color:#0d9488;">إجمالي الرواتب والأجور</div>
+                <div class="kpi-val">${totalSalaries.toFixed(2)} ر.س</div>
+                <div style="font-size:9.5px; color:#64748b; margin-top:2px;">موزعة على ${sortedSalaries.length} بند راتب</div>
+            </div>
+            <div class="kpi" style="border-right: 4px solid #ea580c;">
+                <div class="kpi-title" style="color:#ea580c;">مصروفات وتصنيفات أخرى</div>
+                <div class="kpi-val">${totalOthers.toFixed(2)} ر.س</div>
+                <div style="font-size:9.5px; color:#64748b; margin-top:2px;">تشمل التسويق، السلف وغيرها</div>
+            </div>
+            <div class="kpi" style="background:#fff1f2; border:1px solid #fecdd3; border-right: 4px solid #e11d48;">
+                <div class="kpi-title" style="color:#e11d48;">الإجمالي الكلي للمصروفات</div>
+                <div class="kpi-val" style="color:#be123c; font-size:20px;">${grandTotal.toFixed(2)} ر.س</div>
+                <div style="font-size:9.5px; color:#be123c; opacity:0.8; margin-top:2px;">إجمالي ${data.length} عملية مصروفات</div>
+            </div>
+        </div>
+
+        <!-- Section 1: Purchases Summary -->
+        <div class="sec">
+            <div class="sec-title">📦 أولاً: المشتريات مجمعة حسب اسم المنتج / الصنف</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th>اسم المنتج / الصنف المشتري</th>
+                        <th style="text-align:center; width:90px;">العمليات</th>
+                        <th style="text-align:center; width:90px;">الكمية</th>
+                        <th style="text-align:center; width:130px; color:#e11d48;">إجمالي مبالغ الشراء</th>
+                        <th style="text-align:center; width:130px;">النسبة من المشتريات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${purchasesRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr style="background:#f8fafc; font-weight:bold; border-top:2px solid #cbd5e1;">
+                        <td colspan="2">إجمالي المشتريات الكلي</td>
+                        <td style="text-align:center;">${sortedPurchases.reduce((s, [, i]) => s + i.count, 0)}</td>
+                        <td style="text-align:center;">${totalQty} قطعة</td>
+                        <td style="text-align:center; color:#e11d48;">${totalPurchases.toFixed(2)} ر.س</td>
+                        <td style="text-align:center;">100%</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Section 2: Salaries Summary -->
+        <div class="sec">
+            <div class="sec-title">👥 ثانياً: الرواتب والأجور مجمعة حسب اسم البند / الموظف</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th>اسم الراتب / الموظف</th>
+                        <th style="text-align:center; width:100px;">العمليات (الأشهر)</th>
+                        <th style="text-align:center; width:140px; color:#e11d48;">إجمالي المبالغ المدفوعة</th>
+                        <th style="text-align:center; width:140px;">النسبة من الرواتب</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${salariesRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr style="background:#f8fafc; font-weight:bold; border-top:2px solid #cbd5e1;">
+                        <td colspan="2">إجمالي الرواتب الكلي</td>
+                        <td style="text-align:center;">${sortedSalaries.reduce((s, [, i]) => s + i.count, 0)}</td>
+                        <td style="text-align:center; color:#e11d48;">${totalSalaries.toFixed(2)} ر.س</td>
+                        <td style="text-align:center;">100%</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Section 3: Others Summary -->
+        <div class="sec">
+            <div class="sec-title">💸 ثالثاً: ملخص المصروفات الأخرى حسب الفئة والتصنيف</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th>تصنيف المصروف</th>
+                        <th style="text-align:center; width:120px;">عدد العمليات</th>
+                        <th style="text-align:center; width:160px; color:#e11d48;">إجمالي المبالغ</th>
+                        <th style="text-align:center; width:160px;">النسبة من المصروفات الكلية</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${othersRowsHtml}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="text-align: center; padding-top: 20px; margin-top: 40px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            تقرير تلقائي صادر من لوحة تحكم شوب ستور · تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} · صفحة 1 من 1
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=850,scrollbars=yes,resizable=yes');
+    if (!win) { toast('يرجى السماح بفتح النوافذ المنبثقة في المتصفح', 'warning'); return; }
+    win.document.write(htmlContent);
+    win.document.close();
+    win.focus();
+    toast('تم فتح تقرير المصروفات بصيغة PDF ✅', 'ok');
 }
 

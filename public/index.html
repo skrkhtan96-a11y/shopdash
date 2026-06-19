@@ -817,10 +817,13 @@
             <div class="tbl-title">جدول المصروفات والمشتريات التشغيلية <span class="tbl-count" id="expCount" style="font-size:10px;color:var(--text3)"></span></div>
             <div style="display:flex; gap:8px">
               <button class="btn btn-sm btn-success" onclick="exportExpensesToExcel()"><i class="ti ti-file-excel"></i> تصدير إلى Excel</button>
+              <button class="btn btn-sm" onclick="exportExpensesPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#ef4444; color:#fff;"><i class="ti ti-file-type-pdf"></i> تصدير تقرير PDF</button>
               <button class="btn btn-sm btn-primary" id="addExpBtn" onclick="openModal('expense')"><i class="ti ti-plus"></i> إضافة مصروف جديد</button>
             </div>
           </div>
           <div class="filter-bar">
+            <label style="display:flex; align-items:center; gap:4px;"><i class="ti ti-search" style="color:var(--accent);"></i> بحث:</label>
+            <input type="text" id="expSearch" placeholder="بحث بالبيان أو الملاحظات..." oninput="renderExp()" style="padding:4px 8px; font-size:11.5px; border-radius:var(--r1); background:var(--bg4); border:1px solid var(--border2); color:var(--text); width:165px; margin-left:8px;">
             <label>التصنيف:</label>
             <select id="expCat" onchange="renderExp()">
               <option value="">كافة التصنيفات</option>
@@ -3466,6 +3469,6 @@
   </div>
 
   <!-- Load script files -->
-  <script src="js/app_v2.js?v=2.0.1"></script>
+  <script src="js/app_v2.js?v=2.0.2"></script>
 </body>
 </html>
