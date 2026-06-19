@@ -10654,92 +10654,58 @@ function renderExtAnWalletDetailCards(crosstab, byWallet, totalAmount) {
 }
 
 function renderExtAnCharts(byWallet, byCountry) {
-    const ctxWallet = document.getElementById('extAnWalletChartCanvas');
-    const ctxCountry = document.getElementById('extAnCountryChartCanvas');
-
-    if (!ctxWallet || !ctxCountry) return;
-
-    // Foolproof chart lifecycle management using Chart.getChart
-    try {
-        const existingWallet = Chart.getChart(ctxWallet);
-        if (existingWallet) existingWallet.destroy();
-    } catch(e) {
-        console.error("Error cleaning up wallet chart:", e);
-    }
-    
-    try {
-        const existingCountry = Chart.getChart(ctxCountry);
-        if (existingCountry) existingCountry.destroy();
-    } catch(e) {
-        console.error("Error cleaning up country chart:", e);
-    }
-
-    extAnWalletChart = null;
-    extAnCountryChart = null;
-
-    // Get chart colors from computed CSS styles or fallback
-    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text')?.trim() || '#dde1f0';
-    const textColor2 = getComputedStyle(document.documentElement).getPropertyValue('--text2')?.trim() || '#7a80a0';
-    const border2Color = getComputedStyle(document.documentElement).getPropertyValue('--border2')?.trim() || 'rgba(255, 255, 255, 0.11)';
-
-    // ── 1. Wallet Share Chart (Doughnut) ──
-    const walletEntries = Object.entries(byWallet).sort((a, b) => b[1].amount - a[1].amount);
-    const walletLabels = walletEntries.map(([w]) => w);
-    const walletData = walletEntries.map(([, info]) => info.amount);
-    const walletColors = walletLabels.map(w => EXT_BANK_COLORS[w] || '#6366f1');
-
+    const walletCont = document.getElementById('extAnWalletSvgContainer');
+    const countryCont = document.getElementById('extAnCountrySvgContainer');
     const legendCont = document.getElementById('extAnWalletLegend');
 
-    if (walletEntries.length === 0) {
-        // Clear canvas if no data
-        const ctx = ctxWallet.getContext('2d');
-        if (ctx) {
-            ctx.clearRect(0, 0, ctxWallet.width, ctxWallet.height);
-            ctx.fillStyle = textColor2;
-            ctx.font = '12px IBM Plex Sans Arabic';
-            ctx.textAlign = 'center';
-            ctx.fillText('لا توجد بيانات للمحافظ', ctxWallet.width / 2, ctxWallet.height / 2);
-        }
-        if (legendCont) legendCont.innerHTML = '';
+    if (!walletCont || !countryCont) return;
+
+    walletCont.innerHTML = '';
+    countryCont.innerHTML = '';
+    if (legendCont) legendCont.innerHTML = '';
+
+    const walletEntries = Object.entries(byWallet).sort((a, b) => b[1].amount - a[1].amount);
+    const totalAmount = walletEntries.reduce((s, [, info]) => s + info.amount, 0);
+
+    // ── 1. Wallet Share Svg (Doughnut) ──
+    if (walletEntries.length === 0 || totalAmount === 0) {
+        walletCont.innerHTML = '<div style="color:var(--text3); font-size:11px; padding:20px; text-align:center;">لا توجد بيانات للمحافظ</div>';
     } else {
-        extAnWalletChart = new Chart(ctxWallet, {
-            type: 'doughnut',
-            data: {
-                labels: walletLabels,
-                datasets: [{
-                    data: walletData,
-                    backgroundColor: walletColors,
-                    borderWidth: 1,
-                    borderColor: 'var(--bg3)'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false // DISABLED to prevent resize-loop bugs!
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const val = context.raw || 0;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const pct = ((val / total) * 100).toFixed(1);
-                                return ` ${context.label}: ${val.toLocaleString('ar-SA')} ر.س - ${pct}%`;
-                            }
-                        }
-                    }
-                }
+        // Build SVG Pie/Doughnut Chart (rotated -90deg to start at 12 o'clock)
+        let svgContent = `<svg viewBox="0 0 100 100" width="100%" height="100%" style="max-height: 180px; transform: rotate(-90deg);">`;
+        let accumulatedAngle = 0;
+
+        walletEntries.forEach(([w, info]) => {
+            const color = EXT_BANK_COLORS[w] || '#6366f1';
+            const fraction = info.amount / totalAmount;
+            const angle = fraction * 2 * Math.PI;
+
+            if (fraction >= 0.999) {
+                // Draw a complete circle
+                svgContent += `<circle cx="50" cy="50" r="30" fill="none" stroke="${color}" stroke-width="14" />`;
+            } else {
+                // Calculate start and end coordinates
+                const x1 = 50 + 30 * Math.cos(accumulatedAngle);
+                const y1 = 50 + 30 * Math.sin(accumulatedAngle);
+                const x2 = 50 + 30 * Math.cos(accumulatedAngle + angle);
+                const y2 = 50 + 30 * Math.sin(accumulatedAngle + angle);
+
+                const largeArcFlag = fraction > 0.5 ? 1 : 0;
+
+                // Path for stroke doughnut slice
+                svgContent += `<path d="M ${x1} ${y1} A 30 30 0 ${largeArcFlag} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="14" />`;
+                accumulatedAngle += angle;
             }
         });
 
-        // Generate Custom HTML Legend
+        svgContent += `</svg>`;
+        walletCont.innerHTML = svgContent;
+
+        // Render Legend below SVG
         if (legendCont) {
-            const total = walletData.reduce((a, b) => a + b, 0) || 1;
             legendCont.innerHTML = walletEntries.map(([w, info]) => {
                 const color = EXT_BANK_COLORS[w] || '#6366f1';
-                const pct = ((info.amount / total) * 100).toFixed(1);
+                const pct = ((info.amount / totalAmount) * 100).toFixed(1);
                 return `<div style="display:inline-flex; align-items:center; gap:6px; font-weight:600; padding:2px 6px;">
                     <span style="width:8px; height:8px; border-radius:50%; background:${color}; display:inline-block;"></span>
                     <span style="color:var(--text);">${w}</span>
@@ -10749,71 +10715,34 @@ function renderExtAnCharts(byWallet, byCountry) {
         }
     }
 
-    // ── 2. Country Chart (Horizontal Bar) ──
-    const countryEntries = Object.entries(byCountry).sort((a, b) => b[1].amount - a[1].amount).slice(0, 10);
-    const countryLabels = countryEntries.map(([c]) => c);
-    const countryData = countryEntries.map(([, info]) => info.amount);
+    // ── 2. Country Sales HTML Bars ──
+    const countryEntries = Object.entries(byCountry).sort((a, b) => b[1].amount - a[1].amount).slice(0, 6);
+    const topCountryAmt = countryEntries.length > 0 ? countryEntries[0][1].amount : 1;
 
     if (countryEntries.length === 0) {
-        const ctx = ctxCountry.getContext('2d');
-        if (ctx) {
-            ctx.clearRect(0, 0, ctxCountry.width, ctxCountry.height);
-            ctx.fillStyle = textColor2;
-            ctx.font = '12px IBM Plex Sans Arabic';
-            ctx.textAlign = 'center';
-            ctx.fillText('لا توجد بيانات للدول', ctxCountry.width / 2, ctxCountry.height / 2);
-        }
+        countryCont.innerHTML = '<div style="color:var(--text3); font-size:11px; padding:20px; text-align:center;">لا توجد بيانات للدول</div>';
     } else {
-        extAnCountryChart = new Chart(ctxCountry, {
-            type: 'bar',
-            data: {
-                labels: countryLabels,
-                datasets: [{
-                    label: 'إجمالي المبيعات (ر.س)',
-                    data: countryData,
-                    backgroundColor: 'rgba(24, 178, 176, 0.75)',
-                    hoverBackgroundColor: 'var(--accent)',
-                    borderWidth: 0,
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const val = context.raw || 0;
-                                return ` ${val.toLocaleString('ar-SA')} ر.س`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { color: border2Color },
-                        ticks: {
-                            color: textColor2,
-                            font: { family: 'IBM Plex Sans Arabic', size: 9 },
-                            callback: function(value) {
-                                if (value >= 1000) return (value / 1000) + 'k';
-                                return value;
-                            }
-                        }
-                    },
-                    y: {
-                        grid: { display: false },
-                        ticks: {
-                            color: textColor,
-                            font: { family: 'IBM Plex Sans Arabic', size: 10 }
-                        }
-                    }
-                }
-            }
+        // Draw simple HTML bars (perfectly responsive and styled to match the dark theme)
+        let htmlBars = `<div style="width: 100%; display: flex; flex-direction: column; gap: 10px; justify-content: center; padding: 4px 0;">`;
+
+        countryEntries.forEach(([country, info]) => {
+            const pct = ((info.amount / topCountryAmt) * 100).toFixed(0);
+            const amtStr = info.amount.toLocaleString('ar-SA', { maximumFractionDigits: 0 }) + ' ر.س';
+            htmlBars += `
+                <div style="display: flex; flex-direction: column; gap: 3px; width: 100%;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600;">
+                        <span style="color: var(--text);">${country}</span>
+                        <span style="color: var(--accent);">${amtStr}</span>
+                    </div>
+                    <div style="width: 100%; background: var(--bg4); height: 8px; border-radius: 4px; overflow: hidden; border: 1px solid var(--border);">
+                        <div style="background: linear-gradient(90deg, var(--accent), #7c3aed); width: ${pct}%; height: 100%; border-radius: 4px; transition: width 0.5s;"></div>
+                    </div>
+                </div>
+            `;
         });
+
+        htmlBars += `</div>`;
+        countryCont.innerHTML = htmlBars;
     }
 }
 

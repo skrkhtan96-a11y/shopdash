@@ -2067,33 +2067,28 @@
           </div>
         </div>
 
-        <!-- Charts Grid (using standard classes for complete consistency) -->
-        <div class="charts-row">
-          <!-- Wallet Share Chart Card -->
-          <div class="chart-card" style="display:flex; flex-direction:column; gap:12px;">
-            <div class="chart-header">
-              <div class="chart-title" style="font-size:13px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:6px;">
-                <i class="ti ti-chart-pie" style="color:var(--accent);"></i>
-                نسبة توزيع المبالغ حسب المحفظة
-              </div>
+        <!-- Charts Grid (using robust SVG elements to prevent layout loops) -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:22px;">
+          <!-- Wallet Share Card -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-radius:var(--r2); padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:13px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:8px;">
+              <i class="ti ti-chart-pie" style="color:var(--accent);"></i>
+              نسبة توزيع المبالغ حسب المحفظة
             </div>
-            <div style="position:relative; height:180px; width:100%;">
-              <canvas id="extAnWalletChartCanvas"></canvas>
+            <div id="extAnWalletSvgContainer" style="height:180px; display:flex; align-items:center; justify-content:center; position:relative; width:100%;">
+              <!-- Svg will be rendered here -->
             </div>
-            <!-- Custom HTML Legend to avoid resize-loop bugs -->
             <div id="extAnWalletLegend" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:6px; font-size:10.5px; border-top:1px solid var(--border); padding-top:10px;"></div>
           </div>
 
-          <!-- Country Distribution Chart Card -->
-          <div class="chart-card" style="display:flex; flex-direction:column; gap:12px;">
-            <div class="chart-header">
-              <div class="chart-title" style="font-size:13px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:6px;">
-                <i class="ti ti-chart-bar" style="color:var(--accent);"></i>
-                توزيع المبيعات حسب الدول (أعلى 10)
-              </div>
+          <!-- Country Distribution Chart -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-radius:var(--r2); padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:13px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:8px;">
+              <i class="ti ti-chart-bar" style="color:var(--accent);"></i>
+              توزيع المبيعات حسب الدول (أعلى 10)
             </div>
-            <div style="position:relative; height:220px; width:100%;">
-              <canvas id="extAnCountryChartCanvas"></canvas>
+            <div id="extAnCountrySvgContainer" style="height:220px; display:flex; align-items:center; justify-content:center; position:relative; width:100%;">
+              <!-- Svg will be rendered here -->
             </div>
           </div>
         </div>
@@ -3590,6 +3585,6 @@
   </div>
 
   <!-- Load script files -->
-  <script src="js/app.js?v=1.1.0"></script>
+  <script src="js/app.js?v=1.2.0"></script>
 </body>
 </html>
