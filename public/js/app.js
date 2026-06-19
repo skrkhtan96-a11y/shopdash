@@ -10264,6 +10264,9 @@ async function exportExternalSalesPDF() {
 //  EXT SALES ANALYTICS — BY WALLET & COUNTRY
 // ══════════════════════════════════════════════════════════════════
 
+let extAnWalletChart = null;
+let extAnCountryChart = null;
+
 const EXT_BANK_COLORS = {
     'حساب الوثيقة': '#9d4edd',
     'حساب نجم':     '#ff9e00',
@@ -10371,6 +10374,9 @@ function renderExtSalesAnalytics() {
         crosstab[wallet][country].amount += amt;
         crosstab[wallet][country].count  += 1;
     });
+
+    // ── Charts Rendering ──
+    renderExtAnCharts(byWallet, byCountry);
 
     // ── Section 1: Wallet cards ──
     const walletGrid = document.getElementById('extAnByWalletGrid');
@@ -10645,6 +10651,150 @@ function renderExtAnWalletDetailCards(crosstab, byWallet, totalAmount) {
             </div>
         </div>`;
     }).join('');
+}
+
+function renderExtAnCharts(byWallet, byCountry) {
+    const ctxWallet = document.getElementById('extAnWalletChartCanvas');
+    const ctxCountry = document.getElementById('extAnCountryChartCanvas');
+
+    // Destroy existing charts to prevent memory leaks and hover bugs
+    if (extAnWalletChart) {
+        extAnWalletChart.destroy();
+        extAnWalletChart = null;
+    }
+    if (extAnCountryChart) {
+        extAnCountryChart.destroy();
+        extAnCountryChart = null;
+    }
+
+    if (!ctxWallet || !ctxCountry) return;
+
+    // Get chart colors from computed CSS styles or fallback
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text')?.trim() || '#dde1f0';
+    const textColor2 = getComputedStyle(document.documentElement).getPropertyValue('--text2')?.trim() || '#7a80a0';
+    const border2Color = getComputedStyle(document.documentElement).getPropertyValue('--border2')?.trim() || 'rgba(255, 255, 255, 0.11)';
+
+    // ── 1. Wallet Share Chart (Doughnut) ──
+    const walletEntries = Object.entries(byWallet).sort((a, b) => b[1].amount - a[1].amount);
+    const walletLabels = walletEntries.map(([w]) => w);
+    const walletData = walletEntries.map(([, info]) => info.amount);
+    const walletColors = walletLabels.map(w => EXT_BANK_COLORS[w] || '#6366f1');
+
+    if (walletEntries.length === 0) {
+        // Clear canvas if no data
+        const ctx = ctxWallet.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, ctxWallet.width, ctxWallet.height);
+            ctx.fillStyle = textColor2;
+            ctx.font = '12px IBM Plex Sans Arabic';
+            ctx.textAlign = 'center';
+            ctx.fillText('لا توجد بيانات للمحافظ', ctxWallet.width / 2, ctxWallet.height / 2);
+        }
+    } else {
+        extAnWalletChart = new Chart(ctxWallet, {
+            type: 'doughnut',
+            data: {
+                labels: walletLabels,
+                datasets: [{
+                    data: walletData,
+                    backgroundColor: walletColors,
+                    borderWidth: 1,
+                    borderColor: 'var(--bg3)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        rtl: true,
+                        labels: {
+                            color: textColor,
+                            font: { family: 'IBM Plex Sans Arabic', size: 10 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const val = context.raw || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const pct = ((val / total) * 100).toFixed(1);
+                                return ` ${context.label}: ${val.toLocaleString('ar-SA')} - ${pct}%`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── 2. Country Chart (Horizontal Bar) ──
+    const countryEntries = Object.entries(byCountry).sort((a, b) => b[1].amount - a[1].amount).slice(0, 10);
+    const countryLabels = countryEntries.map(([c]) => c);
+    const countryData = countryEntries.map(([, info]) => info.amount);
+
+    if (countryEntries.length === 0) {
+        const ctx = ctxCountry.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, ctxCountry.width, ctxCountry.height);
+            ctx.fillStyle = textColor2;
+            ctx.font = '12px IBM Plex Sans Arabic';
+            ctx.textAlign = 'center';
+            ctx.fillText('لا توجد بيانات للدول', ctxCountry.width / 2, ctxCountry.height / 2);
+        }
+    } else {
+        extAnCountryChart = new Chart(ctxCountry, {
+            type: 'bar',
+            data: {
+                labels: countryLabels,
+                datasets: [{
+                    label: 'إجمالي المبيعات (ر.س)',
+                    data: countryData,
+                    backgroundColor: 'rgba(24, 178, 176, 0.75)',
+                    hoverBackgroundColor: 'var(--accent)',
+                    borderWidth: 0,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const val = context.raw || 0;
+                                return ` ${val.toLocaleString('ar-SA')} ر.س`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: border2Color },
+                        ticks: {
+                            color: textColor2,
+                            font: { family: 'IBM Plex Sans Arabic', size: 9 },
+                            callback: function(value) {
+                                if (value >= 1000) return (value / 1000) + 'k';
+                                return value;
+                            }
+                        }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: {
+                            color: textColor,
+                            font: { family: 'IBM Plex Sans Arabic', size: 10 }
+                        }
+                    }
+                }
+            }
+        });
+    }
 }
 
 function exportExtSalesAnalyticsPDF() {

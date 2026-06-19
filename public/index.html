@@ -2004,7 +2004,7 @@
               <i class="ti ti-chart-pie-2" style="color:var(--accent);"></i>
               تحليل المبيعات الخارجية — المحافظ والدول
             </div>
-            <div style="font-size:11px; color:var(--text3); margin-top:3px;">عرض مفصل ومرتب للمبالغ حسب المحفظة والدولة</div>
+            <div style="font-size:11px; color:var(--text3); margin-top:3px;">داشبورد بياني تفاعلي للمبالغ حسب المحفظة والدولة</div>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <select id="extAnFilterPeriod" onchange="renderExtSalesAnalytics()" style="padding:5px 10px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
@@ -2014,7 +2014,7 @@
               <option value="month">هذا الشهر</option>
               <option value="last3">آخر 3 أشهر</option>
             </select>
-            <button class="btn btn-sm" onclick="loadExtSalesAnalytics()" style="background:rgba(99,102,241,0.15); border-color:rgba(99,102,241,0.4); color:var(--accent);">
+            <button class="btn btn-sm" onclick="loadExtSalesAnalytics()" style="background:rgba(24,178,176,0.15); border-color:rgba(24,178,176,0.4); color:var(--accent);">
               <i class="ti ti-refresh"></i> تحديث
             </button>
             <button class="btn btn-sm" onclick="exportExtSalesAnalyticsPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#ef4444; color:#fff;">
@@ -2023,29 +2023,71 @@
           </div>
         </div>
 
-        <!-- Grand Total KPI -->
-        <div id="extAnGrandTotal" style="background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(124,58,237,0.1)); border:1px solid rgba(99,102,241,0.3); border-radius:var(--r1); padding:16px 20px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-          <div style="display:flex; align-items:center; gap:12px;">
-            <div style="width:44px; height:44px; border-radius:12px; background:rgba(99,102,241,0.2); display:flex; align-items:center; justify-content:center;">
-              <i class="ti ti-cash" style="color:var(--accent); font-size:22px;"></i>
+        <!-- KPIs Cards Grid -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:18px;">
+          <!-- Card 1: Total Sales -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-right:4px solid var(--accent); border-radius:var(--r); padding:14px; display:flex; align-items:center; gap:12px;">
+            <div style="width:36px; height:36px; border-radius:8px; background:var(--accent3); display:flex; align-items:center; justify-content:center; color:var(--accent); flex-shrink:0;">
+              <i class="ti ti-cash" style="font-size:20px;"></i>
             </div>
             <div>
-              <div style="font-size:11px; color:var(--text3);">إجمالي المبيعات الخارجية</div>
-              <div id="extAnTotalAmt" style="font-size:26px; font-weight:900; color:var(--accent);">0.00 ر.س</div>
+              <div style="font-size:10px; color:var(--text2);">إجمالي المبيعات الخارجية</div>
+              <div id="extAnTotalAmt" style="font-size:18px; font-weight:700; color:var(--accent); margin-top:2px;">0.00 ر.س</div>
             </div>
           </div>
-          <div style="display:flex; gap:20px; flex-wrap:wrap;">
-            <div style="text-align:center;">
-              <div style="font-size:10px; color:var(--text3);">عدد العمليات</div>
-              <div id="extAnTotalCount" style="font-size:18px; font-weight:800; color:var(--text);">0</div>
+          <!-- Card 2: Transactions Count -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-right:4px solid var(--purple); border-radius:var(--r); padding:14px; display:flex; align-items:center; gap:12px;">
+            <div style="width:36px; height:36px; border-radius:8px; background:var(--purple-bg); display:flex; align-items:center; justify-content:center; color:var(--purple); flex-shrink:0;">
+              <i class="ti ti-receipt" style="font-size:20px;"></i>
             </div>
-            <div style="text-align:center;">
-              <div style="font-size:10px; color:var(--text3);">عدد الدول</div>
-              <div id="extAnTotalCountries" style="font-size:18px; font-weight:800; color:var(--text);">0</div>
+            <div>
+              <div style="font-size:10px; color:var(--text2);">عدد العمليات</div>
+              <div id="extAnTotalCount" style="font-size:18px; font-weight:700; color:var(--text); margin-top:2px;">0</div>
             </div>
-            <div style="text-align:center;">
-              <div style="font-size:10px; color:var(--text3);">متوسط قيمة العملية</div>
-              <div id="extAnAvgAmt" style="font-size:18px; font-weight:800; color:var(--green);">0.00 ر.س</div>
+          </div>
+          <!-- Card 3: Countries Count -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-right:4px solid var(--blue); border-radius:var(--r); padding:14px; display:flex; align-items:center; gap:12px;">
+            <div style="width:36px; height:36px; border-radius:8px; background:var(--blue-bg); display:flex; align-items:center; justify-content:center; color:var(--blue); flex-shrink:0;">
+              <i class="ti ti-world" style="font-size:20px;"></i>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2);">عدد الدول</div>
+              <div id="extAnTotalCountries" style="font-size:18px; font-weight:700; color:var(--text); margin-top:2px;">0</div>
+            </div>
+          </div>
+          <!-- Card 4: Avg Transaction -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-right:4px solid var(--green); border-radius:var(--r); padding:14px; display:flex; align-items:center; gap:12px;">
+            <div style="width:36px; height:36px; border-radius:8px; background:var(--green-bg); display:flex; align-items:center; justify-content:center; color:var(--green); flex-shrink:0;">
+              <i class="ti ti-calculator" style="font-size:20px;"></i>
+            </div>
+            <div>
+              <div style="font-size:10px; color:var(--text2);">متوسط العملية</div>
+              <div id="extAnAvgAmt" style="font-size:18px; font-weight:700; color:var(--green); margin-top:2px;">0.00 ر.س</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:22px;">
+          <!-- Wallet Share Chart -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-radius:var(--r2); padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:13px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:8px;">
+              <i class="ti ti-chart-pie" style="color:var(--accent);"></i>
+              نسبة توزيع المبالغ حسب المحفظة
+            </div>
+            <div style="position:relative; height:220px; width:100%; display:flex; align-items:center; justify-content:center;">
+              <canvas id="extAnWalletChartCanvas" style="max-height:100%; max-width:100%;"></canvas>
+            </div>
+          </div>
+
+          <!-- Country Distribution Chart -->
+          <div style="background:var(--bg3); border:1px solid var(--border2); border-radius:var(--r2); padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:13px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:8px;">
+              <i class="ti ti-chart-bar" style="color:var(--accent);"></i>
+              توزيع المبيعات حسب الدول (أعلى 10)
+            </div>
+            <div style="position:relative; height:220px; width:100%; display:flex; align-items:center; justify-content:center;">
+              <canvas id="extAnCountryChartCanvas" style="max-height:100%; max-width:100%;"></canvas>
             </div>
           </div>
         </div>
@@ -2054,7 +2096,7 @@
         <div style="margin-bottom:22px;">
           <div style="font-size:13px; font-weight:700; color:var(--text2); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
             <i class="ti ti-building-bank" style="color:var(--accent); font-size:16px;"></i>
-            التوزيع حسب المحفظة / الحساب البنكي
+            التوزيع حسب المحفظة / الحساب البنكي (بطاقات الأداء)
             <div style="flex:1; height:1px; background:var(--border1); margin-right:8px;"></div>
           </div>
           <div id="extAnByWalletGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px;">
@@ -2066,7 +2108,7 @@
         <div style="margin-bottom:22px;">
           <div style="font-size:13px; font-weight:700; color:var(--text2); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
             <i class="ti ti-world" style="color:var(--accent); font-size:16px;"></i>
-            التوزيع حسب الدولة
+            جدول توزيع المبيعات حسب الدولة
             <div style="flex:1; height:1px; background:var(--border1); margin-right:8px;"></div>
           </div>
           <div class="tbl-wrap">
@@ -2095,7 +2137,7 @@
         <div style="margin-bottom:22px;">
           <div style="font-size:13px; font-weight:700; color:var(--text2); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
             <i class="ti ti-table" style="color:var(--accent); font-size:16px;"></i>
-            جدول تقاطع المحفظة × الدولة
+            جدول تقاطع المحفظة × الدولة (المصفوفة التفاعلية)
             <div style="flex:1; height:1px; background:var(--border1); margin-right:8px;"></div>
           </div>
           <div class="tbl-wrap" style="overflow-x:auto;">
