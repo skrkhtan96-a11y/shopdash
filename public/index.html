@@ -655,6 +655,7 @@
         <div class="nav-item active" id="nav-overview" onclick="nav('overview')"><i class="ti ti-layout-dashboard"></i> نظرة عامة</div>
         <div class="nav-item" id="nav-expenses" onclick="nav('expenses')"><i class="ti ti-receipt"></i> المصروفات</div>
         <div class="nav-item" id="nav-external-sales" onclick="nav('external-sales')" style="display:none"><i class="ti ti-currency-dollar"></i> المبيعات الخارجية</div>
+        <div class="nav-item" id="nav-ext-country-analytics" onclick="nav('ext-country-analytics')" style="display:none"><i class="ti ti-world"></i> المبيعات حسب الدولة والمنطقة</div>
         <div class="nav-item" id="nav-campaigns" onclick="nav('campaigns')"><i class="ti ti-speakerphone"></i> الحملات الإعلانية</div>
         <div class="nav-item" id="nav-ai-analysis" onclick="nav('ai-analysis')"><i class="ti ti-brain"></i> التحليل الذكي والتوصيات (AI)</div>
         <div class="nav-item" id="nav-certificates" onclick="nav('certificates')"><i class="ti ti-certificate"></i> إدارة تقارير الشهادات</div>
@@ -1993,6 +1994,52 @@
           </div>
         </div>
       </div> <!-- /page-users -->
+
+
+      <!-- PAGE: EXT COUNTRY ANALYTICS -->
+      <div class="page pad" id="page-ext-country-analytics">
+        <!-- Page Header -->
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div style="font-size:18px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px;">
+              <i class="ti ti-world" style="color:var(--accent);"></i>
+              المبيعات الخارجية حسب الدولة والمنطقة
+            </div>
+            <div style="font-size:11px; color:var(--text3); margin-top:3px;">تفصيل ومراقبة العمليات والمبالغ مقسمة جغرافياً بشكل مبسط ومرتب</div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <select id="extCountryAnFilterPeriod" onchange="renderExtCountryAnalytics()" style="padding:5px 10px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+              <option value="">كل الفترات</option>
+              <option value="today">اليوم</option>
+              <option value="week">هذا الأسبوع</option>
+              <option value="month">هذا الشهر</option>
+              <option value="last3">آخر 3 أشهر</option>
+            </select>
+            <button class="btn btn-sm" onclick="loadExtCountryAnalytics()" style="background:rgba(24,178,176,0.15); border-color:rgba(24,178,176,0.4); color:var(--accent);">
+              <i class="ti ti-refresh"></i> تحديث
+            </button>
+            <button class="btn btn-sm" onclick="exportExtCountryAnalyticsPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#ef4444; color:#fff;">
+              <i class="ti ti-file-type-pdf"></i> تصدير PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- Regional KPI Summary Cards Grid -->
+        <div id="extCountryAnRegionsGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:20px;">
+          <!-- Will be rendered dynamically -->
+        </div>
+
+        <!-- Grouped List / Accordions per Region -->
+        <div style="background:var(--bg3); border:1px solid var(--border2); border-radius:var(--r2); padding:16px;">
+          <div style="font-size:13px; font-weight:700; color:var(--text2); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+            <i class="ti ti-map-pin" style="color:var(--accent); font-size:16px;"></i>
+            التفصيل الجغرافي للعمليات والمبيعات حسب الدولة
+          </div>
+          <div id="extCountryAnListContainer" style="display:flex; flex-direction:column; gap:14px;">
+            <!-- Will be rendered dynamically -->
+          </div>
+        </div>
+      </div>
 
 
       <!-- PAGE: EXTERNAL SALES -->

@@ -129,6 +129,7 @@ function hasPageAccess(page) {
     }
     if (page === 'expenses') return !!state.user.can_view_expenses;
     if (page === 'external-sales') return !!state.user.can_view_external_sales;
+    if (page === 'ext-country-analytics') return !!state.user.can_view_external_sales;
     if (page === 'campaigns') return !!state.user.can_view_campaigns;
     if (page === 'certificates') return !!state.user.can_view_certificates;
     if (page === 'ps-plus') return !!state.user.can_view_ps;
@@ -182,6 +183,7 @@ async function init() {
             { id: 'nav-overview', name: 'overview' },
             { id: 'nav-expenses', name: 'expenses' },
             { id: 'nav-external-sales', name: 'external-sales' },
+            { id: 'nav-ext-country-analytics', name: 'ext-country-analytics' },
             { id: 'nav-campaigns', name: 'campaigns' },
             { id: 'nav-certificates', name: 'certificates' },
             { id: 'nav-ps-plus', name: 'ps-plus' },
@@ -504,11 +506,12 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
     'external-sales': 'المبيعات الخارجية',
+    'ext-country-analytics': 'المبيعات حسب الدولة والمنطقة',
     campaigns: 'الحملات الإعلانية',
     'campaign-detail': 'تفاصيل الحملة الإعلانية',
     'ai-analysis': 'التحليل الذكي والتوصيات (AI)',
@@ -602,6 +605,7 @@ function nav(name, updateHash = true) {
     if (name === 'overview') renderOverview();
     if (name === 'expenses') renderExp();
     if (name === 'external-sales') loadExternalSales();
+    if (name === 'ext-country-analytics') loadExtCountryAnalytics();
     if (name === 'campaigns') renderCampaigns();
     if (name === 'ai-analysis') initAiAnalysisPage();
     if (name === 'salla-orders') renderOrders();
@@ -10254,5 +10258,456 @@ async function exportExternalSalesPDF() {
     win.document.close();
     win.focus();
     toast('تم فتح نافذة التقرير — اضغط "طباعة / حفظ PDF" ✅', 'ok');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EXT COUNTRY ANALYTICS — GEOGRAPHIC REGIONS & COLLAPSIBLE DETAILS
+// ══════════════════════════════════════════════════════════════════
+
+const REGION_MAPPING = {
+    'الخليج العربي': ['السعودية', 'الإمارات', 'قطر', 'عمان', 'البحرين', 'الكويت'],
+    'اليمن': ['اليمن'],
+    'الشام والعراق': ['العراق', 'الأردن', 'سوريا', 'لبنان', 'فلسطين'],
+    'مصر وشمال أفريقيا': ['مصر', 'السودان', 'ليبيا', 'تونس', 'الجزائر', 'المغرب']
+};
+
+function getCountryRegion(country) {
+    if (!country) return 'أخرى / غير محدد';
+    const trimmed = country.trim();
+    for (const [region, countries] of Object.entries(REGION_MAPPING)) {
+        if (countries.includes(trimmed)) return region;
+    }
+    return 'أخرى / غير محدد';
+}
+
+async function loadExtCountryAnalytics() {
+    const listCont = document.getElementById('extCountryAnListContainer');
+    const gridCont = document.getElementById('extCountryAnRegionsGrid');
+    if (listCont) listCont.innerHTML = '<div class="empty"><i class="ti ti-refresh loading"></i><p>جاري التحميل...</p></div>';
+    if (gridCont) gridCont.innerHTML = '';
+
+    try {
+        const res = await fetch('/api/external-sales');
+        if (res.ok) {
+            const data = await res.json();
+            stateExternalSales = data.sales || [];
+        } else {
+            toast('فشل تحميل بيانات المبيعات الخارجية', 'error');
+        }
+    } catch (e) {
+        toast('خطأ في الاتصال بالخادم', 'error');
+        stateExternalSales = stateExternalSales || [];
+    }
+
+    renderExtCountryAnalytics();
+}
+
+function renderExtCountryAnalytics() {
+    const period = (document.getElementById('extCountryAnFilterPeriod') || {}).value || '';
+    let filtered = stateExternalSales;
+
+    if (period) {
+        const now = new Date();
+        filtered = stateExternalSales.filter(item => {
+            if (!item.created_at) return false;
+            const d = new Date(item.created_at.replace(' ', 'T'));
+            if (isNaN(d)) return false;
+            
+            if (period === 'today') {
+                return d.toDateString() === now.toDateString();
+            } else if (period === 'week') {
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay());
+                weekStart.setHours(0, 0, 0, 0);
+                return d >= weekStart;
+            } else if (period === 'month') {
+                return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+            } else if (period === 'last3') {
+                const cutoff = new Date(now);
+                cutoff.setMonth(now.getMonth() - 3);
+                return d >= cutoff;
+            }
+            return true;
+        });
+    }
+
+    // Aggregations
+    const totalSales = filtered.reduce((s, i) => s + (i.amount || 0), 0);
+    const regions = {
+        'الخليج العربي': { amount: 0, count: 0, countries: {} },
+        'اليمن': { amount: 0, count: 0, countries: {} },
+        'الشام والعراق': { amount: 0, count: 0, countries: {} },
+        'مصر وشمال أفريقيا': { amount: 0, count: 0, countries: {} },
+        'أخرى / غير محدد': { amount: 0, count: 0, countries: {} }
+    };
+
+    filtered.forEach(item => {
+        const country = item.country || 'غير محددة';
+        const region = getCountryRegion(country);
+        const amt = item.amount || 0;
+
+        regions[region].amount += amt;
+        regions[region].count += 1;
+        if (!regions[region].countries[country]) {
+            regions[region].countries[country] = { amount: 0, count: 0, items: [] };
+        }
+        regions[region].countries[country].amount += amt;
+        regions[region].countries[country].count += 1;
+        regions[region].countries[country].items.push(item);
+    });
+
+    // ── Render Regional KPI Summary Cards ──
+    const gridCont = document.getElementById('extCountryAnRegionsGrid');
+    if (gridCont) {
+        const regionThemes = {
+            'الخليج العربي': { grad: 'linear-gradient(135deg, #1e40af, #3b82f6)', accent: '#3b82f6', icon: 'ti-crown' },
+            'اليمن': { grad: 'linear-gradient(135deg, #065f46, #10b981)', accent: '#10b981', icon: 'ti-building-bank' },
+            'الشام والعراق': { grad: 'linear-gradient(135deg, #5b21b6, #8b5cf6)', accent: '#8b5cf6', icon: 'ti-map' },
+            'مصر وشمال أفريقيا': { grad: 'linear-gradient(135deg, #9a3412, #f97316)', accent: '#f97316', icon: 'ti-pyramid' },
+            'أخرى / غير محدد': { grad: 'linear-gradient(135deg, #374151, #6b7280)', accent: '#9ca3af', icon: 'ti-help' }
+        };
+
+        gridCont.innerHTML = Object.entries(regions).map(([name, info]) => {
+            const theme = regionThemes[name];
+            const pct = totalSales > 0 ? ((info.amount / totalSales) * 100).toFixed(1) : '0.0';
+            const avg = info.count > 0 ? (info.amount / info.count).toFixed(2) : '0.00';
+            return `
+                <div style="background:${theme.grad}; border-radius:var(--r); padding:16px; color:#fff; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+                    <div style="position:absolute; right:-10px; bottom:-10px; opacity:0.1; font-size:72px;"><i class="ti ${theme.icon}"></i></div>
+                    <div>
+                        <div style="font-size:11px; opacity:0.85; font-weight:600;">${name}</div>
+                        <div style="font-size:20px; font-weight:800; margin-top:4px;">${info.amount.toLocaleString('ar-SA')} ر.س</div>
+                    </div>
+                    <div style="margin-top:14px; display:flex; justify-content:space-between; align-items:center; font-size:10px; border-top:1px solid rgba(255,255,255,0.15); padding-top:8px;">
+                        <span>${info.count} عملية (${pct}%)</span>
+                        <span>معدل: ${parseFloat(avg).toLocaleString('ar-SA')}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ── Render Grouped Lists per Region ──
+    const listCont = document.getElementById('extCountryAnListContainer');
+    if (listCont) {
+        let html = '';
+
+        const activeRegions = Object.entries(regions).filter(([, info]) => info.count > 0);
+        if (activeRegions.length === 0) {
+            listCont.innerHTML = '<div class="empty"><i class="ti ti-database-x"></i><p>لا توجد مبيعات في الفترة المحددة</p></div>';
+            return;
+        }
+
+        activeRegions.forEach(([rName, rInfo]) => {
+            const sortedCountries = Object.entries(rInfo.countries).sort((a, b) => b[1].amount - a[1].amount);
+            
+            html += `
+                <div style="border:1px solid var(--border); border-radius:var(--r); overflow:hidden; background:var(--bg4);">
+                    <div style="background:var(--bg3); padding:10px 14px; font-weight:700; color:var(--text); font-size:12.5px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                        <span>📍 ${rName} (${sortedCountries.length} دول)</span>
+                        <span style="color:var(--accent);">${rInfo.amount.toLocaleString('ar-SA')} ر.س</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; padding:8px;">
+            `;
+
+            sortedCountries.forEach(([cName, cInfo], idx) => {
+                const countryPct = rInfo.amount > 0 ? ((cInfo.amount / rInfo.amount) * 100).toFixed(0) : '0';
+                const totalPct = totalSales > 0 ? ((cInfo.amount / totalSales) * 100).toFixed(1) : '0';
+                
+                const flagChar = cName.substring(0, 2);
+                const detailId = `extCDetail_${cName.replace(/\s+/g, '_')}`;
+
+                html += `
+                    <div style="margin-bottom:6px; border-bottom:1px solid var(--border1); padding-bottom:6px;">
+                        <!-- Country Header Row -->
+                        <div onclick="toggleExtCountryDetail('${detailId}')" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; cursor:pointer; border-radius:var(--r); transition:background 0.2s; background:rgba(255,255,255,0.01);" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='rgba(255,255,255,0.01)'">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:24px; height:24px; border-radius:50%; background:var(--bg2); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; color:var(--text2); border:1px solid var(--border); flex-shrink:0;">
+                                    ${flagChar}
+                                </div>
+                                <div>
+                                    <div style="font-size:12.5px; font-weight:700; color:var(--text);">${cName}</div>
+                                    <div style="font-size:10px; color:var(--text3); margin-top:2px;">${cInfo.count} عمليات · ${totalPct}% من الإجمالي العام</div>
+                                </div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:14px; text-align:left;">
+                                <div>
+                                    <div style="font-size:13.5px; font-weight:800; color:var(--accent);">${cInfo.amount.toLocaleString('ar-SA')} ر.س</div>
+                                    <div style="font-size:9.5px; color:var(--text3); margin-top:1px;">%${countryPct} من المنطقة</div>
+                                </div>
+                                <i class="ti ti-chevron-down" id="arrow_${detailId}" style="font-size:14px; color:var(--text3); transition:transform 0.2s;"></i>
+                            </div>
+                        </div>
+
+                        <!-- Collapsible Country Details Table -->
+                        <div id="${detailId}" style="display:none; padding:10px; margin-top:6px; background:var(--bg3); border-radius:var(--r); border:1px solid var(--border); overflow-x:auto;">
+                            <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid var(--border2); text-align:right;">
+                                        <th style="padding:6px 4px; color:var(--text2);">المنتج</th>
+                                        <th style="padding:6px 4px; color:var(--text2); text-align:center;">الكمية</th>
+                                        <th style="padding:6px 4px; color:var(--text2); text-align:center;">المبلغ</th>
+                                        <th style="padding:6px 4px; color:var(--text2);">العميل</th>
+                                        <th style="padding:6px 4px; color:var(--text2);">المحفظة</th>
+                                        <th style="padding:6px 4px; color:var(--text2); text-align:center;">التاريخ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${cInfo.items.map(sale => `
+                                        <tr style="border-bottom:1px solid var(--border1);">
+                                            <td style="padding:6px 4px; font-weight:600; color:#fff;">${escapeHtml(sale.product_name)}</td>
+                                            <td style="padding:6px 4px; text-align:center;">${sale.quantity || 1}</td>
+                                            <td style="padding:6px 4px; text-align:center; font-weight:700; color:var(--accent);">${(sale.amount || 0).toFixed(2)} ر.س</td>
+                                            <td style="padding:6px 4px;">${escapeHtml(sale.customer_name || '-')}</td>
+                                            <td style="padding:6px 4px; font-size:10px; color:var(--text2);">${escapeHtml(sale.bank_account || '-')}</td>
+                                            <td style="padding:6px 4px; text-align:center; color:var(--text3); font-size:10px;">${(sale.created_at || '').substring(0, 10)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+
+        listCont.innerHTML = html;
+    }
+}
+
+function toggleExtCountryDetail(id) {
+    const el = document.getElementById(id);
+    const arrow = document.getElementById(`arrow_${id}`);
+    if (!el) return;
+
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+        if (arrow) arrow.style.transform = 'rotate(180deg)';
+    } else {
+        el.style.display = 'none';
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+    }
+}
+
+function exportExtCountryAnalyticsPDF() {
+    const period = (document.getElementById('extCountryAnFilterPeriod') || {}).value || '';
+    let filtered = stateExternalSales;
+
+    if (period) {
+        const now = new Date();
+        filtered = stateExternalSales.filter(item => {
+            if (!item.created_at) return false;
+            const d = new Date(item.created_at.replace(' ', 'T'));
+            if (isNaN(d)) return false;
+            
+            if (period === 'today') {
+                return d.toDateString() === now.toDateString();
+            } else if (period === 'week') {
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay());
+                weekStart.setHours(0, 0, 0, 0);
+                return d >= weekStart;
+            } else if (period === 'month') {
+                return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+            } else if (period === 'last3') {
+                const cutoff = new Date(now);
+                cutoff.setMonth(now.getMonth() - 3);
+                return d >= cutoff;
+            }
+            return true;
+        });
+    }
+
+    if (filtered.length === 0) {
+        toast('لا توجد بيانات لتصديرها', 'warning');
+        return;
+    }
+
+    toast('جاري تحضير التقرير الجغرافي...', 'info');
+
+    const totalSales = filtered.reduce((s, i) => s + (i.amount || 0), 0);
+    const regions = {
+        'الخليج العربي': { amount: 0, count: 0, countries: {} },
+        'اليمن': { amount: 0, count: 0, countries: {} },
+        'الشام والعراق': { amount: 0, count: 0, countries: {} },
+        'مصر وشمال أفريقيا': { amount: 0, count: 0, countries: {} },
+        'أخرى / غير محدد': { amount: 0, count: 0, countries: {} }
+    };
+
+    filtered.forEach(item => {
+        const country = item.country || 'غير محددة';
+        const region = getCountryRegion(country);
+        const amt = item.amount || 0;
+
+        regions[region].amount += amt;
+        regions[region].count += 1;
+        if (!regions[region].countries[country]) {
+            regions[region].countries[country] = { amount: 0, count: 0, items: [] };
+        }
+        regions[region].countries[country].amount += amt;
+        regions[region].countries[country].count += 1;
+        regions[region].countries[country].items.push(item);
+    });
+
+    const reportDate = new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    let regionCardsHtml = Object.entries(regions).map(([name, info]) => {
+        const pct = totalSales > 0 ? ((info.amount / totalSales) * 100).toFixed(1) : '0.0';
+        return `
+            <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; flex: 1; min-width: 140px; text-align: center; background: #f8fafc;">
+                <div style="font-size: 11px; color: #64748b; font-weight: bold;">${name}</div>
+                <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">${info.amount.toFixed(2)} ر.س</div>
+                <div style="font-size: 9.5px; color: #64748b; margin-top: 2px;">${info.count} عملية (${pct}%)</div>
+            </div>
+        `;
+    }).join('');
+
+    let tablesHtml = Object.entries(regions).filter(([, info]) => info.count > 0).map(([rName, rInfo]) => {
+        const sortedCountries = Object.entries(rInfo.countries).sort((a, b) => b[1].amount - a[1].amount);
+        
+        let countriesHtml = sortedCountries.map(([cName, cInfo]) => {
+            let itemsRows = cInfo.items.map(sale => `
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 5px; color: #334155; font-weight: 500;">${sale.product_name}</td>
+                    <td style="padding: 5px; text-align: center;">${sale.quantity || 1}</td>
+                    <td style="padding: 5px; text-align: center; font-weight: 700; color: #2563eb;">${(sale.amount || 0).toFixed(2)} ر.س</td>
+                    <td style="padding: 5px;">${sale.customer_name || '-'}</td>
+                    <td style="padding: 5px; font-size: 10px; color: #64748b;">${sale.bank_account || '-'}</td>
+                    <td style="padding: 5px; text-align: center; color: #64748b; font-size: 9.5px;">${(sale.created_at || '').substring(0, 10)}</td>
+                </tr>
+            `).join('');
+
+            return `
+                <div style="margin-top: 14px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; page-break-inside: avoid;">
+                    <div style="background: #f1f5f9; padding: 6px 12px; font-weight: 700; font-size: 12px; color: #1e293b; display: flex; justify-content: space-between;">
+                        <span>📍 ${cName} (${cInfo.count} عملية)</span>
+                        <span>إجمالي: ${cInfo.amount.toFixed(2)} ر.س</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
+                        <thead>
+                            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: right;">
+                                <th style="padding: 6px 5px; color: #64748b;">المنتج</th>
+                                <th style="padding: 6px 5px; color: #64748b; text-align: center; width: 40px;">الكمية</th>
+                                <th style="padding: 6px 5px; color: #64748b; text-align: center; width: 90px;">المبلغ</th>
+                                <th style="padding: 6px 5px; color: #64748b;">العميل</th>
+                                <th style="padding: 6px 5px; color: #64748b;">المحفظة</th>
+                                <th style="padding: 6px 5px; color: #64748b; text-align: center; width: 80px;">التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsRows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div style="margin-top: 20px; page-break-inside: avoid;">
+                <div style="font-size: 14px; font-weight: 800; color: #1e1b4b; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 10px;">
+                    📂 ${rName} — إجمالي مبيعات المنطقة: ${rInfo.amount.toFixed(2)} ر.س
+                </div>
+                ${countriesHtml}
+            </div>
+        `;
+    }).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير مبيعات الدول والمناطق</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'IBM Plex Sans Arabic', Arial, sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 20px;
+            direction: rtl;
+        }
+        @media print {
+            body { background:#fff; padding:0; }
+            .no-print { display:none !important; }
+            .print-page { box-shadow:none; margin:0; }
+        }
+        .print-page {
+            max-width: 860px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+            padding: 24px;
+        }
+        .hdr {
+            background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);
+            color: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: block;
+            width: fit-content;
+            margin: 10px auto 20px;
+            padding: 10px 30px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: right; }
+    </style>
+</head>
+<body>
+    <button class="btn no-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+    <div class="print-page">
+        <div class="hdr">
+            <h1 style="font-size: 22px; font-weight: 800;">🌍 تقرير المبيعات الخارجية حسب الدولة والمنطقة</h1>
+            <p style="font-size: 12px; opacity: 0.8; margin-top: 4px;">لوحة تحكم شوب ستور</p>
+            <span style="display: inline-block; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 20px; padding: 3px 12px; font-size: 11px; margin-top: 10px;">📅 ${reportDate}</span>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 11px; color: #64748b;">إجمالي مبيعات الفترة المحددة</div>
+                <div style="font-size: 24px; font-weight: 900; color: #2563eb; margin-top: 4px;">${totalSales.toFixed(2)} ر.س</div>
+            </div>
+            <div style="text-align: left; font-size: 12px; color: #64748b; font-weight: 600;">
+                إجمالي العمليات: ${filtered.length} عملية
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+            ${regionCardsHtml}
+        </div>
+
+        ${tablesHtml}
+
+        <div style="text-align: center; padding-top: 20px; margin-top: 30px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            تقرير تلقائي صادر من لوحة تحكم شوب ستور · ${new Date().toLocaleDateString('ar-SA')}
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=800,scrollbars=yes,resizable=yes');
+    if (!win) { toast('يرجى السماح بفتح النوافذ المنبثقة في المتصفح', 'warning'); return; }
+    win.document.write(htmlContent);
+    win.document.close();
+    win.focus();
+    toast('تم فتح تقرير المناطق بصيغة PDF ✅', 'ok');
 }
 
