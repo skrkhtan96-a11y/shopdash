@@ -529,7 +529,9 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
             // 9. Fetch actual sales data from Salla orders in database matching the date range
             const sallaPromise = new Promise((resolve) => {
                 db.all(
-                    `SELECT date, SUM(amount) as sales, COUNT(DISTINCT reference_id) as orders_count, SUM(quantity) as items_sold 
+                    `SELECT date, SUM(amount) as sales, 
+                            COUNT(DISTINCT CASE WHEN instr(reference_id, '_') > 0 THEN substr(reference_id, 1, instr(reference_id, '_') - 1) ELSE reference_id END) as orders_count, 
+                            SUM(quantity) as items_sold 
                      FROM salla_imported_orders 
                      WHERE date >= ? AND date <= ? 
                      GROUP BY date`,
