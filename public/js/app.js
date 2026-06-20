@@ -4882,11 +4882,11 @@ function openCampaignDetail(campaignName, platform, triggerNav = true, campaignI
     const detDefaultCampaignView = document.getElementById('detDefaultCampaignView');
     const detFacebookCampaignView = document.getElementById('detFacebookCampaignView');
 
-    if (platform === 'facebook') {
+    if (platform === 'facebook' || platform === 'tiktok') {
         if (detDefaultCampaignView) detDefaultCampaignView.style.display = 'none';
         if (detFacebookCampaignView) {
             detFacebookCampaignView.style.display = 'block';
-            loadFacebookCampaignDetail(campaignName, campaignId);
+            loadFacebookCampaignDetail(campaignName, campaignId, platform);
         }
         return;
     } else {
@@ -11323,7 +11323,7 @@ function parseFacebookActions(actions, actionValues) {
     return { purchaseCount, purchaseValue, add_to_cart, initiate_checkout, view_content, video_3_sec_views: video_3_sec_video_view, thruplays: thruplay };
 }
 
-async function loadFacebookCampaignDetail(campaignName, campaignId = null) {
+async function loadFacebookCampaignDetail(campaignName, campaignId = null, platform = 'facebook') {
     const from = document.getElementById('adFrom')?.value || '';
     const to = document.getElementById('adTo')?.value || '';
     
@@ -11331,17 +11331,19 @@ async function loadFacebookCampaignDetail(campaignName, campaignId = null) {
     const container = document.getElementById('detFacebookCampaignView');
     if (!container) return;
 
+    const apiName = platform === 'tiktok' ? 'TikTok Ads API' : 'Meta Ads API';
+
     // Show Loading Skeleton
     container.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; color: var(--text3);">
             <div style="width:40px; height:40px; border: 4px solid rgba(255,255,255,0.05); border-top-color: #00d9ff; border-radius:50%; animation: spin 0.8s linear infinite; margin: 40px auto 20px;"></div>
-            <p style="font-size: 13px; font-weight: 600; color:#8b95a7;">جاري الاتصال بـ Meta Ads API وجلب إحصاءات سلة المربوطة للحملة...</p>
+            <p style="font-size: 13px; font-weight: 600; color:#8b95a7;">جاري الاتصال بـ ${apiName} وجلب إحصاءات سلة المربوطة للحملة...</p>
         </div>
     `;
 
     if (!realId) {
         try {
-            const res = await fetch(`/api/ads/campaigns?from=${from}&to=${to}&platform=facebook`);
+            const res = await fetch(`/api/ads/campaigns?from=${from}&to=${to}&platform=${platform}`);
             const campaigns = await res.json();
             const matching = campaigns.find(c => c.campaign_name === campaignName);
             if (matching) {
@@ -11366,30 +11368,31 @@ async function loadFacebookCampaignDetail(campaignName, campaignId = null) {
     }
 
     try {
-        const res = await fetch(`/api/ads/campaign-detail?campaign_id=${realId}&from=${from}&to=${to}`);
+        const res = await fetch(`/api/ads/campaign-detail?campaign_id=${realId}&platform=${platform}&from=${from}&to=${to}`);
         if (!res.ok) {
             const errData = await res.json();
             throw new Error(errData.error || 'فشل جلب بيانات الحملة');
         }
         const data = await res.json();
-        renderFacebookCampaignDetail(campaignName, realId, data);
+        renderFacebookCampaignDetail(campaignName, realId, data, platform);
     } catch (err) {
         container.innerHTML = `
             <div class="tbl-wrap pad" style="text-align: center; padding: 40px 20px; background:#141b2d; border-color:#1e2a45;">
                 <i class="ti ti-wifi-off" style="font-size: 36px; color: #ff4757; margin-bottom: 12px; display: block;"></i>
-                <h3 style="color: var(--text); font-weight: 700; margin-bottom: 8px;">فشل الاتصال بـ Meta Ads API</h3>
+                <h3 style="color: var(--text); font-weight: 700; margin-bottom: 8px;">فشل الاتصال بـ ${apiName}</h3>
                 <p style="font-size: 11px; color: var(--text3); margin-bottom: 16px;">الخطأ: ${err.message || err}</p>
-                <button class="btn btn-sm" onclick="loadFacebookCampaignDetail('${campaignName.replace(/'/g, "\\'")}', '${realId}')" style="background:#00ff88; color:#0a0e1a; border:none; padding:6px 12px; font-weight:bold; border-radius:6px;"><i class="ti ti-refresh"></i> إعادة المحاولة</button>
+                <button class="btn btn-sm" onclick="loadFacebookCampaignDetail('${campaignName.replace(/'/g, "\\'")}', '${realId}', '${platform}')" style="background:#00ff88; color:#0a0e1a; border:none; padding:6px 12px; font-weight:bold; border-radius:6px;"><i class="ti ti-refresh"></i> إعادة المحاولة</button>
             </div>
         `;
     }
 }
 
-function renderFacebookCampaignDetail(campaignName, campaignId, data) {
+function renderFacebookCampaignDetail(campaignName, campaignId, data, platform = 'facebook') {
     const container = document.getElementById('detFacebookCampaignView');
     if (!container) return;
 
     window.currentFbCampaignData = data;
+    window.currentPlatform = platform;
 
     // Sum overall metrics from daily insights to calculate initials
     let totalSpend = 0;
@@ -11666,7 +11669,10 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                     <button class="btn btn-sm" onclick="nav('campaigns')" style="margin-bottom:8px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); color:#fff;"><i class="ti ti-arrow-right"></i> العودة للحملات</button>
                     <h2 style="margin:0; font-size:1.8rem; font-weight:700; color:#00d9ff;">${escapeHtml(campaignName)}</h2>
                     <div style="font-size:12px; color:#8b95a7; display:flex; align-items:center; gap:6px; margin-top:4px;">
-                        <span class="pill" style="background:rgba(24,119,242,0.1);color:#1877F2;border:1px solid rgba(24,119,242,0.2)"><i class="ti ti-brand-facebook"></i> فيس بوك إعلانات + سلة</span>
+                        ${platform === 'tiktok' 
+                            ? `<span class="pill" style="background:rgba(0,0,0,0.2);color:#fff;border:1px solid rgba(255,255,255,0.1)"><i class="ti ti-brand-tiktok"></i> تيك توك إعلانات + سلة</span>`
+                            : `<span class="pill" style="background:rgba(24,119,242,0.1);color:#1877F2;border:1px solid rgba(24,119,242,0.2)"><i class="ti ti-brand-facebook"></i> فيس بوك إعلانات + سلة</span>`
+                        }
                         &bull; 
                         <span class="pill ${campaignStatus === 'ACTIVE' ? 'pill-green' : 'pill-gray'}">${campaignStatus === 'ACTIVE' ? 'نشطة' : 'متوقفة'}</span>
                         &bull; 
@@ -11738,7 +11744,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                 <div class="kpi" style="background:#141b2d; border:1px solid #1e2a45;">
                     <div class="kpi-icon" style="color:#a855f7;"><i class="ti ti-activity"></i></div>
                     <div class="kpi-val" id="detKpiMetaROAS" style="color:#a855f7; font-weight:bold;">-</div>
-                    <div class="kpi-label">عائد إعلانات فيسبوك (ROAS)</div>
+                    <div class="kpi-label">عائد إعلانات ${platform === 'tiktok' ? 'تيك توك' : 'فيسبوك'} (ROAS)</div>
                 </div>
                 <div class="kpi">
                     <div class="kpi-icon"><i class="ti ti-user-plus"></i></div>
@@ -11777,10 +11783,10 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                             </div>
                             <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--accent); background:rgba(0,217,255,0.05)" id="fb-chip-sales" onclick="toggleFbKPI('sales')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-size:9.5px; color:#8b95a7">مبيعات فيسبوك المنسوبة</span>
+                                    <span style="font-size:9.5px; color:#8b95a7">مبيعات ${platform === 'tiktok' ? 'تيك توك' : 'فيسبوك'} المنسوبة</span>
                                     <input type="checkbox" checked id="fb-chk-sales" style="pointer-events:none;">
                                 </div>
-                                <div style="font-size:12px; font-weight:700; color:#00ff88; margin-top:2px;">Meta Sales</div>
+                                <div style="font-size:12px; font-weight:700; color:#00ff88; margin-top:2px;">${platform === 'tiktok' ? 'TikTok Sales' : 'Meta Sales'}</div>
                             </div>
                             <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-conversions" onclick="toggleFbKPI('conversions')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -11794,7 +11800,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data) {
                                     <span style="font-size:9.5px; color:#8b95a7">العائد على الإعلانات (ROAS)</span>
                                     <input type="checkbox" id="fb-chk-clicks" style="pointer-events:none;">
                                 </div>
-                                <div style="font-size:12px; font-weight:700; color:#f59e0b; margin-top:2px;">Meta ROAS</div>
+                                <div style="font-size:12px; font-weight:700; color:#f59e0b; margin-top:2px;">${platform === 'tiktok' ? 'TikTok ROAS' : 'Meta ROAS'}</div>
                             </div>
                             <div class="tbl-wrap pad" style="margin:0; padding:5px 8px; cursor:pointer; border:1.5px solid var(--border)" id="fb-chip-roas" onclick="toggleFbKPI('roas')">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -12176,6 +12182,10 @@ function initFbPerformanceChart(dates, spendData, metaSalesData, sallaSalesData,
         fbPerformanceChart.destroy();
     }
 
+    const platform = window.currentPlatform || 'facebook';
+    const platformLabel = platform === 'tiktok' ? 'تيك توك' : 'فيسبوك';
+    const platformEng = platform === 'tiktok' ? 'TikTok' : 'Meta';
+
     fbPerformanceChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -12191,7 +12201,7 @@ function initFbPerformanceChart(dates, spendData, metaSalesData, sallaSalesData,
                     hidden: !fbKPIVisibility.spend
                 },
                 {
-                    label: 'مبيعات فيسبوك المنسوبة (Meta Sales)',
+                    label: `مبيعات ${platformLabel} المنسوبة (${platformEng} Sales)`,
                     data: metaSalesData,
                     borderColor: '#00ff88',
                     backgroundColor: 'rgba(0, 255, 136, 0.05)',
@@ -12209,7 +12219,7 @@ function initFbPerformanceChart(dates, spendData, metaSalesData, sallaSalesData,
                     hidden: !fbKPIVisibility.conversions
                 },
                 {
-                    label: 'عائد إعلانات فيسبوك (ROAS)',
+                    label: `عائد إعلانات ${platformLabel} (${platformEng} ROAS)`,
                     data: roasData,
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.05)',
@@ -12342,9 +12352,11 @@ function toggleFbKPI(metric) {
 function exportFacebookCampaignExcel(campaignName) {
     const data = window.currentFbCampaignData;
     if (!data) return;
+    const platform = window.currentPlatform || 'facebook';
+    const platformLabel = platform === 'tiktok' ? 'تيك توك' : 'فيسبوك';
     
     let csv = '\ufeff';
-    csv += 'المستوى,الاسم,المعرّف,الحالة,الإنفاق,مبيعات فيسبوك,مبيعات سلة,العائد ROAS,عائد الربح POAS\n';
+    csv += `المستوى,الاسم,المعرّف,الحالة,الإنفاق,مبيعات ${platformLabel},مبيعات سلة,العائد ROAS,عائد الربح POAS\n`;
     
     const summary = window.currentFbCampaignSummary;
     const cogsRate = parseFloat(document.getElementById('cogsSelector')?.value || 0.3);
@@ -12381,7 +12393,7 @@ function exportFacebookCampaignExcel(campaignName) {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `تقرير_قرار_حملة_فيسبوك_${campaignName}.csv`);
+    link.setAttribute("download", `تقرير_قرار_حملة_${platform}_${campaignName}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -12435,11 +12447,15 @@ function exportFacebookCampaignPDF(campaignName) {
         `;
     }).join('');
 
+    const platform = window.currentPlatform || 'facebook';
+    const platformLabel = platform === 'tiktok' ? 'TikTok' : 'Meta';
+    const headerGradient = platform === 'tiktok' ? 'linear-gradient(135deg, #000 0%, #1e1b4b 100%)' : 'linear-gradient(135deg, #1877f2 0%, #1e1b4b 100%)';
+
     const htmlContent = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>تقرير أداء وقرار حملة Meta Ads - ${campaignName}</title>
+    <title>تقرير أداء وقرار حملة ${platformLabel} Ads - ${campaignName}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -12463,7 +12479,7 @@ function exportFacebookCampaignPDF(campaignName) {
             box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         }
         .hdr {
-            background: linear-gradient(135deg, #1877f2 0%, #1e1b4b 100%);
+            background: ${headerGradient};
             color: #fff;
             padding: 24px;
             border-radius: 8px;
@@ -12527,7 +12543,7 @@ function exportFacebookCampaignPDF(campaignName) {
     <button class="btn no-print" onclick="window.print()">🖨️ طباعة / حفظ التقرير PDF</button>
     <div class="print-page">
         <div class="hdr">
-            <h1 style="font-size:22px; font-weight:900;">📊 تقرير القرارات وأداء حملة Meta Ads + سلة</h1>
+            <h1 style="font-size:22px; font-weight:900;">📊 تقرير القرارات وأداء حملة ${platformLabel} Ads + سلة</h1>
             <p style="font-size:12px; opacity:0.85; margin-top:4px;">الحملة: ${escapeHtml(campaignName)} · المعرّف: ${data.campaign?.id || ''}</p>
             <div style="font-size:11px; margin-top:8px;">تاريخ استخراج التقرير: ${reportDate} | نسبة تكلفة المنتجات (COGS): ${cogsRate * 100}%</div>
         </div>

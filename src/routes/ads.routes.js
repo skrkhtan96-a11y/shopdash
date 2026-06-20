@@ -504,6 +504,235 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
     const since = req.query.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const until = req.query.to || new Date().toISOString().split('T')[0];
 
+    const platform = req.query.platform || 'facebook';
+
+    if (platform === 'tiktok') {
+        db.get("SELECT access_token, account_id FROM ads_connections WHERE platform = 'tiktok' AND status = 'connected'", [], async (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!row || !row.access_token) {
+                return res.status(400).json({ error: 'منصة تيك توك غير متصلة أو التوكن غير صالح.' });
+            }
+
+            const token = row.access_token;
+            const advertiserId = row.account_id;
+            const headers = { 'Access-Token': token, 'Content-Type': 'application/json' };
+            const filtering = [ { field_name: "campaign_ids", filter_type: "IN", filter_value: JSON.stringify([campaignId]) } ];
+
+            try {
+                const sallaPromise = new Promise((resolve) => {
+                    db.all(
+                        `SELECT date, SUM(amount) as sales, 
+                                COUNT(DISTINCT CASE WHEN instr(reference_id, '_') > 0 THEN substr(reference_id, 1, instr(reference_id, '_') - 1) ELSE reference_id END) as orders_count, 
+                                SUM(quantity) as items_sold 
+                         FROM salla_imported_orders 
+                         WHERE date >= ? AND date <= ? 
+                         GROUP BY date`,
+                        [since, until],
+                        (errSalla, rows) => {
+                            if (errSalla) {
+                                console.error("[Salla DB Err]", errSalla);
+                                resolve([]);
+                            } else {
+                                resolve(rows || []);
+                            }
+                        }
+                    );
+                });
+
+                const safeGet = async (url, params) => {
+                    try {
+                        const response = await axios.get(url, { headers, params });
+                        return response.data;
+                    } catch (e) {
+                        console.error(`[TikTok API Err] Failed request to ${url}:`, e.response?.data || e.message);
+                        return null;
+                    }
+                };
+
+                const [
+                    campaignRes,
+                    dailyInsightsRes,
+                    adgroupsRes,
+                    adgroupInsightsRes,
+                    adsRes,
+                    adInsightsRes,
+                    ageGenderRes,
+                    deviceRes,
+                    sallaDailyData
+                ] = await Promise.all([
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/campaign/get/", {
+                        advertiser_id: advertiserId,
+                        campaign_ids: JSON.stringify([campaignId])
+                    }),
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
+                        advertiser_id: advertiserId,
+                        report_type: 'BASIC',
+                        data_level: 'AUCTION_CAMPAIGN',
+                        dimensions: JSON.stringify(["stat_time_day"]),
+                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
+                        start_date: since,
+                        end_date: until,
+                        filtering: JSON.stringify(filtering)
+                    }),
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/adgroup/get/", {
+                        advertiser_id: advertiserId,
+                        campaign_ids: JSON.stringify([campaignId])
+                    }),
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
+                        advertiser_id: advertiserId,
+                        report_type: 'BASIC',
+                        data_level: 'AUCTION_ADGROUP',
+                        dimensions: JSON.stringify(["adgroup_id"]),
+                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
+                        start_date: since,
+                        end_date: until,
+                        filtering: JSON.stringify(filtering)
+                    }),
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/ad/get/", {
+                        advertiser_id: advertiserId,
+                        campaign_ids: JSON.stringify([campaignId])
+                    }),
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
+                        advertiser_id: advertiserId,
+                        report_type: 'BASIC',
+                        data_level: 'AUCTION_AD',
+                        dimensions: JSON.stringify(["ad_id"]),
+                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
+                        start_date: since,
+                        end_date: until,
+                        filtering: JSON.stringify(filtering)
+                    }),
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
+                        advertiser_id: advertiserId,
+                        report_type: 'AUDIENCE',
+                        data_level: 'AUCTION_CAMPAIGN',
+                        dimensions: JSON.stringify(["gender", "age"]),
+                        metrics: JSON.stringify(["spend", "conversion"]),
+                        start_date: since,
+                        end_date: until,
+                        filtering: JSON.stringify(filtering)
+                    }),
+                    safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
+                        advertiser_id: advertiserId,
+                        report_type: 'BASIC',
+                        data_level: 'AUCTION_CAMPAIGN',
+                        dimensions: JSON.stringify(["device_system_platform"]),
+                        metrics: JSON.stringify(["spend", "conversion"]),
+                        start_date: since,
+                        end_date: until,
+                        filtering: JSON.stringify(filtering)
+                    }),
+                    sallaPromise
+                ]);
+
+                // Calculate Salla Totals
+                let totalSallaSales = 0;
+                let totalSallaOrders = 0;
+                let totalSallaItems = 0;
+                sallaDailyData.forEach(d => {
+                    totalSallaSales += parseFloat(d.sales || 0);
+                    totalSallaOrders += parseInt(d.orders_count || 0);
+                    totalSallaItems += parseInt(d.items_sold || 0);
+                });
+
+                const cMeta = campaignRes?.data?.list?.[0];
+
+                const result = {
+                    campaign: cMeta ? {
+                        id: cMeta.campaign_id,
+                        name: cMeta.campaign_name,
+                        status: cMeta.operation_status === 'ENABLE' ? 'ACTIVE' : 'PAUSED',
+                        objective: cMeta.objective_type || 'WEB_CONVERSIONS',
+                        daily_budget: cMeta.budget_mode === 'BUDGET_MODE_INFINITE' ? 0 : parseFloat(cMeta.budget || 0),
+                        lifetime_budget: 0,
+                        budget_remaining: 0,
+                        start_time: cMeta.create_time,
+                        stop_time: null
+                    } : null,
+                    daily_insights: (dailyInsightsRes?.data?.list || []).map(r => {
+                        const date = r.dimensions.stat_time_day.split(' ')[0];
+                        const spend = parseFloat(r.metrics.spend || 0);
+                        const conversions = parseInt(r.metrics.conversion || 0);
+                        return {
+                            date_start: date,
+                            spend: spend,
+                            impressions: parseInt(r.metrics.impressions || 0),
+                            reach: parseInt(r.metrics.impressions || 0),
+                            clicks: parseInt(r.metrics.clicks || 0),
+                            actions: [ { action_type: 'purchase', value: conversions } ],
+                            action_values: [ { action_type: 'purchase', value: conversions * 195 } ]
+                        };
+                    }),
+                    adsets: (adgroupsRes?.data?.list || []).map(ag => {
+                        const insights = (adgroupInsightsRes?.data?.list || []).find(i => i.dimensions.adgroup_id === ag.adgroup_id) || { metrics: {} };
+                        const spend = parseFloat(insights.metrics.spend || 0);
+                        const conversions = parseInt(insights.metrics.conversion || 0);
+                        return {
+                            id: ag.adgroup_id,
+                            name: ag.adgroup_name,
+                            status: ag.operation_status === 'ENABLE' ? 'ACTIVE' : 'PAUSED',
+                            daily_budget: ag.budget || 0,
+                            lifetime_budget: 0,
+                            spend: spend,
+                            impressions: parseInt(insights.metrics.impressions || 0),
+                            clicks: parseInt(insights.metrics.clicks || 0),
+                            actions: [ { action_type: 'purchase', value: conversions } ],
+                            action_values: [ { action_type: 'purchase', value: conversions * 195 } ]
+                        };
+                    }),
+                    ads: (adsRes?.data?.list || []).map(ad => {
+                        const insights = (adInsightsRes?.data?.list || []).find(i => i.dimensions.ad_id === ad.ad_id) || { metrics: {} };
+                        const conversions = parseInt(insights.metrics.conversion || 0);
+                        return {
+                            id: ad.ad_id,
+                            name: ad.ad_name,
+                            status: ad.operation_status === 'ENABLE' ? 'ACTIVE' : 'PAUSED',
+                            creative: {
+                                thumbnail_url: ad.image_urls?.[0] || ad.image_ids?.[0] || ''
+                            },
+                            spend: parseFloat(insights.metrics.spend || 0),
+                            impressions: parseInt(insights.metrics.impressions || 0),
+                            clicks: parseInt(insights.metrics.clicks || 0),
+                            actions: [ { action_type: 'purchase', value: conversions } ],
+                            action_values: [ { action_type: 'purchase', value: conversions * 195 } ]
+                        };
+                    }),
+                    breakdowns: {
+                        age_gender: (ageGenderRes?.data?.list || []).map(r => {
+                            const genderStr = r.dimensions.gender === 'GENDER_FEMALE' ? 'female' : r.dimensions.gender === 'GENDER_MALE' ? 'male' : 'unknown';
+                            const ageStr = r.dimensions.age ? r.dimensions.age.replace('AGE_', '').replace('_', '-') : 'unknown';
+                            return {
+                                gender: genderStr,
+                                age: ageStr,
+                                spend: parseFloat(r.metrics.spend || 0),
+                                actions: [ { action_type: 'purchase', value: parseInt(r.metrics.conversion || 0) } ]
+                            };
+                        }),
+                        device: (deviceRes?.data?.list || []).map(r => {
+                            const platformStr = (r.dimensions.device_system_platform || '').toLowerCase().includes('ios') ? 'iphone' : 'android';
+                            return {
+                                device_platform: platformStr,
+                                spend: parseFloat(r.metrics.spend || 0),
+                                actions: [ { action_type: 'purchase', value: parseInt(r.metrics.conversion || 0) } ]
+                            };
+                        })
+                    },
+                    salla_daily: sallaDailyData,
+                    salla_summary: {
+                        total_sales: totalSallaSales,
+                        total_orders: totalSallaOrders,
+                        total_items: totalSallaItems
+                    }
+                };
+
+                res.json(result);
+            } catch (e) {
+                next(e);
+            }
+        });
+        return;
+    }
+
     // Fetch Facebook connection from database to get the token
     db.get("SELECT access_token FROM ads_connections WHERE platform = 'facebook' AND status = 'connected'", [], async (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
