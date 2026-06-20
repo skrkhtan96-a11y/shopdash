@@ -562,7 +562,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                 ] = await Promise.all([
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/campaign/get/", {
                         advertiser_id: advertiserId,
-                        campaign_ids: JSON.stringify([campaignId])
+                        campaign_ids: JSON.stringify([campaignId]),
+                        page_size: 100
                     }),
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
                         advertiser_id: advertiserId,
@@ -572,11 +573,13 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
                         start_date: since,
                         end_date: until,
-                        filtering: JSON.stringify(filtering)
+                        filtering: JSON.stringify(filtering),
+                        page_size: 1000
                     }),
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/adgroup/get/", {
                         advertiser_id: advertiserId,
-                        campaign_ids: JSON.stringify([campaignId])
+                        campaign_ids: JSON.stringify([campaignId]),
+                        page_size: 100
                     }),
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
                         advertiser_id: advertiserId,
@@ -586,11 +589,13 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
                         start_date: since,
                         end_date: until,
-                        filtering: JSON.stringify(filtering)
+                        filtering: JSON.stringify(filtering),
+                        page_size: 1000
                     }),
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/ad/get/", {
                         advertiser_id: advertiserId,
-                        campaign_ids: JSON.stringify([campaignId])
+                        campaign_ids: JSON.stringify([campaignId]),
+                        page_size: 100
                     }),
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
                         advertiser_id: advertiserId,
@@ -600,7 +605,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
                         start_date: since,
                         end_date: until,
-                        filtering: JSON.stringify(filtering)
+                        filtering: JSON.stringify(filtering),
+                        page_size: 1000
                     }),
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
                         advertiser_id: advertiserId,
@@ -610,7 +616,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         metrics: JSON.stringify(["spend", "conversion"]),
                         start_date: since,
                         end_date: until,
-                        filtering: JSON.stringify(filtering)
+                        filtering: JSON.stringify(filtering),
+                        page_size: 1000
                     }),
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
                         advertiser_id: advertiserId,
@@ -620,7 +627,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         metrics: JSON.stringify(["spend", "conversion"]),
                         start_date: since,
                         end_date: until,
-                        filtering: JSON.stringify(filtering)
+                        filtering: JSON.stringify(filtering),
+                        page_size: 1000
                     }),
                     sallaPromise
                 ]);
