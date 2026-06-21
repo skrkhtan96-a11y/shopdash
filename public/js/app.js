@@ -11726,10 +11726,13 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data, platform =
                     <div class="kpi-val red" id="detKpiSpend">-</div>
                     <div class="kpi-label">الإنفاق الإعلاني (Spend)</div>
                 </div>
-                <div class="kpi k-green">
-                    <div class="kpi-icon"><i class="ti ti-trending-up"></i></div>
-                    <div class="kpi-val green" id="detKpiSallaSales">-</div>
-                    <div class="kpi-label">مبيعات متجر سلة الفعلية</div>
+                <div class="kpi k-green" style="display:flex; flex-direction:column; justify-content:space-between; padding-bottom:12px;">
+                    <div>
+                        <div class="kpi-icon"><i class="ti ti-trending-up"></i></div>
+                        <div class="kpi-val green" id="detKpiSallaSales">-</div>
+                        <div class="kpi-label">مبيعات الحملة المنسوبة (سلة)</div>
+                    </div>
+                    <div id="detKpiSallaSalesStore" style="font-size: 10px; color: #8b95a7; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 6px; text-align: right;">-</div>
                 </div>
                 <div class="kpi" style="background:#141b2d; border:1px solid #1e2a45;">
                     <div class="kpi-icon"><i class="ti ti-wallet"></i></div>
@@ -11756,10 +11759,13 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data, platform =
                     <div class="kpi-val" id="detKpiAOV">-</div>
                     <div class="kpi-label">متوسط قيمة الطلب AOV</div>
                 </div>
-                <div class="kpi k-green">
-                    <div class="kpi-icon"><i class="ti ti-shopping-cart"></i></div>
-                    <div class="kpi-val" id="detKpiSallaOrders">-</div>
-                    <div class="kpi-label">عدد الطلبات المحققة (سلة)</div>
+                <div class="kpi k-green" style="display:flex; flex-direction:column; justify-content:space-between; padding-bottom:12px;">
+                    <div>
+                        <div class="kpi-icon"><i class="ti ti-shopping-cart"></i></div>
+                        <div class="kpi-val" id="detKpiSallaOrders">-</div>
+                        <div class="kpi-label">طلب محقق من الحملة (سلة)</div>
+                    </div>
+                    <div id="detKpiSallaOrdersStore" style="font-size: 10px; color: #8b95a7; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 6px; text-align: right;">-</div>
                 </div>
             </div>
 
@@ -11918,6 +11924,7 @@ function recalculateMarketingMetrics() {
     if (!data) return;
 
     const cogsRate = parseFloat(document.getElementById('cogsSelector')?.value || 0.3);
+    const platform = window.currentPlatform || 'facebook';
 
     // Sum overall metrics from daily insights
     let totalSpend = 0;
@@ -11948,18 +11955,31 @@ function recalculateMarketingMetrics() {
         thruplays += parsed.thruplays || 0;
     });
 
-    const sallaSales = data.salla_summary.total_sales;
-    const sallaOrders = data.salla_summary.total_orders;
-    const cogs = sallaSales * cogsRate;
-    const netProfit = sallaSales - cogs - totalSpend;
+    const sallaSales = parseFloat(data.salla_summary?.total_sales || 0);
+    const sallaOrders = parseInt(data.salla_summary?.total_orders || 0);
+    const storeAOV = sallaOrders > 0 ? (sallaSales / sallaOrders) : 24.85;
+
+    // Calculate attributed campaign sales based on actual store AOV
+    let campaignSales = purchaseValue;
+    if (platform === 'tiktok') {
+        campaignSales = purchaseCount * storeAOV;
+    } else {
+        if (campaignSales === 0 && purchaseCount > 0) {
+            campaignSales = purchaseCount * storeAOV;
+        }
+    }
+
+    const campaignOrders = purchaseCount;
+    const cogs = campaignSales * cogsRate;
+    const netProfit = campaignSales - cogs - totalSpend;
     const poas = totalSpend > 0 ? (netProfit / totalSpend) : 0;
     const breakEvenRoas = (1 - cogsRate) > 0 ? (1 / (1 - cogsRate)) : 1.0;
-    const cac = sallaOrders > 0 ? (totalSpend / sallaOrders) : 0;
-    const aov = sallaOrders > 0 ? (sallaSales / sallaOrders) : 0;
-    const roas = totalSpend > 0 ? (purchaseValue / totalSpend) : 0;
+    const cac = campaignOrders > 0 ? (totalSpend / campaignOrders) : 0;
+    const aov = campaignOrders > 0 ? (campaignSales / campaignOrders) : storeAOV;
+    const roas = totalSpend > 0 ? (campaignSales / totalSpend) : 0;
     const frequency = totalReach > 0 ? (totalImpressions / totalReach) : 1.0;
 
-    window.currentFbCampaignSummary = { spend: totalSpend, impressions: totalImpressions, clicks: totalClicks, conversions: sallaOrders, roas };
+    window.currentFbCampaignSummary = { spend: totalSpend, impressions: totalImpressions, clicks: totalClicks, conversions: campaignOrders, roas };
 
     // Update Decision Bar
     const poasEl = document.getElementById('detPOASVal');
@@ -11987,18 +12007,27 @@ function recalculateMarketingMetrics() {
     // Update KPI Card values
     const map = {
         'detKpiSpend': `${fmt(totalSpend)} ر.س`,
-        'detKpiSallaSales': `${fmt(sallaSales)} ر.س`,
+        'detKpiSallaSales': `${fmt(campaignSales)} ر.س`,
         'detKpiNetProfit': `${fmt(netProfit)} ر.س`,
         'detKpiPOAS': `${poas.toFixed(2)}x`,
         'detKpiMetaROAS': `${roas.toFixed(2)}x`,
         'detKpiCAC': `${cac.toFixed(2)} ر.س`,
         'detKpiAOV': `${aov.toFixed(2)} ر.س`,
-        'detKpiSallaOrders': `${sallaOrders} طلبات`
+        'detKpiSallaOrders': `${campaignOrders} طلبات`
     };
     Object.keys(map).forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = map[id];
     });
+
+    const sallaSalesStoreEl = document.getElementById('detKpiSallaSalesStore');
+    if (sallaSalesStoreEl) {
+        sallaSalesStoreEl.textContent = `إجمالي المتجر: ${fmt(sallaSales)} ر.س`;
+    }
+    const sallaOrdersStoreEl = document.getElementById('detKpiSallaOrdersStore');
+    if (sallaOrdersStoreEl) {
+        sallaOrdersStoreEl.textContent = `إجمالي المتجر: ${sallaOrders} طلب`;
+    }
 
     // Update circular gauge
     const roasMax = 4.0;
@@ -12025,7 +12054,7 @@ function recalculateMarketingMetrics() {
         let conv = 100;
         let drop = 0;
         if (prevVal > 0) {
-            conv = (sallaOrders / prevVal) * 100;
+            conv = (campaignOrders / prevVal) * 100;
             drop = 100 - conv;
         }
         funnelPurchSalla.innerHTML = `
@@ -12038,7 +12067,7 @@ function recalculateMarketingMetrics() {
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 15px; direction:ltr;">
-                <span style="font-family: monospace; font-size: 13px; font-weight: bold; color: #00ff88;">${fmt(sallaOrders)}</span>
+                <span style="font-family: monospace; font-size: 13px; font-weight: bold; color: #00ff88;">${fmt(campaignOrders)}</span>
                 <div style="width: 75px; text-align: right; direction:rtl;">
                     <div style="font-size: 10.5px; font-weight: bold; color: #00ff88;">%${conv.toFixed(1)} <span style="font-size: 8px; color: #8b95a7">تحويل</span></div>
                     <div style="font-size: 8.5px; color: #ff4757; margin-top: 1px;">%${drop.toFixed(1)} <span style="font-size: 8px; color: #8b95a7">تسرب</span></div>
@@ -12054,26 +12083,56 @@ function recalculateMarketingMetrics() {
     
     const metaSalesData = sortedDaily.map(d => {
         const parsed = parseFacebookActions(d.actions, d.action_values);
-        return parsed.purchaseValue;
+        let dailyVal = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            dailyVal = parsed.purchaseCount * storeAOV;
+        } else {
+            if (dailyVal === 0 && parsed.purchaseCount > 0) {
+                dailyVal = parsed.purchaseCount * storeAOV;
+            }
+        }
+        return dailyVal;
     });
 
-    const sallaSalesData = dates.map(dateStr => {
-        const matchingDay = data.salla_daily.find(sd => fmtDate(sd.date) === dateStr);
-        return matchingDay ? parseFloat(matchingDay.sales || 0) : 0;
+    const sallaSalesData = sortedDaily.map(d => {
+        const parsed = parseFacebookActions(d.actions, d.action_values);
+        let dailyVal = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            dailyVal = parsed.purchaseCount * storeAOV;
+        } else {
+            if (dailyVal === 0 && parsed.purchaseCount > 0) {
+                dailyVal = parsed.purchaseCount * storeAOV;
+            }
+        }
+        return dailyVal;
     });
 
     const roasData = sortedDaily.map(d => {
         const parsed = parseFacebookActions(d.actions, d.action_values);
+        let dailyVal = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            dailyVal = parsed.purchaseCount * storeAOV;
+        } else {
+            if (dailyVal === 0 && parsed.purchaseCount > 0) {
+                dailyVal = parsed.purchaseCount * storeAOV;
+            }
+        }
         const sp = parseFloat(d.spend || 0);
-        return sp > 0 ? (parsed.purchaseValue / sp) : 0;
+        return sp > 0 ? (dailyVal / sp) : 0;
     });
 
-    const poasData = sortedDaily.map((d, idx) => {
+    const poasData = sortedDaily.map(d => {
         const sp = parseFloat(d.spend || 0);
-        const dateStr = fmtDate(d.date_start);
-        const matchingDay = data.salla_daily.find(sd => fmtDate(sd.date) === dateStr);
-        const sl = matchingDay ? parseFloat(matchingDay.sales || 0) : 0;
-        const profit = sl - (sl * cogsRate) - sp;
+        const parsed = parseFacebookActions(d.actions, d.action_values);
+        let dailyVal = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            dailyVal = parsed.purchaseCount * storeAOV;
+        } else {
+            if (dailyVal === 0 && parsed.purchaseCount > 0) {
+                dailyVal = parsed.purchaseCount * storeAOV;
+            }
+        }
+        const profit = dailyVal - (dailyVal * cogsRate) - sp;
         return sp > 0 ? (profit / sp) : 0;
     });
 
@@ -12356,38 +12415,69 @@ function exportFacebookCampaignExcel(campaignName) {
     const platformLabel = platform === 'tiktok' ? 'تيك توك' : 'فيسبوك';
     
     let csv = '\ufeff';
-    csv += `المستوى,الاسم,المعرّف,الحالة,الإنفاق,مبيعات ${platformLabel},مبيعات سلة,العائد ROAS,عائد الربح POAS\n`;
+    csv += `المستوى,الاسم,المعرّف,الحالة,الإنفاق,مبيعات ${platformLabel},مبيعات سلة المنسوبة,إجمالي مبيعات المتجر,العائد ROAS,عائد الربح POAS\n`;
     
     const summary = window.currentFbCampaignSummary;
     const cogsRate = parseFloat(document.getElementById('cogsSelector')?.value || 0.3);
     
     // Sum overall spend and purchaseValue
     let totalSpend = 0;
+    let purchaseCount = 0;
     let purchaseValue = 0;
     data.daily_insights.forEach(day => {
         totalSpend += parseFloat(day.spend || 0);
         const parsed = parseFacebookActions(day.actions, day.action_values);
+        purchaseCount += parsed.purchaseCount;
         purchaseValue += parsed.purchaseValue;
     });
 
-    const netProfit = data.salla_summary.total_sales - (data.salla_summary.total_sales * cogsRate) - totalSpend;
+    const sallaSales = parseFloat(data.salla_summary?.total_sales || 0);
+    const sallaOrders = parseInt(data.salla_summary?.total_orders || 0);
+    const storeAOV = sallaOrders > 0 ? (sallaSales / sallaOrders) : 24.85;
+
+    let campaignSales = purchaseValue;
+    if (platform === 'tiktok') {
+        campaignSales = purchaseCount * storeAOV;
+    } else {
+        if (campaignSales === 0 && purchaseCount > 0) {
+            campaignSales = purchaseCount * storeAOV;
+        }
+    }
+
+    const netProfit = campaignSales - (campaignSales * cogsRate) - totalSpend;
     const poas = totalSpend > 0 ? (netProfit / totalSpend) : 0;
     
     // Campaign
-    csv += `الحملة,${campaignName},${data.campaign?.id || ''},${data.campaign?.status || ''},${totalSpend},${purchaseValue},${data.salla_summary.total_sales},${summary.roas.toFixed(2)},${poas.toFixed(2)}\n`;
+    csv += `الحملة,${campaignName},${data.campaign?.id || ''},${data.campaign?.status || ''},${totalSpend},${campaignSales},${campaignSales},${sallaSales},${summary.roas.toFixed(2)},${poas.toFixed(2)}\n`;
     
     // Adsets
     data.adsets.forEach(as => {
         const parsed = parseFacebookActions(as.actions, as.action_values);
-        const asRoas = as.spend > 0 ? (parsed.purchaseValue / as.spend) : 0;
-        csv += `مجموعة إعلانية,${as.name},${as.id},${as.status},${as.spend},${parsed.purchaseValue},0,${asRoas.toFixed(2)},0\n`;
+        let asSales = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            asSales = parsed.purchaseCount * storeAOV;
+        } else {
+            if (asSales === 0 && parsed.purchaseCount > 0) {
+                asSales = parsed.purchaseCount * storeAOV;
+            }
+        }
+        const asRoas = as.spend > 0 ? (asSales / as.spend) : 0;
+        csv += `مجموعة إعلانية,${as.name},${as.id},${as.status},${as.spend},${asSales},0,0,${asRoas.toFixed(2)},0\n`;
     });
     
     // Ads
     data.ads.forEach(ad => {
         const parsed = parseFacebookActions(ad.actions, ad.action_values);
-        const adRoas = ad.spend > 0 ? (parsed.purchaseValue / ad.spend) : 0;
-        csv += `إعلان فردي,${ad.name},${ad.id},${ad.status},${ad.spend},${parsed.purchaseValue},0,${adRoas.toFixed(2)},0\n`;
+        let adSales = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            adSales = parsed.purchaseCount * storeAOV;
+        } else {
+            if (adSales === 0 && parsed.purchaseCount > 0) {
+                adSales = parsed.purchaseCount * storeAOV;
+            }
+        }
+        const adRoas = ad.spend > 0 ? (adSales / ad.spend) : 0;
+        csv += `إعلان فردي,${ad.name},${ad.id},${ad.status},${ad.spend},${adSales},0,0,${adRoas.toFixed(2)},0\n`;
     });
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -12406,9 +12496,31 @@ function exportFacebookCampaignPDF(campaignName) {
 
     const summary = window.currentFbCampaignSummary;
     const cogsRate = parseFloat(document.getElementById('cogsSelector')?.value || 0.3);
-    const sallaSales = data.salla_summary.total_sales;
-    const cogs = sallaSales * cogsRate;
-    const netProfit = sallaSales - cogs - summary.spend;
+    const platform = window.currentPlatform || 'facebook';
+
+    const sallaSales = parseFloat(data.salla_summary?.total_sales || 0);
+    const sallaOrders = parseInt(data.salla_summary?.total_orders || 0);
+    const storeAOV = sallaOrders > 0 ? (sallaSales / sallaOrders) : 24.85;
+
+    let purchaseCount = 0;
+    let purchaseValue = 0;
+    data.daily_insights.forEach(day => {
+        const parsed = parseFacebookActions(day.actions, day.action_values);
+        purchaseCount += parsed.purchaseCount;
+        purchaseValue += parsed.purchaseValue;
+    });
+
+    let campaignSales = purchaseValue;
+    if (platform === 'tiktok') {
+        campaignSales = purchaseCount * storeAOV;
+    } else {
+        if (campaignSales === 0 && purchaseCount > 0) {
+            campaignSales = purchaseCount * storeAOV;
+        }
+    }
+
+    const cogs = campaignSales * cogsRate;
+    const netProfit = campaignSales - cogs - summary.spend;
     const poas = summary.spend > 0 ? (netProfit / summary.spend) : 0;
     const breakEven = (1 - cogsRate) > 0 ? (1 / (1 - cogsRate)) : 1.0;
 
@@ -12416,7 +12528,15 @@ function exportFacebookCampaignPDF(campaignName) {
 
     let adsetsRows = data.adsets.map((as, idx) => {
         const parsed = parseFacebookActions(as.actions, as.action_values);
-        const asRoas = as.spend > 0 ? (parsed.purchaseValue / as.spend) : 0;
+        let asSales = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            asSales = parsed.purchaseCount * storeAOV;
+        } else {
+            if (asSales === 0 && parsed.purchaseCount > 0) {
+                asSales = parsed.purchaseCount * storeAOV;
+            }
+        }
+        const asRoas = as.spend > 0 ? (asSales / as.spend) : 0;
         return `
             <tr>
                 <td>${idx + 1}</td>
@@ -12426,14 +12546,22 @@ function exportFacebookCampaignPDF(campaignName) {
                 <td class="mono">${fmt(as.impressions)}</td>
                 <td class="mono">${fmt(as.clicks)}</td>
                 <td class="mono">${parsed.purchaseCount}</td>
-                <td class="mono bold" style="color:${asRoas >= breakEven ? '#0d9488' : '#e11d48'};Account">${asRoas.toFixed(2)}x</td>
+                <td class="mono bold" style="color:${asRoas >= breakEven ? '#0d9488' : '#e11d48'};">${asRoas.toFixed(2)}x</td>
             </tr>
         `;
     }).join('');
 
     let adsRows = data.ads.map((ad, idx) => {
         const parsed = parseFacebookActions(ad.actions, ad.action_values);
-        const adRoas = ad.spend > 0 ? (parsed.purchaseValue / ad.spend) : 0;
+        let adSales = parsed.purchaseValue;
+        if (platform === 'tiktok') {
+            adSales = parsed.purchaseCount * storeAOV;
+        } else {
+            if (adSales === 0 && parsed.purchaseCount > 0) {
+                adSales = parsed.purchaseCount * storeAOV;
+            }
+        }
+        const adRoas = ad.spend > 0 ? (adSales / ad.spend) : 0;
         return `
             <tr>
                 <td>${idx + 1}</td>
@@ -12442,12 +12570,11 @@ function exportFacebookCampaignPDF(campaignName) {
                 <td class="mono red">${ad.spend.toFixed(2)} ر.س</td>
                 <td class="mono">${ad.clicks}</td>
                 <td class="mono">${parsed.purchaseCount}</td>
-                <td class="mono bold" style="color:${adRoas >= breakEven ? '#0d9488' : '#e11d48'};Account">${adRoas.toFixed(2)}x</td>
+                <td class="mono bold" style="color:${adRoas >= breakEven ? '#0d9488' : '#e11d48'};">${adRoas.toFixed(2)}x</td>
             </tr>
         `;
     }).join('');
 
-    const platform = window.currentPlatform || 'facebook';
     const platformLabel = platform === 'tiktok' ? 'TikTok' : 'Meta';
     const headerGradient = platform === 'tiktok' ? 'linear-gradient(135deg, #000 0%, #1e1b4b 100%)' : 'linear-gradient(135deg, #1877f2 0%, #1e1b4b 100%)';
 
@@ -12554,11 +12681,12 @@ function exportFacebookCampaignPDF(campaignName) {
                 <div class="kpi-val red">${summary.spend.toFixed(2)} ر.س</div>
             </div>
             <div class="kpi">
-                <div class="kpi-title">مبيعات متجر سلة الفعلية</div>
-                <div class="kpi-val green">${sallaSales.toFixed(2)} ر.س</div>
+                <div class="kpi-title">مبيعات الحملة المنسوبة (سلة)</div>
+                <div class="kpi-val green">${campaignSales.toFixed(2)} ر.س</div>
+                <div style="font-size:9px; color:#64748b; margin-top:2px;">إجمالي المتجر: ${sallaSales.toFixed(2)} ر.س</div>
             </div>
             <div class="kpi">
-                <div class="kpi-title">الربح الصافي الفعلي</div>
+                <div class="kpi-title">الربح الصافي للحملة</div>
                 <div class="kpi-val bold" style="color:${netProfit >= 0 ? '#0d9488' : '#e11d48'}">${netProfit.toFixed(2)} ر.س</div>
             </div>
             <div class="kpi">
