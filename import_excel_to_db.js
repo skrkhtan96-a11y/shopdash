@@ -96,6 +96,8 @@ try {
             else if (lowerPay.includes('انتظار')) paySlug = 'waiting';
 
             const totalAmount = parseFloat(r['إجمالي الطلب (شامل التخفيضات)'] || r['إجمالي الطلب (غير شامل التخفيضات)'] || r['مجموع السلة'] || 0);
+            const originalAmount = parseFloat(r['original_order_amount'] || r['إجمالي الطلب بالعملة الأصلية'] || 0);
+            const conversionFactor = originalAmount > 0 ? (totalAmount / originalAmount) : 1;
             const customerName = String(r['اسم العميل'] || 'عميل خارجي').trim();
 
             let items = [];
@@ -108,7 +110,7 @@ try {
                             return {
                                 name: cleanProductName(item[0] || 'منتج مستورد'),
                                 qty: parseInt(item[1]) || 1,
-                                amount: parseFloat(item[4]) || 0
+                                amount: (parseFloat(item[4]) || 0) * conversionFactor
                             };
                         });
                     }

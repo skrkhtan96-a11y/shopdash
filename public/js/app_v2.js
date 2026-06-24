@@ -2915,6 +2915,11 @@ async function handleImport(ev, type) {
                         else if (lowerPay.includes('cod') || lowerPay.includes('عند الاستلام')) paySlug = 'cod';
                         else if (lowerPay.includes('انتظار')) paySlug = 'waiting';
 
+                        // Get total and original amounts for currency conversion
+                        const totalAmount = parseFloat(getValue(r, ['إجمالي الطلب (شامل التخفيضات)', 'إجمالي الطلب (غير شامل التخفيضات)', 'مجموع السلة', 'إجمالي الطلب', 'إجمالي المبيعات', 'المبلغ', 'السعر', 'صافي المبيعات', 'total', 'amount', 'price', 'Net Sales', 'Total']) || 0);
+                        const originalAmount = parseFloat(getValue(r, ['original_order_amount', 'إجمالي الطلب بالعملة الأصلية']) || 0);
+                        const conversionFactor = originalAmount > 0 ? (totalAmount / originalAmount) : 1;
+
                         // Check if skus_json is present to parse individual items
                         let items = [];
                         const skusJsonStr = r['skus_json'];
@@ -2926,7 +2931,7 @@ async function handleImport(ev, type) {
                                         return {
                                             name: cleanProductName(item[0] || 'منتج مستورد'),
                                             qty: parseInt(item[1]) || 1,
-                                            amount: parseFloat(item[4]) || 0
+                                            amount: (parseFloat(item[4]) || 0) * conversionFactor
                                         };
                                     });
                                 }
