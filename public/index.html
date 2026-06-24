@@ -136,6 +136,9 @@
             <button type="button" class="btn btn-sm" onclick="document.getElementById('mReceiptFile').click()"><i class="ti ti-upload"></i> اختر ملف الإيصال</button>
             <input type="text" id="mReceiptUrl" placeholder="رابط الإيصال السحابي..." readonly style="flex:1; height:30px; font-size:11px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none">
           </div>
+          <div style="font-size:9.5px; color:var(--text3); margin-top:4.5px; display:flex; align-items:center; gap:4px;">
+            <i class="ti ti-info-circle" style="color:var(--accent)"></i> يمكنك أيضاً سحب وإفلات الصورة هنا، أو لصقها مباشرة (Ctrl+V) أثناء فتح النافذة
+          </div>
           <div id="expenseUploadProgress" style="display:none; font-size:9.5px; color:var(--accent); margin-top:4px;"><i class="spinner" style="width:10px; height:10px; display:inline-block; vertical-align:middle; margin-left:4px;"></i> جاري رفع الملف إلى جوجل درايف...</div>
         </div>
       </div>
@@ -2171,6 +2174,9 @@
                 <input type="file" id="extReceiptFile" accept="image/*,application/pdf" style="display:none;" onchange="uploadReceiptFile('external-sale')">
                 <button type="button" class="btn btn-sm" onclick="document.getElementById('extReceiptFile').click()" style="padding: 6px 10px; font-size: 11px; height:31px;"><i class="ti ti-upload"></i> اختر ملف الإيصال</button>
                 <input type="text" id="extReceiptUrl" placeholder="رابط الإيصال السحابي..." readonly style="flex:1; height:31px; font-size:11px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none">
+              </div>
+              <div style="font-size:9.5px; color:var(--text3); margin-top:4.5px; display:flex; align-items:center; gap:4px;">
+                <i class="ti ti-info-circle" style="color:var(--accent)"></i> يمكنك أيضاً سحب وإفلات الصورة هنا، أو لصقها مباشرة (Ctrl+V) أثناء فتح هذا النموذج
               </div>
               <div id="extSaleUploadProgress" style="display:none; font-size:9.5px; color:var(--accent); margin-top:4px;"><i class="spinner" style="width:10px; height:10px; display:inline-block; vertical-align:middle; margin-left:4px;"></i> جاري رفع الملف إلى جوجل درايف...</div>
             </div>

@@ -4491,6 +4491,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     init();
     setupDragAndDrop();
+    setupPasteReceiptListeners();
+    setupDragAndDropReceipts();
 
     // الاستماع لتغييرات مسار الصفحة في المتصفح (Hash Routing)
     window.addEventListener('hashchange', () => {
@@ -9330,6 +9332,136 @@ async function uploadReceiptFile(formType) {
     } finally {
         if (progress) progress.style.display = 'none';
         fileInput.value = ''; // تفريغ الحقل لتكرار الرفع
+    }
+}
+
+// تهيئة مستمعي لصق الصور من الحافظة (Clipboard Paste)
+function setupPasteReceiptListeners() {
+    document.addEventListener('paste', async (event) => {
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        let file = null;
+        for (const item of items) {
+            if (item.type.indexOf('image') === 0) {
+                file = item.getAsFile();
+                break;
+            }
+        }
+        if (!file) return;
+
+        // تحديد النموذج المفتوح حالياً لتوجيه الرفع إليه
+        const addModal = document.getElementById('addModal');
+        const extSaleFormContainer = document.getElementById('extSaleFormContainer');
+        
+        let formType = null;
+        if (addModal && addModal.classList.contains('open')) {
+            formType = 'expense';
+        } else if (extSaleFormContainer && extSaleFormContainer.style.display !== 'none') {
+            formType = 'ext-sale';
+        }
+
+        if (!formType) return;
+
+        event.preventDefault(); // منع السلوك الافتراضي للصق النص
+        
+        const progressId = formType === 'expense' ? 'expenseUploadProgress' : 'extSaleUploadProgress';
+        const urlInputId = formType === 'expense' ? 'mReceiptUrl' : 'extReceiptUrl';
+        
+        const progress = document.getElementById(progressId);
+        const urlInput = document.getElementById(urlInputId);
+        
+        if (progress) progress.style.display = 'block';
+        
+        let prefix = 'pasted_receipt';
+        if (formType === 'expense') {
+            const descVal = document.getElementById('mDesc').value.trim();
+            if (descVal) prefix = descVal;
+        } else if (formType === 'ext-sale') {
+            const prodVal = document.getElementById('extProductName').value.trim();
+            if (prodVal) prefix = prodVal;
+        }
+        
+        const formData = new FormData();
+        const ext = file.type.split('/')[1] || 'png';
+        const filename = `${prefix.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_')}_${Date.now()}.${ext}`;
+        formData.append('file', file, filename);
+        formData.append('prefix', prefix);
+        
+        try {
+            const res = await fetch('/api/upload/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'فشل رفع الصورة الملصقة');
+            }
+            
+            const data = await res.json();
+            if (data.success && data.file_url) {
+                if (urlInput) {
+                    urlInput.value = data.file_url;
+                }
+                toast('📋 تم لصق ورفع الصورة بنجاح إلى Google Drive!', 'ok');
+            } else {
+                throw new Error('فشل الرفع');
+            }
+        } catch (err) {
+            console.error('Paste upload error:', err);
+            toast('حدث خطأ أثناء رفع الصورة الملصقة: ' + err.message, 'error');
+        } finally {
+            if (progress) progress.style.display = 'none';
+        }
+    });
+}
+
+// تهيئة مستمعي سحب وإفلات ملفات الإيصالات (Drag & Drop)
+function setupDragAndDropReceipts() {
+    const addModal = document.getElementById('addModal');
+    const extSaleFormContainer = document.getElementById('extSaleFormContainer');
+    
+    const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
+    
+    if (addModal) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            addModal.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        addModal.addEventListener('drop', async (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files && files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+                    const fileInput = document.getElementById('mReceiptFile');
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+                    uploadReceiptFile('expense');
+                }
+            }
+        });
+    }
+    
+    if (extSaleFormContainer) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            extSaleFormContainer.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        extSaleFormContainer.addEventListener('drop', async (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files && files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+                    const fileInput = document.getElementById('extReceiptFile');
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+                    uploadReceiptFile('external-sale');
+                }
+            }
+        });
     }
 }
 
