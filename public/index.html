@@ -46,6 +46,73 @@
       background: rgba(0, 255, 136, 0.03) !important;
       color: var(--text) !important;
     }
+    
+    /* Floating Scroll Navigation Widget */
+    .scroll-navigation-widget {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(17, 21, 32, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 30px;
+      padding: 6px;
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 
+                  0 0 15px 0 rgba(0, 217, 255, 0.05);
+      z-index: 9999;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+    .scroll-navigation-widget.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .scroll-navigation-widget:hover {
+      border-color: rgba(24, 178, 176, 0.4);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 
+                  0 0 20px 2px rgba(24, 178, 176, 0.2);
+      background: rgba(17, 21, 32, 0.85);
+    }
+    .scroll-nav-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 18px;
+      outline: none;
+    }
+    .scroll-nav-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--accent, #18B2B0);
+      transform: scale(1.08);
+    }
+    .scroll-nav-btn:active {
+      transform: scale(0.95);
+    }
+    .scroll-nav-divider {
+      width: 18px;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      margin: 4px 0;
+      transition: background 0.2s ease;
+    }
+    .scroll-navigation-widget:hover .scroll-nav-divider {
+      background: rgba(24, 178, 176, 0.2);
+    }
   </style>
 </head>
 <body>
@@ -3524,5 +3591,35 @@
 
   <!-- Load script files -->
   <script src="js/app_v2.js?v=2.0.2"></script>
+
+  <!-- FLOATING SCROLL NAVIGATION WIDGET -->
+  <div class="scroll-navigation-widget" id="scrollNavWidget">
+    <button class="scroll-nav-btn" onclick="scrollToTop()" title="الرجوع للأعلى">
+      <i class="ti ti-chevron-up"></i>
+    </button>
+    <div class="scroll-nav-divider"></div>
+    <button class="scroll-nav-btn" onclick="scrollToBottom()" title="الذهاب للأسفل">
+      <i class="ti ti-chevron-down"></i>
+    </button>
+  </div>
+
+  <script>
+    window.addEventListener('scroll', () => {
+      const widget = document.getElementById('scrollNavWidget');
+      if (window.scrollY > 150) {
+        widget.classList.add('visible');
+      } else {
+        widget.classList.remove('visible');
+      }
+    });
+
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function scrollToBottom() {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+    }
+  </script>
 </body>
 </html>
