@@ -2863,6 +2863,15 @@ async function handleImport(ev, type) {
                 }
             } else {
                 // تقرير الطلبات التفصيلي المعتاد
+                const refCount = {};
+                for (let r of rows) {
+                    const refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
+                    if (refId) {
+                        refCount[refId] = (refCount[refId] || 0) + 1;
+                    }
+                }
+                const refTracker = {};
+
                 for (let r of rows) {
                     const refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
                     let dateRaw = getValue(r, ['تاريخ الطلب', 'تاريخ المبيعة', 'التاريخ', 'date', 'created_at', 'Order Date', 'Date']);
@@ -2898,8 +2907,18 @@ async function handleImport(ev, type) {
                         else if (lowerPay.includes('cod') || lowerPay.includes('عند الاستلام')) paySlug = 'cod';
                         else if (lowerPay.includes('انتظار')) paySlug = 'waiting';
 
+                        let finalRefId = refId;
+                        if (refCount[refId] > 1) {
+                            if (refTracker[refId] === undefined) {
+                                refTracker[refId] = 0;
+                            } else {
+                                refTracker[refId]++;
+                            }
+                            finalRefId = `${refId}_${refTracker[refId]}`;
+                        }
+
                         parsedOrders.push({
-                            reference_id: refId,
+                            reference_id: finalRefId,
                             date: dateStr,
                             status_slug: statusSlug,
                             status_name: statusName,
