@@ -2006,6 +2006,7 @@ function openModal(type) {
 
     const mReceiptUrl = document.getElementById('mReceiptUrl');
     if (mReceiptUrl) mReceiptUrl.value = '';
+    updateDropzonePreview('expense', '');
     
     document.getElementById('modalTitle').innerHTML = `<i class="ti ti-plus" style="color:var(--accent)"></i> إضافة بند مصروفات`;
     toggleMFields();
@@ -2603,6 +2604,7 @@ function editRow(id, type) {
     if (mReceiptUrl) {
         mReceiptUrl.value = row.receipt_url || '';
     }
+    updateDropzonePreview('expense', row.receipt_url || '');
     
     document.getElementById('addModal').classList.add('open');
 }
@@ -8846,6 +8848,7 @@ async function saveExternalSale(event) {
         document.getElementById('extReceiptUrl').value = '';
         document.getElementById('selectedCountryLabel').textContent = 'اختر الدولة...';
         updateBankAccountOptions('');
+        updateDropzonePreview('sale', '');
         
         editingExtSaleId = null; // تفريغ معرف التعديل
         
@@ -8892,6 +8895,7 @@ function editExternalSaleFromDetails() {
     document.getElementById('extCustomerPhone').value = item.customer_phone || '';
     document.getElementById('extNotes').value = item.notes || '';
     document.getElementById('extReceiptUrl').value = item.receipt_url || '';
+    updateDropzonePreview('sale', item.receipt_url || '');
 }
 
 async function deleteExternalSale(id) {
@@ -9288,9 +9292,10 @@ async function uploadReceiptFile(formType) {
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
     
     const file = fileInput.files[0];
+    const progressEl = document.getElementById(progressId);
     
     // إظهار مؤشر الرفع
-    if (progress) progress.style.display = 'block';
+    if (progressEl) progressEl.style.display = 'block';
     
     // استخراج اسم البند أو وصفه لتسمية الملف المرفوع به
     let prefix = 'receipt';
@@ -9319,9 +9324,12 @@ async function uploadReceiptFile(formType) {
         
         const data = await res.json();
         if (data.success && data.file_url) {
-            if (urlInput) {
-                urlInput.value = data.file_url;
+            const finalUrlInput = document.getElementById(urlInputId);
+            if (finalUrlInput) {
+                finalUrlInput.value = data.file_url;
             }
+            // تحديث واجهة السحب واللصق لعرض معاينة الإيصال المرفوع
+            updateDropzonePreview(formType, data.file_url);
             toast('تم رفع الإيصال بنجاح إلى Google Drive!', 'ok');
         } else {
             throw new Error('فشل الرفع');
@@ -9330,13 +9338,90 @@ async function uploadReceiptFile(formType) {
         console.error('Upload error:', err);
         toast('حدث خطأ أثناء رفع الملف: ' + err.message, 'error');
     } finally {
-        if (progress) progress.style.display = 'none';
+        if (progressEl) progressEl.style.display = 'none';
         fileInput.value = ''; // تفريغ الحقل لتكرار الرفع
+    }
+}
+
+// دالة تحديث معاينة منطقة السحب واللصق للإيصال
+function updateDropzonePreview(formType, fileUrl) {
+    const dropzoneId = formType === 'expense' ? 'expenseDropzone' : 'externalDropzone';
+    const zone = document.getElementById(dropzoneId);
+    if (!zone) return;
+
+    const textEl = zone.querySelector('.zone-text');
+    const iconEl = zone.querySelector('.ti-photo-plus');
+    const previewEl = zone.querySelector('.zone-preview');
+
+    if (!fileUrl) {
+        if (textEl) textEl.style.display = 'block';
+        if (iconEl) iconEl.style.display = 'block';
+        if (previewEl) {
+            previewEl.style.display = 'none';
+            previewEl.innerHTML = '';
+        }
+        return;
+    }
+
+    // تحويل رابط جوجل درايف إلى رابط عرض مباشر للصورة إذا لزم الأمر
+    let imgSrc = fileUrl;
+    const driveMatch = fileUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || fileUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) {
+        imgSrc = `https://lh3.googleusercontent.com/u/0/d/${driveMatch[1]}=w600-h600-no`;
+    }
+
+    const isImg = /\.(jpeg|jpg|gif|png|webp)/i.test(fileUrl) || fileUrl.includes('drive.google.com') || fileUrl.includes('docs.google.com');
+
+    if (textEl) textEl.style.display = 'none';
+    if (iconEl) iconEl.style.display = 'none';
+    
+    if (previewEl) {
+        previewEl.style.display = 'flex';
+        previewEl.style.flexDirection = 'column';
+        previewEl.style.alignItems = 'center';
+        previewEl.style.gap = '8px';
+        
+        previewEl.innerHTML = `
+            <div style="position:relative; display:inline-block; max-width: 100%;">
+                ${isImg ? `<img src="${imgSrc}" style="max-height:100px; max-width: 100%; border-radius:6px; object-fit:contain; border:1px solid rgba(255,255,255,0.1);" />` : `<i class="ti ti-file-text" style="font-size:32px; color:var(--accent);"></i>`}
+                <button type="button" class="btn-clear-receipt" style="position:absolute; top:-6px; right:-6px; background:#ff4757; color:white; border:none; border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer;" title="حذف الإيصال">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div style="font-size:10px; color:var(--green); display:flex; align-items:center; gap:4px; font-weight: 500;">
+                <i class="ti ti-circle-check"></i> تم رفع الإيصال بنجاح
+            </div>
+        `;
+
+        // إضافة مستمع لحذف الإيصال عند النقر على علامة الإغلاق الحمراء
+        const clearBtn = previewEl.querySelector('.btn-clear-receipt');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const urlInputId = formType === 'expense' ? 'mReceiptUrl' : 'extReceiptUrl';
+                const urlInput = document.getElementById(urlInputId);
+                if (urlInput) urlInput.value = '';
+                updateDropzonePreview(formType, '');
+            });
+        }
     }
 }
 
 // تهيئة مستمعي لصق الصور من الحافظة (Clipboard Paste)
 function setupPasteReceiptListeners() {
+    // لصق الصور عند التركيز على منطقة السحب واللصق
+    ['expenseDropzone', 'externalDropzone'].forEach(id => {
+        const zone = document.getElementById(id);
+        if (!zone) return;
+
+        zone.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-clear-receipt') || e.target.closest('img')) return;
+            const inputId = id === 'expenseDropzone' ? 'mReceiptFile' : 'extReceiptFile';
+            const input = document.getElementById(inputId);
+            if (input) input.click();
+        });
+    });
+
     document.addEventListener('paste', async (event) => {
         const items = (event.clipboardData || event.originalEvent.clipboardData).items;
         let file = null;
@@ -9402,6 +9487,7 @@ function setupPasteReceiptListeners() {
                 if (urlInput) {
                     urlInput.value = data.file_url;
                 }
+                updateDropzonePreview(formType === 'expense' ? 'expense' : 'external-sale', data.file_url);
                 toast('📋 تم لصق ورفع الصورة بنجاح إلى Google Drive!', 'ok');
             } else {
                 throw new Error('فشل الرفع');
@@ -9417,17 +9503,26 @@ function setupPasteReceiptListeners() {
 
 // تهيئة مستمعي سحب وإفلات ملفات الإيصالات (Drag & Drop)
 function setupDragAndDropReceipts() {
-    const addModal = document.getElementById('addModal');
-    const extSaleFormContainer = document.getElementById('extSaleFormContainer');
-    
     const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
     
-    if (addModal) {
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            addModal.addEventListener(eventName, preventDefaults, false);
+    // ربط مستمعات الإفلات لنموذج المصروفات
+    const expenseDropzone = document.getElementById('expenseDropzone');
+    if (expenseDropzone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            expenseDropzone.addEventListener(eventName, (e) => {
+                preventDefaults(e);
+                expenseDropzone.classList.add('dragover');
+            }, false);
         });
         
-        addModal.addEventListener('drop', async (e) => {
+        ['dragleave', 'drop'].forEach(eventName => {
+            expenseDropzone.addEventListener(eventName, (e) => {
+                preventDefaults(e);
+                expenseDropzone.classList.remove('dragover');
+            }, false);
+        });
+        
+        expenseDropzone.addEventListener('drop', async (e) => {
             const dt = e.dataTransfer;
             const files = dt.files;
             if (files && files.length > 0) {
@@ -9442,13 +9537,25 @@ function setupDragAndDropReceipts() {
             }
         });
     }
-    
-    if (extSaleFormContainer) {
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            extSaleFormContainer.addEventListener(eventName, preventDefaults, false);
+
+    // ربط مستمعات الإفلات لنموذج المبيعات الخارجية
+    const externalDropzone = document.getElementById('externalDropzone');
+    if (externalDropzone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            externalDropzone.addEventListener(eventName, (e) => {
+                preventDefaults(e);
+                externalDropzone.classList.add('dragover');
+            }, false);
         });
         
-        extSaleFormContainer.addEventListener('drop', async (e) => {
+        ['dragleave', 'drop'].forEach(eventName => {
+            externalDropzone.addEventListener(eventName, (e) => {
+                preventDefaults(e);
+                externalDropzone.classList.remove('dragover');
+            }, false);
+        });
+        
+        externalDropzone.addEventListener('drop', async (e) => {
             const dt = e.dataTransfer;
             const files = dt.files;
             if (files && files.length > 0) {
