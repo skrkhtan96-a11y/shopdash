@@ -2817,8 +2817,9 @@ async function handleImport(ev, type) {
                     if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
                 }
                 for (let actualKey in row) {
+                    const trimmedActual = actualKey.trim().replace(/\s+/g, ' ');
+                    if (trimmedActual.includes('وزن') || trimmedActual.includes('weight')) continue;
                     for (let k of keys) {
-                        const trimmedActual = actualKey.trim().replace(/\s+/g, ' ');
                         const trimmedK = k.trim().replace(/\s+/g, ' ');
                         if (trimmedActual.includes(trimmedK)) return row[actualKey];
                     }
@@ -2843,7 +2844,7 @@ async function handleImport(ev, type) {
                     // نفضل "إجمالي المبيعات (ر.س)" أو "صافي المبيعات"
                     let amount = parseFloat(getValue(r, ['إجمالي المبيعات (ر.س)', 'إجمالي المبيعات', 'صافي المبيعات', 'المبيعات', 'المبلغ', 'total', 'amount', 'price', 'Total Sales']) || 0);
 
-                    if (prodName && amount > 0) {
+                    if (prodName) {
                         // توليد رقم مرجعي فريد لكل منتج لمنع تصادم المفاتيح
                         const refId = `V-${sku || Math.random().toString(36).substring(2, 6).toUpperCase()}-${idx++}`;
                         
@@ -2863,11 +2864,21 @@ async function handleImport(ev, type) {
                 }
             } else {
                 // تقرير الطلبات التفصيلي المعتاد
-                const refCount = {};
+                const totalRefCounts = {};
                 for (let r of rows) {
                     const refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
                     if (refId) {
-                        refCount[refId] = (refCount[refId] || 0) + 1;
+                        let itemsCount = 1;
+                        const skusJsonStr = r['skus_json'];
+                        if (skusJsonStr) {
+                            try {
+                                const parsed = JSON.parse(skusJsonStr);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    itemsCount = parsed.length;
+                                }
+                            } catch (e) {}
+                        }
+                        totalRefCounts[refId] = (totalRefCounts[refId] || 0) + itemsCount;
                     }
                 }
                 const refTracker = {};
@@ -2875,14 +2886,11 @@ async function handleImport(ev, type) {
                 for (let r of rows) {
                     const refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
                     let dateRaw = getValue(r, ['تاريخ الطلب', 'تاريخ المبيعة', 'التاريخ', 'date', 'created_at', 'Order Date', 'Date']);
-                    let amount = parseFloat(getValue(r, ['إجمالي الطلب', 'إجمالي المبيعات', 'المبلغ', 'السعر', 'صافي المبيعات', 'total', 'amount', 'price', 'Net Sales', 'Total']) || 0);
                     const custName = String(getValue(r, ['اسم العميل', 'العميل', 'customer', 'customer_name', 'Customer Name']) || 'عميل خارجي').trim();
-                    const prodName = cleanProductName(String(getValue(r, ['اسم المنتج', 'المنتج', 'المنتجات', 'product_name', 'items', 'Products', 'Product']) || 'منتج مستورد').trim());
                     const payMethod = String(getValue(r, ['طريقة الدفع', 'الدفع', 'payment_method', 'Payment Method']) || 'mada').trim();
                     const statusName = String(getValue(r, ['حالة الطلب', 'الحالة', 'status', 'Order Status']) || 'تم التنفيذ').trim();
-                    const quantity = parseInt(getValue(r, ['الكمية', 'العدد', 'quantity', 'qty', 'Quantity']) || 1);
 
-                    if (refId && amount > 0) {
+                    if (refId) {
                         let dateStr = TODAY;
                         if (dateRaw) {
                             if (dateRaw instanceof Date) {
@@ -2907,28 +2915,80 @@ async function handleImport(ev, type) {
                         else if (lowerPay.includes('cod') || lowerPay.includes('عند الاستلام')) paySlug = 'cod';
                         else if (lowerPay.includes('انتظار')) paySlug = 'waiting';
 
-                        let finalRefId = refId;
-                        if (refCount[refId] > 1) {
-                            if (refTracker[refId] === undefined) {
-                                refTracker[refId] = 0;
-                            } else {
-                                refTracker[refId]++;
+                        // Check if skus_json is present to parse individual items
+                        let items = [];
+                        const skusJsonStr = r['skus_json'];
+                        if (skusJsonStr) {
+                            try {
+                                const parsed = JSON.parse(skusJsonStr);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    items = parsed.map(item => {
+                                        return {
+                                            name: cleanProductName(item[0] || 'منتج مستورد'),
+                                            qty: parseInt(item[1]) || 1,
+                                            amount: parseFloat(item[4]) || 0
+                                        };
+                                    });
+                                }
+                            } catch (e) {
+                                // ignore
                             }
-                            finalRefId = `${refId}_${refTracker[refId]}`;
                         }
 
-                        parsedOrders.push({
-                            reference_id: finalRefId,
-                            date: dateStr,
-                            status_slug: statusSlug,
-                            status_name: statusName,
-                            payment_method: paySlug,
-                            amount: amount,
-                            customer_name: custName,
-                            product_name: prodName,
-                            product_thumbnail: '',
-                            quantity: quantity
-                        });
+                        if (items.length > 0) {
+                            items.forEach((item, idx) => {
+                                let finalRefId = refId;
+                                if (totalRefCounts[refId] > 1) {
+                                    if (refTracker[refId] === undefined) {
+                                        refTracker[refId] = 0;
+                                    } else {
+                                        refTracker[refId]++;
+                                    }
+                                    finalRefId = `${refId}_${refTracker[refId]}`;
+                                }
+
+                                parsedOrders.push({
+                                    reference_id: finalRefId,
+                                    date: dateStr,
+                                    status_slug: statusSlug,
+                                    status_name: statusName,
+                                    payment_method: paySlug,
+                                    amount: item.amount * item.qty,
+                                    customer_name: custName,
+                                    product_name: item.name,
+                                    product_thumbnail: '',
+                                    quantity: item.qty
+                                });
+                            });
+                        } else {
+                            // Fallback if no skus_json
+                            let amount = parseFloat(getValue(r, ['إجمالي الطلب (شامل التخفيضات)', 'إجمالي الطلب (غير شامل التخفيضات)', 'مجموع السلة', 'إجمالي الطلب', 'إجمالي المبيعات', 'المبلغ', 'السعر', 'صافي المبيعات', 'total', 'amount', 'price', 'Net Sales', 'Total']) || 0);
+                            const prodName = cleanProductName(String(getValue(r, ['اسم المنتج', 'المنتج', 'المنتجات', 'product_name', 'items', 'Products', 'Product']) || 'منتج مستورد').trim());
+                            const quantity = parseInt(getValue(r, ['الكمية', 'العدد', 'quantity', 'qty', 'Quantity']) || 1);
+
+                            let finalRefId = refId;
+                            if (totalRefCounts[refId] > 1) {
+                                if (refTracker[refId] === undefined) {
+                                    refTracker[refId] = 0;
+                                } else {
+                                    refTracker[refId]++;
+                                }
+                                finalRefId = `${refId}_${refTracker[refId]}`;
+                            }
+
+                            parsedOrders.push({
+                                reference_id: finalRefId,
+                                date: dateStr,
+                                status_slug: statusSlug,
+                                status_name: statusName,
+                                payment_method: paySlug,
+                                amount: amount,
+                                customer_name: custName,
+                                product_name: prodName,
+                                product_thumbnail: '',
+                                quantity: quantity
+                            });
+                        }
                     }
                 }
             }
