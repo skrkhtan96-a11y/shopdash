@@ -5829,7 +5829,10 @@ function renderPsPlusAccounts(accounts) {
             const order51Match = (c.ps5_1_order || '').toLowerCase().includes(filterSearch);
             const order52Match = (c.ps5_2_order || '').toLowerCase().includes(filterSearch);
             const order4Match = (c.ps4_order || '').toLowerCase().includes(filterSearch);
-            if (!emailMatch && !order51Match && !order52Match && !order4Match) return false;
+            const phone51Match = (c.ps5_1_phone || '').toLowerCase().includes(filterSearch);
+            const phone52Match = (c.ps5_2_phone || '').toLowerCase().includes(filterSearch);
+            const phone4Match = (c.ps4_phone || '').toLowerCase().includes(filterSearch);
+            if (!emailMatch && !order51Match && !order52Match && !order4Match && !phone51Match && !phone52Match && !phone4Match) return false;
         }
         return true;
     });
@@ -8086,7 +8089,8 @@ function renderGamesAccounts(accounts) {
             const gameMatch = c.game_name.toLowerCase().includes(filterSearch);
             const emailMatch = c.email.toLowerCase().includes(filterSearch);
             const orderMatch = c.slots.some(s => (s.order_number || '').toLowerCase().includes(filterSearch));
-            if (!gameMatch && !emailMatch && !orderMatch) return false;
+            const phoneMatch = c.slots.some(s => (s.phone || '').toLowerCase().includes(filterSearch));
+            if (!gameMatch && !emailMatch && !orderMatch && !phoneMatch) return false;
         }
         return true;
     });
