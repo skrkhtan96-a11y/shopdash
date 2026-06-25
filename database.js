@@ -81,9 +81,12 @@ db.serialize(() => {
             customer_name TEXT,
             product_name TEXT,
             product_thumbnail TEXT,
-            quantity INTEGER DEFAULT 1
+            quantity INTEGER DEFAULT 1,
+            customer_phone TEXT
         )
     `);
+
+    db.run("ALTER TABLE salla_imported_orders ADD COLUMN customer_phone TEXT", (err) => { /* تجاهل الخطأ إذا كان العمود موجوداً */ });
 
     // 5. جدول عمليات المحفظة المستوردة من إكسل
     db.run(`

@@ -2887,6 +2887,7 @@ async function handleImport(ev, type) {
                     const refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
                     let dateRaw = getValue(r, ['تاريخ الطلب', 'تاريخ المبيعة', 'التاريخ', 'date', 'created_at', 'Order Date', 'Date']);
                     const custName = String(getValue(r, ['اسم العميل', 'العميل', 'customer', 'customer_name', 'Customer Name']) || 'عميل خارجي').trim();
+                    const custPhone = String(getValue(r, ['رقم الجوال', 'رقم الهاتف', 'الجوال', 'الهاتف', 'customer_phone', 'phone', 'mobile']) || '').trim();
                     const payMethod = String(getValue(r, ['طريقة الدفع', 'الدفع', 'payment_method', 'Payment Method']) || 'mada').trim();
                     const statusName = String(getValue(r, ['حالة الطلب', 'الحالة', 'status', 'Order Status']) || 'تم التنفيذ').trim();
 
@@ -2960,6 +2961,7 @@ async function handleImport(ev, type) {
                                     payment_method: paySlug,
                                     amount: item.amount * item.qty,
                                     customer_name: custName,
+                                    customer_phone: custPhone,
                                     product_name: item.name,
                                     product_thumbnail: '',
                                     quantity: item.qty
@@ -2989,6 +2991,7 @@ async function handleImport(ev, type) {
                                 payment_method: paySlug,
                                 amount: amount,
                                 customer_name: custName,
+                                customer_phone: custPhone,
                                 product_name: prodName,
                                 product_thumbnail: '',
                                 quantity: quantity

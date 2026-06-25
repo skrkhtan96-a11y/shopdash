@@ -260,8 +260,8 @@ router.get('/orders', authenticateUser, async (req, res) => {
                     }
                 }
                 if (q) {
-                    query += " AND (customer_name LIKE ? OR product_name LIKE ? OR reference_id LIKE ?)";
-                    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+                    query += " AND (customer_name LIKE ? OR product_name LIKE ? OR reference_id LIKE ? OR customer_phone LIKE ?)";
+                    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
                 }
                 if (from) {
                     query += " AND date(date) >= date(?)";
@@ -317,7 +317,10 @@ router.get('/orders', authenticateUser, async (req, res) => {
                                 quantity: r.quantity || 1
                             }
                         ],
-                        customer: { full_name: r.customer_name || '-' },
+                        customer: { 
+                            full_name: r.customer_name || '-',
+                            mobile: r.customer_phone || ''
+                        },
                         payment_actions: {
                             refund_action: {
                                 paid_amount: { amount: r.amount, currency: 'SAR' }
@@ -378,8 +381,8 @@ router.post('/imported-orders', authenticateUser, (req, res) => {
     db.serialize(() => {
         const stmt = db.prepare(`
             INSERT OR REPLACE INTO salla_imported_orders 
-            (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity, customer_phone) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         orders.forEach(o => {
@@ -393,7 +396,8 @@ router.post('/imported-orders', authenticateUser, (req, res) => {
                 o.customer_name || 'عميل خارجي',
                 o.product_name || 'منتج مستورد',
                 o.product_thumbnail || '',
-                parseInt(o.quantity) || 1
+                parseInt(o.quantity) || 1,
+                o.customer_phone || ''
             ]);
         });
 
