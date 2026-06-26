@@ -1783,15 +1783,35 @@
                 </div>
               </div>
 
-              <!-- جزء مقارنة التواريخ اليومية -->
-              <div id="compareDaysInputs" style="display:none; flex-direction:column; gap:8px">
-                <div style="display:flex; gap:8px; align-items:center">
-                  <span style="font-size:11px; color:var(--text3); width:85px">اليوم الأول (A):</span>
-                  <input type="date" id="cmpDateA" style="flex:1; height:32px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none; font-size:11px">
+              <!-- جزء مقارنة النطاقات التاريخية للطلبات -->
+              <div id="compareDaysInputs" style="display:none; flex-direction:column; gap:10px">
+                <!-- أزرار الاختيار السريع للتواريخ -->
+                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
+                  <button type="button" class="btn btn-xs" onclick="setComparePreset('this_vs_last_month')" style="font-size:9.5px; padding:3px 8px; border-color:var(--border2); color:var(--text2); background:var(--bg3); cursor:pointer;"><i class="ti ti-calendar"></i> الشهر الحالي ضد السابق</button>
+                  <button type="button" class="btn btn-xs" onclick="setComparePreset('this_vs_last_week')" style="font-size:9.5px; padding:3px 8px; border-color:var(--border2); color:var(--text2); background:var(--bg3); cursor:pointer;"><i class="ti ti-calendar"></i> الأسبوع الحالي ضد السابق</button>
+                  <button type="button" class="btn btn-xs" onclick="setComparePreset('last_30_days')" style="font-size:9.5px; padding:3px 8px; border-color:var(--border2); color:var(--text2); background:var(--bg3); cursor:pointer;"><i class="ti ti-calendar"></i> آخر 30 يوماً ضد الفترة السابقة</button>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center">
-                  <span style="font-size:11px; color:var(--text3); width:85px">اليوم الثاني (B):</span>
-                  <input type="date" id="cmpDateB" style="flex:1; height:32px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 8px; outline:none; font-size:11px">
+                
+                <!-- الفترة A -->
+                <div style="border: 1px solid var(--border2); border-radius: 6px; padding: 8px; background: rgba(255,255,255,0.01)">
+                  <div style="font-size: 10.5px; font-weight: 600; color: var(--accent); margin-bottom: 6px;"><i class="ti ti-calendar-event"></i> الفترة الزمنية الأولى (A)</div>
+                  <div style="display:flex; gap:8px; align-items:center">
+                    <span style="font-size:10px; color:var(--text3); width:30px">من:</span>
+                    <input type="date" id="cmpDateFromA" style="flex:1; height:28px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 6px; outline:none; font-size:11px">
+                    <span style="font-size:10px; color:var(--text3); width:30px">إلى:</span>
+                    <input type="date" id="cmpDateToA" style="flex:1; height:28px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 6px; outline:none; font-size:11px">
+                  </div>
+                </div>
+
+                <!-- الفترة B -->
+                <div style="border: 1px solid var(--border2); border-radius: 6px; padding: 8px; background: rgba(255,255,255,0.01)">
+                  <div style="font-size: 10.5px; font-weight: 600; color: var(--green); margin-bottom: 6px;"><i class="ti ti-calendar-event"></i> الفترة الزمنية الثانية (B)</div>
+                  <div style="display:flex; gap:8px; align-items:center">
+                    <span style="font-size:10px; color:var(--text3); width:30px">من:</span>
+                    <input type="date" id="cmpDateFromB" style="flex:1; height:28px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 6px; outline:none; font-size:11px">
+                    <span style="font-size:10px; color:var(--text3); width:30px">إلى:</span>
+                    <input type="date" id="cmpDateToB" style="flex:1; height:28px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:0 6px; outline:none; font-size:11px">
+                  </div>
                 </div>
               </div>
 
@@ -1806,28 +1826,35 @@
         </div>
 
         <!-- 3. لوحة عرض ملخص الفروقات (Summary cards with deltas) -->
-        <div class="kpi-grid" id="cmpKPIs" style="margin-bottom:14px; display:none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))">
+        <div class="kpi-grid" id="cmpKPIs" style="margin-bottom:14px; display:none; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
           <!-- ستولد هنا بطاقات المجاميع والفروق مع شارات الألوان -->
+        </div>
+
+        <!-- لوحة الاستنتاجات الذكية الديناميكية (AI Growth Insights) -->
+        <div id="cmpAIInsights" style="display:none; margin-bottom:14px; background:rgba(17, 21, 32, 0.4); backdrop-filter: blur(12px); border:1px solid var(--border); border-radius:var(--r); padding:14px;">
+          <!-- سيتم تعبئتها ديناميكياً بواسطة جافا سكريبت -->
         </div>
 
         <!-- 4. محتوى التحليل المقارن والرسوم البيانية -->
         <div class="tbl-wrap" id="cmpResultContainer" style="display:none; margin-bottom:14px">
-          <div class="tbl-header" style="border-bottom: 1px solid var(--border2); padding-bottom:10px">
+          <div class="tbl-header" style="border-bottom: 1px solid var(--border2); padding-bottom:10px; flex-wrap:wrap; gap:10px">
             <div class="tbl-title" id="cmpResultTitle">نتائج مقارنة المبيعات والفروقات بين التقارير المحددة</div>
-            <div style="display:flex; gap:8px; align-items:center">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+              <input type="text" id="cmpTableSearch" oninput="filterCompareTable()" placeholder="ابحث في المنتجات..." style="padding: 4px 10px; font-size: 11px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 160px; outline:none; height:30px;">
               <select id="cmpChartMetric" onchange="renderCmpChart()" style="background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:var(--r1); padding:4px 8px; font-size:11px; outline:none; cursor:pointer; height:30px;">
                 <option value="total_sales">إجمالي المبيعات (ر.س)</option>
                 <option value="qty_sold">الكمية المباعة</option>
                 <option value="net_sales">صافي المبيعات (ر.س)</option>
                 <option value="cost_of_sales">كلفة المبيعات (ر.س)</option>
+                <option value="aov">متوسط قيمة الطلب (AOV)</option>
               </select>
-              <button class="btn btn-sm" onclick="toggleCompareView()" id="btnToggleCmpView"><i class="ti ti-chart-line"></i> عرض المنحنى البياني</button>
+              <button class="btn btn-sm" onclick="toggleCompareView()" id="btnToggleCmpView"><i class="ti ti-chart-bar"></i> عرض المخطط البياني</button>
             </div>
           </div>
 
           <!-- الرسم البياني للمقارنة -->
           <div class="chart-card-full" id="cmpChartWrapper" style="display:none; margin:14px 0">
-            <div style="position:relative; height:240px"><canvas id="compareLineChart">الرسم المقارن</canvas></div>
+            <div style="position:relative; height:260px"><canvas id="compareLineChart">الرسم المقارن</canvas></div>
           </div>
 
           <!-- جدول مقارنة المنتجات والفروقات -->
@@ -1836,14 +1863,16 @@
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>الماركة / المنتج</th>
-                  <th>النوع</th>
-                  <th>الكمية المباعة (A)</th>
-                  <th>الكمية المباعة (B)</th>
+                  <th>اسم المنتج / الماركة</th>
+                  <th>التصنيف</th>
+                  <th>الكمية (A)</th>
+                  <th>الالكمية (B)</th>
                   <th>فرق الكمية</th>
                   <th>إجمالي مبيعات (A)</th>
                   <th>إجمالي مبيعات (B)</th>
                   <th>فرق المبيعات (ر.س)</th>
+                  <th>نسبة المساهمة (A)</th>
+                  <th>نسبة المساهمة (B)</th>
                   <th>صافي مبيعات (A)</th>
                   <th>صافي مبيعات (B)</th>
                   <th>فرق الصافي (ر.س)</th>

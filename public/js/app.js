@@ -3869,17 +3869,25 @@ async function loadWebhookData() {
 }
 
 async function initComparePage() {
-    // 1. إعادة تعيين الحقول الافتراضية
+    // 1. إعادة تعيين الحقول الافتراضية للتواريخ بنطاق الشهر الحالي ضد السابق
     const dateInput = document.getElementById('cmpImportDate');
     if (dateInput && !dateInput.value) {
         dateInput.value = TODAY;
     }
     
-    // تواريخ المقارنة اليومية
-    const dateA = document.getElementById('cmpDateA');
-    const dateB = document.getElementById('cmpDateB');
-    if (dateA && !dateA.value) dateA.value = TODAY;
-    if (dateB && !dateB.value) dateB.value = TODAY;
+    const today = new Date();
+    const formatDate = (d) => d.toISOString().split('T')[0];
+    
+    const fromB = document.getElementById('cmpDateFromB');
+    const toB = document.getElementById('cmpDateToB');
+    const fromA = document.getElementById('cmpDateFromA');
+    const toA = document.getElementById('cmpDateToA');
+    
+    if (fromB && !fromB.value) fromB.value = formatDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    if (toB && !toB.value) toB.value = TODAY;
+    
+    if (fromA && !fromA.value) fromA.value = formatDate(new Date(today.getFullYear(), today.getMonth() - 1, 1));
+    if (toA && !toA.value) toA.value = formatDate(new Date(today.getFullYear(), today.getMonth(), 0));
     
     // 2. تحميل التقارير المستوردة المتاحة
     await loadAvailableImports();
@@ -4045,6 +4053,44 @@ async function deleteImport(importId) {
     }
 }
 
+function setComparePreset(type) {
+    const today = new Date();
+    const formatDate = (d) => d.toISOString().split('T')[0];
+    
+    if (type === 'this_vs_last_month') {
+        const fromB = new Date(today.getFullYear(), today.getMonth(), 1);
+        const toB = today;
+        const fromA = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const toA = new Date(today.getFullYear(), today.getMonth(), 0);
+        
+        document.getElementById('cmpDateFromA').value = formatDate(fromA);
+        document.getElementById('cmpDateToA').value = formatDate(toA);
+        document.getElementById('cmpDateFromB').value = formatDate(fromB);
+        document.getElementById('cmpDateToB').value = formatDate(toB);
+    } else if (type === 'this_vs_last_week') {
+        const fromB = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
+        const toB = today;
+        const fromA = new Date(today.getTime() - 13 * 24 * 60 * 60 * 1000);
+        const toA = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
+        document.getElementById('cmpDateFromA').value = formatDate(fromA);
+        document.getElementById('cmpDateToA').value = formatDate(toA);
+        document.getElementById('cmpDateFromB').value = formatDate(fromB);
+        document.getElementById('cmpDateToB').value = formatDate(toB);
+    } else if (type === 'last_30_days') {
+        const fromB = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000);
+        const toB = today;
+        const fromA = new Date(today.getTime() - 59 * 24 * 60 * 60 * 1000);
+        const toA = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        
+        document.getElementById('cmpDateFromA').value = formatDate(fromA);
+        document.getElementById('cmpDateToA').value = formatDate(toA);
+        document.getElementById('cmpDateFromB').value = formatDate(fromB);
+        document.getElementById('cmpDateToB').value = formatDate(toB);
+    }
+    toast('تم تطبيق التحديد السريع للفترات بنجاح', 'ok');
+}
+
 async function runComparison() {
     if (currentComparisonMode === 'reports') {
         const reportAId = document.getElementById('cmpReportA').value;
@@ -4075,6 +4121,8 @@ async function runComparison() {
             currentComparisonState.import2Title = titleB;
             currentComparisonState.import1Data = data.import1;
             currentComparisonState.import2Data = data.import2;
+            currentComparisonState.ordersCountA = data.import1.length;
+            currentComparisonState.ordersCountB = data.import2.length;
             
             const map = {};
             
@@ -4084,7 +4132,7 @@ async function runComparison() {
                     if (!map[name]) {
                         map[name] = {
                             brand_name: name,
-                            product_type: r.product_type || 'غير محدد',
+                            product_type: r.product_type || 'عام',
                             a: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 },
                             b: { qty: 0, before_disc: 0, discount: 0, cost: 0, net: 0, tax: 0, total: 0 }
                         };
@@ -4109,28 +4157,25 @@ async function runComparison() {
             toast(e.message, 'error');
         }
     } else {
-        const dateA = document.getElementById('cmpDateA').value;
-        const dateB = document.getElementById('cmpDateB').value;
+        const dateFromA = document.getElementById('cmpDateFromA').value;
+        const dateToA = document.getElementById('cmpDateToA').value;
+        const dateFromB = document.getElementById('cmpDateFromB').value;
+        const dateToB = document.getElementById('cmpDateToB').value;
         
-        if (!dateA || !dateB) {
-            toast('يرجى تحديد التواريخ لليوم الأول (A) واليوم الثاني (B)', 'error');
+        if (!dateFromA || !dateToA || !dateFromB || !dateToB) {
+            toast('يرجى تحديد تواريخ البداية والنهاية للفترتين (A) و (B)', 'error');
             return;
         }
         
-        if (dateA === dateB) {
-            toast('الرجاء اختيار تاريخين مختلفين للمقارنة وحساب الفروقات اليومية', 'error');
-            return;
-        }
-        
-        toast('جاري جلب مبيعات التواريخ المحددة من سلة...', 'info');
+        toast('جاري جلب مبيعات الفترات المحددة ومطابقتها مع التكاليف...', 'info');
         
         try {
             const [resA, resB] = await Promise.all([
-                fetch(`/api/salla/orders?from=${dateA}&to=${dateA}&per_page=300`),
-                fetch(`/api/salla/orders?from=${dateB}&to=${dateB}&per_page=300`)
+                fetch(`/api/salla/orders?from=${dateFromA}&to=${dateToA}&per_page=1000`),
+                fetch(`/api/salla/orders?from=${dateFromB}&to=${dateToB}&per_page=1000`)
             ]);
             
-            if (!resA.ok || !resB.ok) throw new Error('فشل جلب المبيعات اليومية من السيرفر');
+            if (!resA.ok || !resB.ok) throw new Error('فشل جلب المبيعات من السيرفر');
             
             const dataA = await resA.json();
             const dataB = await resB.json();
@@ -4138,11 +4183,13 @@ async function runComparison() {
             const ordersA = dataA.data || [];
             const ordersB = dataB.data || [];
             
-            const titleA = `مبيعات يوم ${new Date(dateA).toLocaleDateString('ar-SA')}`;
-            const titleB = `مبيعات يوم ${new Date(dateB).toLocaleDateString('ar-SA')}`;
+            const titleA = `مبيعات الفترة A (${new Date(dateFromA).toLocaleDateString('ar-SA')} - ${new Date(dateToA).toLocaleDateString('ar-SA')})`;
+            const titleB = `مبيعات الفترة B (${new Date(dateFromB).toLocaleDateString('ar-SA')} - ${new Date(dateToB).toLocaleDateString('ar-SA')})`;
             
             currentComparisonState.import1Title = titleA;
             currentComparisonState.import2Title = titleB;
+            currentComparisonState.ordersCountA = ordersA.length;
+            currentComparisonState.ordersCountB = ordersB.length;
             
             const map = {};
             
@@ -4164,6 +4211,11 @@ async function runComparison() {
                         map[name][suffix].qty += qty;
                         map[name][suffix].total += amt / items.length;
                         map[name][suffix].net += amt / items.length;
+                        
+                        // مطابقة التكلفة التلقائية (Auto-Cost Matching)
+                        const prod = (state.inventoryProducts || []).find(p => p.product_name && p.product_name.trim() === name);
+                        const costPerItem = prod ? (parseFloat(prod.cost) || 0) : 0;
+                        map[name][suffix].cost += costPerItem * qty;
                     });
                 });
             };
@@ -4198,6 +4250,7 @@ function finalizeCompareState(map, titleA, titleB) {
         };
     });
     
+    // الترتيب التلقائي بناءً على إجمالي المبيعات التنازلي في الفترة B
     aggregated.sort((x, y) => y.b.total - x.b.total);
     currentComparisonState.aggregated = aggregated;
     
@@ -4212,6 +4265,11 @@ function finalizeCompareState(map, titleA, titleB) {
             totals.b[metric] += item.b[metric];
         });
     });
+    
+    const ordersA = currentComparisonState.ordersCountA || 1;
+    const ordersB = currentComparisonState.ordersCountB || 1;
+    const aovA = totals.a.total / ordersA;
+    const aovB = totals.b.total / ordersB;
     
     currentComparisonState.totals = {
         qty_a: totals.a.qty,
@@ -4232,18 +4290,108 @@ function finalizeCompareState(map, titleA, titleB) {
         
         discount_a: totals.a.discount,
         discount_b: totals.b.discount,
-        discount_delta: calcDelta(totals.a.discount, totals.b.discount)
+        discount_delta: calcDelta(totals.a.discount, totals.b.discount),
+        
+        aov_a: aovA,
+        aov_b: aovB,
+        aov_delta: calcDelta(aovA, aovB)
     };
+    
+    // توليد الاستنتاجات الذكية التلقائية
+    generateAutoInsights();
     
     renderCompareKPIs();
     renderCompareTable();
     renderCmpChart();
     
     document.getElementById('cmpKPIs').style.display = 'grid';
+    document.getElementById('cmpAIInsights').style.display = 'block';
     document.getElementById('cmpResultContainer').style.display = 'block';
     document.getElementById('cmpResultTitle').innerHTML = `نتائج مقارنة: <span style="color:var(--accent);font-weight:700">${titleA}</span> ضد <span style="color:var(--accent);font-weight:700">${titleB}</span>`;
     
-    toast('تم إجراء المقارنة وحساب الفروقات بنجاح', 'ok');
+    toast('تم إجراء المقارنة وحساب الفروقات التكليفية والتحليلات الذكية بنجاح', 'ok');
+}
+
+function generateAutoInsights() {
+    const insightsDiv = document.getElementById('cmpAIInsights');
+    if (!insightsDiv) return;
+    
+    const aggregated = currentComparisonState.aggregated;
+    const t = currentComparisonState.totals;
+    
+    if (aggregated.length === 0) {
+        insightsDiv.style.display = 'none';
+        return;
+    }
+    
+    let starProduct = null;
+    let maxGrowth = -Infinity;
+    let loserProduct = null;
+    let maxDecline = Infinity;
+    
+    aggregated.forEach(item => {
+        const diff = item.total_delta.diff;
+        if (diff > 0 && diff > maxGrowth) {
+            maxGrowth = diff;
+            starProduct = item;
+        }
+        if (diff < 0 && diff < maxDecline) {
+            maxDecline = diff;
+            loserProduct = item;
+        }
+    });
+    
+    const revPct = t.total_delta.pct;
+    const revDiff = t.total_delta.diff;
+    const profitA = t.net_a - t.cost_a;
+    const profitB = t.net_b - t.cost_b;
+    const profitDelta = profitB - profitA;
+    const profitPct = profitA === 0 ? (profitB > 0 ? 100 : 0) : (profitDelta / profitA) * 100;
+    
+    let trendText = '';
+    let adviceText = '';
+    
+    if (revDiff > 0) {
+        trendText = `شهد المتجر نمواً إيجابياً في المبيعات بنسبة <span style="color:var(--green);font-weight:700">${revPct.toFixed(1)}%</span> (+${fmt(revDiff)}) في الفترة الحالية. `;
+        if (profitDelta > 0) {
+            trendText += `صاحب ذلك زيادة في صافي الأرباح التشغيلية بنسبة <span style="color:var(--green);font-weight:700">${profitPct.toFixed(1)}%</span> (+${fmt(profitDelta)}).`;
+        } else {
+            trendText += `ولكن لوحظ تراجع في صافي الأرباح التشغيلية بنسبة <span style="color:var(--red);font-weight:700">${Math.abs(profitPct).toFixed(1)}%</span> بسبب ارتفاع تكاليف التشغيل/المشتريات.`;
+        }
+    } else if (revDiff < 0) {
+        trendText = `تراجعت مبيعات المتجر الإجمالية بنسبة <span style="color:var(--red);font-weight:700">${Math.abs(revPct).toFixed(1)}%</span> (-${fmt(Math.abs(revDiff))}) في الفترة الحالية. `;
+        if (profitDelta < 0) {
+            trendText += `وتراجع صافي الأرباح التشغيلية بمقدار <span style="color:var(--red);font-weight:700">${fmt(Math.abs(profitDelta))}</span>.`;
+        } else {
+            trendText += `على الرغم من ذلك، تحسن صافي الأرباح التشغيلية بمقدار <span style="color:var(--green);font-weight:700">${fmt(profitDelta)}</span> نتيجة تحسين التكاليف والهوامش.`;
+        }
+    } else {
+        trendText = `استقرت مبيعات وأرباح المتجر في الفترتين المقارنتين دون تغير جوهري ملحوظ.`;
+    }
+    
+    if (starProduct) {
+        adviceText += `🚀 <strong>المنتج النجم:</strong> حقق منتج <span style="color:var(--accent);font-weight:700">${starProduct.brand_name}</span> أعلى نمو مبيعاتي بقيمة <span style="color:var(--green)">+${fmt(maxGrowth)}</span> (+${starProduct.total_delta.pct.toFixed(1)}%). ننصح بتكثيف المخزون له وتوجيه حملات تسويقية داعمة له.<br>`;
+    }
+    if (loserProduct) {
+        adviceText += `📉 <strong>الأكثر تراجعاً:</strong> سجل منتج <span style="color:var(--red);font-weight:700">${loserProduct.brand_name}</span> أكبر انخفاض بقيمة <span style="color:var(--red)">-${fmt(Math.abs(maxDecline))}</span>. يوصى بمراجعة جودة عرضه في المتجر أو دراسة مدى تقبل السوق لسعره الحالي.`;
+    } else {
+        adviceText += `• حافظت بقية المنتجات على استقرار نسبي أو نمو متوازن في الفترتين المحدادتين.`;
+    }
+    
+    insightsDiv.innerHTML = `
+        <div style="display:flex; gap:12px; align-items:flex-start; flex-direction:column">
+          <div style="font-size:12.5px; font-weight:700; color:var(--accent); display:flex; align-items:center; gap:6px;">
+            <i class="ti ti-bulb" style="font-size:16px;"></i>
+            <span>التحليلات والاستنتاجات التشغيلية التلقائية</span>
+          </div>
+          <div style="font-size:11.5px; color:var(--text2); line-height:1.8; width:100%">
+            <p style="margin-bottom:8px;">${trendText}</p>
+            <div style="background:rgba(255,255,255,0.02); border:1px dashed var(--border2); padding:10px; border-radius:6px; font-size:11px;">
+              ${adviceText}
+            </div>
+          </div>
+        </div>
+    `;
 }
 
 function renderDeltaBadge(deltaVal, deltaPct, isCostOrDiscount = false) {
@@ -4269,21 +4417,21 @@ function renderCompareKPIs() {
     kpisDiv.innerHTML = `
         <div class="kpi k-green">
             <i class="ti ti-shopping-cart kpi-ico"></i>
-            <div class="kpi-label">مبيعات التقرير المقارن (B)</div>
+            <div class="kpi-label">مبيعات الفترة المقارنة (B)</div>
             <div class="kpi-val green">${fmt(t.total_b)}</div>
             <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
-                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${fmt(t.total_a)}</span>
+                <span style="color:var(--text3);font-size:9.5px">السابقة (A): ${fmt(t.total_a)}</span>
                 ${renderDeltaBadge(t.total_delta.diff, t.total_delta.pct)}
             </div>
         </div>
         
         <div class="kpi k-accent">
-            <i class="ti ti-wallet kpi-ico"></i>
-            <div class="kpi-label">صافي مبيعات التقرير المقارن (B)</div>
-            <div class="kpi-val accent">${fmt(t.net_b)}</div>
+            <i class="ti ti-chart-line kpi-ico"></i>
+            <div class="kpi-label">متوسط قيمة الطلب AOV (B)</div>
+            <div class="kpi-val accent">${fmt(t.aov_b)}</div>
             <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
-                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${fmt(t.net_a)}</span>
-                ${renderDeltaBadge(t.net_delta.diff, t.net_delta.pct)}
+                <span style="color:var(--text3);font-size:9.5px">السابقة (A): ${fmt(t.aov_a)}</span>
+                ${renderDeltaBadge(t.aov_delta.diff, t.aov_delta.pct)}
             </div>
         </div>
         
@@ -4292,41 +4440,72 @@ function renderCompareKPIs() {
             <div class="kpi-label">إجمالي القطع المباعة (B)</div>
             <div class="kpi-val blue">${t.qty_b.toLocaleString('ar-SA')} قطعة</div>
             <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
-                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${t.qty_a.toLocaleString('ar-SA')}</span>
+                <span style="color:var(--text3);font-size:9.5px">السابقة (A): ${t.qty_a.toLocaleString('ar-SA')}</span>
                 ${renderDeltaBadge(t.qty_delta.diff, t.qty_delta.pct)}
             </div>
         </div>
         
         <div class="kpi k-red">
             <i class="ti ti-receipt kpi-ico"></i>
-            <div class="kpi-label">كلفة مبيعات التقرير المقارن (B)</div>
+            <div class="kpi-label">كلفة المبيعات الفعلية (B)</div>
             <div class="kpi-val red">${fmt(t.cost_b)}</div>
             <div class="kpi-sub" style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:2px">
-                <span style="color:var(--text3);font-size:9.5px">السابق (A): ${fmt(t.cost_a)}</span>
+                <span style="color:var(--text3);font-size:9.5px">السابقة (A): ${fmt(t.cost_a)}</span>
                 ${renderDeltaBadge(t.cost_delta.diff, t.cost_delta.pct, true)}
             </div>
         </div>
     `;
 }
 
+let cmpTableFilterQuery = '';
+
+function filterCompareTable() {
+    cmpTableFilterQuery = document.getElementById('cmpTableSearch')?.value || '';
+    renderCompareTable();
+}
+
 function renderCompareTable() {
     const body = document.getElementById('cmpTableBody');
     if (!body) return;
     
-    const aggregated = currentComparisonState.aggregated;
+    let aggregated = currentComparisonState.aggregated || [];
+    
+    if (cmpTableFilterQuery.trim() !== '') {
+        const query = cmpTableFilterQuery.toLowerCase().trim();
+        aggregated = aggregated.filter(item => 
+            item.brand_name.toLowerCase().includes(query) || 
+            (item.product_type || '').toLowerCase().includes(query)
+        );
+    }
+    
     if (aggregated.length === 0) {
-        body.innerHTML = '<tr><td colspan="12" style="text-align:center">لا تتوفر تفاصيل للمقارنة</td></tr>';
+        body.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:20px;color:var(--text3)">لا توجد نتائج مطابقة لبحثك</td></tr>';
         return;
     }
+    
+    const t = currentComparisonState.totals;
+    const maxTotalB = Math.max(...aggregated.map(x => x.b.total), 1);
     
     body.innerHTML = aggregated.map((item, i) => {
         const diffTotal = item.total_delta.diff;
         const colorTotal = diffTotal > 0 ? 'green' : (diffTotal < 0 ? 'red' : 'text2');
         const signTotal = diffTotal > 0 ? '+' : '';
         
+        const contribA = t.total_a > 0 ? (item.a.total / t.total_a) * 100 : 0;
+        const contribB = t.total_b > 0 ? (item.b.total / t.total_b) * 100 : 0;
+        
+        const progressWidth = (item.b.total / maxTotalB) * 100;
+        
         return `<tr>
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
-            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${escapeHtml(item.brand_name)}">${item.brand_name}</td>
+            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${escapeHtml(item.brand_name)}">
+                <div style="display:flex; flex-direction:column; gap:4px">
+                    <span>${item.brand_name}</span>
+                    <div style="width:100%; height:3px; background:var(--bg4); border-radius:2px; overflow:hidden">
+                        <div style="width:${progressWidth}%; height:100%; background:linear-gradient(to left, var(--accent), var(--blue)); border-radius:2px"></div>
+                    </div>
+                </div>
+            </td>
             <td style="font-size:11px;color:var(--text3)">${item.product_type}</td>
             
             <td style="font-family:var(--mono)">${item.a.qty.toLocaleString('ar-SA')}</td>
@@ -4337,12 +4516,17 @@ function renderCompareTable() {
             <td><span class="mono">${fmt(item.b.total)}</span></td>
             <td style="font-family:var(--mono)"><span class="${colorTotal}" style="font-weight:600">${signTotal}${fmt(diffTotal)}</span> ${renderDeltaBadge(item.total_delta.diff, item.total_delta.pct)}</td>
             
+            <td style="font-size:11px;color:var(--text3);font-family:var(--mono)">${contribA.toFixed(1)}%</td>
+            <td style="font-size:11px;color:var(--accent);font-family:var(--mono);font-weight:600">${contribB.toFixed(1)}%</td>
+            
             <td><span class="mono">${fmt(item.a.net)}</span></td>
             <td><span class="mono">${fmt(item.b.net)}</span></td>
             <td style="font-family:var(--mono)"><span class="${item.net_delta.diff >= 0 ? 'green' : 'red'}" style="font-weight:600">${item.net_delta.diff > 0 ? '+' : ''}${fmt(item.net_delta.diff)}</span> ${renderDeltaBadge(item.net_delta.diff, item.net_delta.pct)}</td>
         </tr>`;
     }).join('');
 }
+
+let currentCmpChartType = 'bar'; 
 
 function renderCmpChart() {
     const ctx = document.getElementById('compareLineChart');
@@ -4359,38 +4543,60 @@ function renderCmpChart() {
     if (metric === 'qty_sold') labelMetric = 'الكمية المباعة';
     if (metric === 'net_sales') labelMetric = 'صافي المبيعات (ر.س)';
     if (metric === 'cost_of_sales') labelMetric = 'كلفة المبيعات (ر.س)';
+    if (metric === 'aov') labelMetric = 'متوسط قيمة الطلب (AOV)';
     
     const getVal = (item, select, field) => {
         if (field === 'qty_sold') return item[select].qty;
         if (field === 'net_sales') return item[select].net;
         if (field === 'cost_of_sales') return item[select].cost;
+        if (field === 'aov') {
+            const qty = item[select].qty || 1;
+            return item[select].total / qty;
+        }
         return item[select].total;
     };
     
+    const datasetA = {
+        label: `${currentComparisonState.import1Title} (A)`,
+        data: topItems.map(item => getVal(item, 'a', metric)),
+        borderWidth: 2,
+        tension: 0.3
+    };
+    
+    const datasetB = {
+        label: `${currentComparisonState.import2Title} (B)`,
+        data: topItems.map(item => getVal(item, 'b', metric)),
+        borderWidth: 2,
+        tension: 0.3
+    };
+    
+    if (currentCmpChartType === 'line') {
+        datasetA.type = 'line';
+        datasetA.borderColor = '#a3a8cc';
+        datasetA.backgroundColor = 'rgba(163,168,204,0.06)';
+        datasetA.fill = true;
+        
+        datasetB.type = 'line';
+        datasetB.borderColor = '#00e1d9';
+        datasetB.backgroundColor = 'rgba(0,225,217,0.06)';
+        datasetB.fill = true;
+    } else {
+        datasetA.type = 'bar';
+        datasetA.borderColor = 'rgba(163,168,204,0.8)';
+        datasetA.backgroundColor = 'rgba(163,168,204,0.4)';
+        datasetA.borderRadius = 4;
+        
+        datasetB.type = 'bar';
+        datasetB.borderColor = 'rgba(0,225,217,0.8)';
+        datasetB.backgroundColor = 'rgba(0,225,217,0.4)';
+        datasetB.borderRadius = 4;
+    }
+    
     compareC = new Chart(ctx, {
-        type: 'line',
+        type: currentCmpChartType === 'line' ? 'line' : 'bar',
         data: {
             labels: topItems.map(item => item.brand_name.substring(0, 14)),
-            datasets: [
-                {
-                    label: `${currentComparisonState.import1Title} (A)`,
-                    data: topItems.map(item => getVal(item, 'a', metric)),
-                    borderColor: '#a3a8cc',
-                    backgroundColor: 'rgba(163,168,204,0.1)',
-                    borderWidth: 2,
-                    tension: 0.3,
-                    fill: true
-                },
-                {
-                    label: `${currentComparisonState.import2Title} (B)`,
-                    data: topItems.map(item => getVal(item, 'b', metric)),
-                    borderColor: '#00e1d9',
-                    backgroundColor: 'rgba(0,225,217,0.1)',
-                    borderWidth: 2,
-                    tension: 0.3,
-                    fill: true
-                }
-            ]
+            datasets: [datasetA, datasetB]
         },
         options: {
             responsive: true,
@@ -4398,16 +4604,29 @@ function renderCmpChart() {
             plugins: {
                 legend: {
                     labels: { color: '#dde1f0', font: { size: 10, family: 'Outfit' } }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 21, 32, 0.95)',
+                    titleColor: '#00e1d9',
+                    bodyColor: '#dde1f0',
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1
                 }
             },
             scales: {
                 x: {
                     ticks: { color: '#7a80a0', font: { size: 9, family: 'Outfit' } },
-                    grid: { color: 'rgba(255,255,255,0.03)' }
+                    grid: { color: 'rgba(255,255,255,0.02)' }
                 },
                 y: {
-                    ticks: { color: '#dde1f0', font: { size: 9 } },
-                    grid: { color: 'rgba(255,255,255,0.03)' }
+                    ticks: { 
+                        color: '#dde1f0', 
+                        font: { size: 9 },
+                        callback: function(value) {
+                            return metric === 'qty_sold' ? value : value.toLocaleString('ar-SA') + ' ر.س';
+                        }
+                    },
+                    grid: { color: 'rgba(255,255,255,0.02)' }
                 }
             }
         }
@@ -4422,13 +4641,21 @@ function toggleCompareView() {
     
     if (wrapper.style.display === 'none') {
         wrapper.style.display = 'block';
-        btn.innerHTML = '<i class="ti ti-table"></i> عرض جدول الفروقات';
+        currentCmpChartType = 'bar';
+        btn.innerHTML = '<i class="ti ti-chart-line"></i> تبديل لمخطط منحنيات';
         setTimeout(() => {
-            if (compareC) compareC.resize();
+            if (compareC) {
+                compareC.resize();
+                renderCmpChart();
+            }
         }, 100);
+    } else if (currentCmpChartType === 'bar') {
+        currentCmpChartType = 'line';
+        btn.innerHTML = '<i class="ti ti-table"></i> إخفاء الرسم البياني';
+        renderCmpChart();
     } else {
         wrapper.style.display = 'none';
-        btn.innerHTML = '<i class="ti ti-chart-line"></i> عرض المنحنى البياني';
+        btn.innerHTML = '<i class="ti ti-chart-bar"></i> عرض المخطط البياني';
     }
 }
 
@@ -4446,12 +4673,23 @@ async function saveCurrentComparison() {
         return;
     }
     
+    let p1 = '';
+    let p2 = '';
+    
+    if (currentComparisonMode === 'reports') {
+        p1 = document.getElementById('cmpReportA').value;
+        p2 = document.getElementById('cmpReportB').value;
+    } else {
+        p1 = `${document.getElementById('cmpDateFromA').value}~${document.getElementById('cmpDateToA').value}`;
+        p2 = `${document.getElementById('cmpDateFromB').value}~${document.getElementById('cmpDateToB').value}`;
+    }
+    
     try {
         const bodyData = {
             title: title.trim(),
             compare_type: currentComparisonMode,
-            param1: currentComparisonMode === 'reports' ? document.getElementById('cmpReportA').value : document.getElementById('cmpDateA').value,
-            param2: currentComparisonMode === 'reports' ? document.getElementById('cmpReportB').value : document.getElementById('cmpDateB').value,
+            param1: p1,
+            param2: p2,
             summary_json: currentComparisonState.totals
         };
         
@@ -4488,7 +4726,7 @@ async function loadSavedComparisons() {
         
         body.innerHTML = comps.map(c => {
             const dateStr = c.created_at ? new Date(c.created_at.replace(/-/g, '/')).toLocaleDateString('ar-SA') : '';
-            const typeLabel = c.compare_type === 'days' ? 'مقارنة تواريخ' : 'مقارنة ملفات';
+            const typeLabel = c.compare_type === 'days' ? 'مقارنة فترات سلة' : 'مقارنة ملفات إكسل';
             return `<tr>
                 <td style="font-size:11px;font-weight:700">${escapeHtml(c.title)}</td>
                 <td style="font-size:11px;color:var(--text3)">${typeLabel}</td>
@@ -4527,12 +4765,13 @@ async function loadSavedComparisonDetails(compare_type, param1, param2) {
         }
     } else {
         if (radioDays) radioDays.checked = true;
-        const dateA = document.getElementById('cmpDateA');
-        const dateB = document.getElementById('cmpDateB');
-        if (dateA && dateB) {
-            dateA.value = param1;
-            dateB.value = param2;
-        }
+        const [fromA, toA] = param1.includes('~') ? param1.split('~') : [param1, param1];
+        const [fromB, toB] = param2.includes('~') ? param2.split('~') : [param2, param2];
+        
+        document.getElementById('cmpDateFromA').value = fromA;
+        document.getElementById('cmpDateToA').value = toA;
+        document.getElementById('cmpDateFromB').value = fromB;
+        document.getElementById('cmpDateToB').value = toB;
     }
     
     toast('جاري تحميل وتحديث بيانات المقارنة المحفوظة...', 'info');

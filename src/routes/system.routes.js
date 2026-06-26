@@ -326,7 +326,7 @@ router.put('/external-sales/:id', authenticateUser, (req, res) => {
 // --- SYSTEM RESET ENDPOINT ---
 
 router.post('/system/clear-all', authenticateUser, requireRole(['admin']), (req, res) => {
-    const tables = ['expenses', 'archives', 'salla_imported_orders', 'salla_imported_wallet', 'product_adjustments', 'ads_campaign_metrics', 'ads_connections'];
+    const tables = ['expenses', 'archives', 'salla_imported_orders', 'salla_imported_wallet', 'product_adjustments', 'ads_campaign_metrics', 'ads_connections', 'product_sales_imports', 'saved_comparisons'];
     let errorOccurred = false;
     let completed = 0;
     
@@ -343,6 +343,159 @@ router.post('/system/clear-all', authenticateUser, requireRole(['admin']), (req,
                 });
             }
         });
+    });
+});
+
+// --- CUSTOM EXCEL SALES IMPORTS & COMPARISONS ---
+
+// 1. POST /api/sales/import-excel: Import custom Excel sales/costs report
+router.post('/sales/import-excel', authenticateUser, (req, res) => {
+    const { title, date, rows } = req.body;
+    if (!title || !rows || !Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ error: 'يرجى تقديم عنوان التقرير وقائمة المنتجات.' });
+    }
+
+    const importId = 'imp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const dateStr = date || new Date().toISOString().split('T')[0];
+
+    db.serialize(() => {
+        db.run("BEGIN TRANSACTION");
+        const stmt = db.prepare(`
+            INSERT INTO product_sales_imports (
+                import_id, import_title, import_date, product_type, brand_name, 
+                qty_sold, sales_before_discount, discount, cost_of_sales, 
+                net_sales, taxes, total_sales
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        let errorOccurred = false;
+        rows.forEach(r => {
+            if (errorOccurred) return;
+            stmt.run([
+                importId,
+                title.trim(),
+                dateStr,
+                r.product_type ? String(r.product_type).trim() : null,
+                r.brand_name ? String(r.brand_name).trim() : 'غير معروف',
+                parseInt(r.qty_sold) || 0,
+                parseFloat(r.sales_before_discount) || 0,
+                parseFloat(r.discount) || 0,
+                parseFloat(r.cost_of_sales) || 0,
+                parseFloat(r.net_sales) || 0,
+                parseFloat(r.taxes) || 0,
+                parseFloat(r.total_sales) || 0
+            ], (err) => {
+                if (err) {
+                    console.error('[Import Excel Row Error]', err.message);
+                    errorOccurred = true;
+                }
+            });
+        });
+
+        stmt.finalize((errFinal) => {
+            if (errorOccurred || errFinal) {
+                db.run("ROLLBACK");
+                return res.status(500).json({ error: 'حدث خطأ أثناء حفظ أسطر التقرير في قاعدة البيانات.' });
+            }
+            db.run("COMMIT", (errCommit) => {
+                if (errCommit) {
+                    db.run("ROLLBACK");
+                    return res.status(500).json({ error: 'فشل إتمام حفظ العملية.' });
+                }
+                ConfigRepository.logActivity(req.user.username, 'IMPORT', 'product_sales_imports', `تم استيراد تقرير المقارنة المخصص: ${title} يحتوي على ${rows.length} سطر`).catch(console.error);
+                res.json({ success: true, import_id: importId, count: rows.length });
+            });
+        });
+    });
+});
+
+// 2. GET /api/sales/imports: Get all unique imports grouped by import_id
+router.get('/sales/imports', authenticateUser, (req, res) => {
+    db.all(`
+        SELECT 
+            import_id, 
+            import_title, 
+            import_date, 
+            COUNT(*) as rows_count, 
+            SUM(total_sales) as total_revenue 
+        FROM product_sales_imports 
+        GROUP BY import_id 
+        ORDER BY import_date DESC
+    `, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows || []);
+    });
+});
+
+// 3. DELETE /api/sales/imports/:importId: Delete custom import
+router.delete('/sales/imports/:importId', authenticateUser, (req, res) => {
+    const { importId } = req.params;
+    db.run("DELETE FROM product_sales_imports WHERE import_id = ?", [importId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        ConfigRepository.logActivity(req.user.username, 'DELETE', 'product_sales_imports', `تم حذف تقرير المقارنة المخصص المعرف بـ: ${importId}`).catch(console.error);
+        res.json({ success: true, changes: this.changes });
+    });
+});
+
+// 4. GET /api/sales/compare-reports: Get details of two reports for comparison
+router.get('/sales/compare-reports', authenticateUser, (req, res) => {
+    const { import1, import2 } = req.query;
+    if (!import1 || !import2) {
+        return res.status(400).json({ error: 'الرجاء تحديد المعرفات للتقارير المراد مقارنتها.' });
+    }
+
+    db.all("SELECT * FROM product_sales_imports WHERE import_id = ?", [import1], (errA, rowsA) => {
+        if (errA) return res.status(500).json({ error: errA.message });
+
+        db.all("SELECT * FROM product_sales_imports WHERE import_id = ?", [import2], (errB, rowsB) => {
+            if (errB) return res.status(500).json({ error: errB.message });
+
+            res.json({
+                success: true,
+                import1: rowsA || [],
+                import2: rowsB || []
+            });
+        });
+    });
+});
+
+// 5. POST /api/sales/saved-comparisons: Save a comparison report
+router.post('/sales/saved-comparisons', authenticateUser, (req, res) => {
+    const { title, compare_type, param1, param2, summary_json } = req.body;
+    if (!title || !compare_type) {
+        return res.status(400).json({ error: 'العنوان ونوع المقارنة حقول مطلوبة.' });
+    }
+
+    const createdAt = new Date().toISOString();
+    const summaryStr = typeof summary_json === 'object' ? JSON.stringify(summary_json) : (summary_json || '{}');
+
+    db.run(
+        `INSERT INTO saved_comparisons (title, compare_type, param1, param2, summary_json, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [title.trim(), compare_type.trim(), param1 || '', param2 || '', summaryStr, createdAt],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            ConfigRepository.logActivity(req.user.username, 'ADD', 'saved_comparisons', `تم حفظ تقرير مقارنة مبيعات جديد بعنوان: ${title}`).catch(console.error);
+            res.json({ success: true, id: this.lastID });
+        }
+    );
+});
+
+// 6. GET /api/sales/saved-comparisons: Get all saved comparisons
+router.get('/sales/saved-comparisons', authenticateUser, (req, res) => {
+    db.all("SELECT * FROM saved_comparisons ORDER BY id DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows || []);
+    });
+});
+
+// 7. DELETE /api/sales/saved-comparisons/:id: Delete saved comparison
+router.delete('/sales/saved-comparisons/:id', authenticateUser, (req, res) => {
+    const { id } = req.params;
+    db.run("DELETE FROM saved_comparisons WHERE id = ?", [id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        ConfigRepository.logActivity(req.user.username, 'DELETE', 'saved_comparisons', `تم حذف مقارنة محفوظة معرف: ${id}`).catch(console.error);
+        res.json({ success: true, changes: this.changes });
     });
 });
 
