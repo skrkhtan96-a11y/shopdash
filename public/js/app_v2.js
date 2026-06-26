@@ -3871,6 +3871,8 @@ window.addEventListener('click', (e) => {
     const expDescDropdown = document.getElementById('expDescMultiDropdown');
     const expDescBtn = document.getElementById('expDescMultiBtn');
     if (expDescDropdown && expDescBtn && !expDescBtn.contains(e.target) && !expDescDropdown.contains(e.target)) {
+        expDescDropdown.style.display = 'none';
+    }
 });
 
 // ══════════════════════════════════════════════
