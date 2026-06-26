@@ -3871,6 +3871,8 @@ window.addEventListener('click', (e) => {
     const expDescDropdown = document.getElementById('expDescMultiDropdown');
     const expDescBtn = document.getElementById('expDescMultiBtn');
     if (expDescDropdown && expDescBtn && !expDescBtn.contains(e.target) && !expDescDropdown.contains(e.target)) {
+        expDescDropdown.style.display = 'none';
+    }
 });
 
 // ══════════════════════════════════════════════
@@ -3981,12 +3983,12 @@ function openPricingRuleModal(id = null) {
         notesInput.value = '';
     }
     
-    if (modal) modal.style.display = 'flex';
+    if (modal) modal.classList.add('open');
 }
 
 function closePricingRuleModal() {
     const modal = document.getElementById('pricingRuleModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) modal.classList.remove('open');
     currentEditPricingRuleId = null;
 }
 

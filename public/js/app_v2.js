@@ -1781,10 +1781,24 @@ function updateExpensesDashboard() {
     // 2. الأرباح من المشتريات (سعر البيع - سعر الشراء) مضروباً في الكمية
     const purchasesProfit = filtered.filter(e => e.cat === 'شراء منتجات').reduce((s, e) => {
         const name = (e.product_name || '').trim();
-        const lowerName = name.toLowerCase();
-        const isPs5Plus = name.includes('بلس') && name.includes('PS5');
         const qty = parseInt(e.quantity) || 1;
         
+        // البحث عن قاعدة التسعير المطابقة للمصروف
+        let rule = (state.pricingRules || []).find(r => r.product_name === name && r.period === (e.period || ''));
+        if (!rule && e.period) {
+            rule = (state.pricingRules || []).find(r => r.product_name === name && !r.period);
+        }
+        
+        if (rule) {
+            const buy = parseFloat(e.purchase_price) || rule.purchase_price || 0;
+            const sell = parseFloat(e.selling_price) || rule.selling_price || 0;
+            const copies = rule.copies_per_unit || 1;
+            return s + (qty * (copies * sell - buy));
+        }
+        
+        // Fallback القديم إذا لم توجد قاعدة تسعير في قاعدة البيانات
+        const lowerName = name.toLowerCase();
+        const isPs5Plus = name.includes('بلس') && name.includes('PS5');
         if (isPs5Plus) {
             let tier = '';
             if (name.includes('أساسي') || name.includes('اساسي') || lowerName.includes('essential')) {
@@ -1801,19 +1815,17 @@ function updateExpensesDashboard() {
                 periodKey = 'شهري';
             } else if (p === '3 أشهر') {
                 periodKey = '3 أشهر';
-            } else if (p === '4 أشهر') {
-                periodKey = '4 أشهر';
-            } else if (p === '5 أشهر') {
-                periodKey = '5 أشهر';
             } else if (p === 'سنة') {
                 periodKey = 'سنة';
             }
             
             if (tier && periodKey) {
                 const pricing = PS5_PRICING_CATALOG[tier][periodKey];
-                const numPackages = qty / 3;
-                const packageProfit = (2 * pricing.selling + 1 * pricing.selling_ps4) - pricing.purchase;
-                return s + (numPackages * packageProfit);
+                if (pricing) {
+                    const numPackages = qty / 3;
+                    const packageProfit = (2 * pricing.selling + 1 * pricing.selling_ps4) - pricing.purchase;
+                    return s + (numPackages * packageProfit);
+                }
             }
         }
         
@@ -3983,12 +3995,12 @@ function openPricingRuleModal(id = null) {
         notesInput.value = '';
     }
     
-    if (modal) modal.style.display = 'flex';
+    if (modal) modal.classList.add('open');
 }
 
 function closePricingRuleModal() {
     const modal = document.getElementById('pricingRuleModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) modal.classList.remove('open');
     currentEditPricingRuleId = null;
 }
 
