@@ -506,7 +506,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -519,6 +519,7 @@ const PAGE_TITLES = {
     'salla-carts': 'السلات المتروكة',
     'salla-wallet': 'محفظة سلة',
     'salla-products': 'المخزون والمنتجات',
+    'salla-purchase-batches': 'خطة مقارنة دفعات المشتريات',
     'salla-compare': 'مقارنة المبيعات والفروقات',
     'salla-webhooks': 'ربط الويب هوك (Webhook)',
     import: 'استيراد Excel',
@@ -612,6 +613,7 @@ function nav(name, updateHash = true) {
     if (name === 'salla-carts') renderCarts();
     if (name === 'salla-wallet') renderWallet();
     if (name === 'salla-products') renderProducts();
+    if (name === 'salla-purchase-batches') renderPurchaseBatches();
     if (name === 'salla-compare') initComparePage();
     if (name === 'salla-webhooks') loadWebhookData();
     if (name === 'users') loadUsers();
@@ -2336,28 +2338,11 @@ function populateProductsDropdown() {
     const sel = document.getElementById('mProductSelect');
     if (!sel) return;
 
-    // تجميع المنتجات الفريدة من قائمة الطلبات والمصروفات
-    const productsMap = {};
-    sallaOrders.forEach(o => {
-        (o.items || []).forEach(it => {
-            const name = (it.name || '').trim();
-            if (name) productsMap[name] = true;
-        });
-    });
-
-    state.expenses.forEach(e => {
-        if (e.cat === 'شراء منتجات' && e.product_name) {
-            const name = e.product_name.trim();
-            if (name) {
-                productsMap[name] = true;
-                if (name.includes('بلس') && name.includes('PS5')) {
-                    productsMap[name.replace('PS5', 'PS4')] = true;
-                }
-            }
-        }
-    });
-
-    const uniqueProducts = Object.keys(productsMap).sort();
+    // تجميع أسماء المنتجات الموحدة من دليل المنتجات (state.inventoryProducts)
+    const uniqueProducts = (state.inventoryProducts || [])
+        .map(p => p.product_name.trim())
+        .filter((val, idx, self) => val && self.indexOf(val) === idx)
+        .sort();
 
     sel.innerHTML = '<option value="">-- اختر المنتج --</option>';
     uniqueProducts.forEach(prod => {
@@ -2400,6 +2385,39 @@ function toggleCustomProductField() {
     checkProductPlusPeriod();
 }
 
+// دالة معالجة اختيار منتج شراء لتعبئة البيانات تلقائياً وتحديث المساعد الذكي
+function handlePurchaseProductSelection() {
+    const sel = document.getElementById('mProductSelect');
+    if (!sel) return;
+    
+    const prodName = sel.value;
+    if (!prodName || prodName === 'custom') {
+        const helperCard = document.getElementById('mPurchaseHelperCard');
+        if (helperCard) helperCard.style.display = 'none';
+        return;
+    }
+    
+    // البحث عن المنتج في دليل المنتجات الموحد
+    const prod = (state.inventoryProducts || []).find(p => p.product_name === prodName);
+    
+    // التعبئة التلقائية فقط في حالة إضافة مصروف جديد (لتجنب مسح القيم المخزنة عند تعديل مصروف سابق)
+    const isEditing = !!state.editingId;
+    if (prod && !isEditing) {
+        const elQty = document.getElementById('mQuantity');
+        const elPurchase = document.getElementById('mPurchasePrice');
+        const elSelling = document.getElementById('mSellingPrice');
+        
+        if (elQty) elQty.value = prod.quantity > 0 ? prod.quantity.toString() : '1';
+        if (elPurchase) elPurchase.value = prod.cost > 0 ? prod.cost.toFixed(2) : '0.00';
+        if (elSelling) elSelling.value = prod.price > 0 ? prod.price.toFixed(2) : '0.00';
+        
+        recalcPurchaseAmt();
+    }
+    
+    // تحديث مساعد الشراء الذكي تفاعلياً بالدفعة الأخيرة
+    updatePurchaseBatchHelper(prodName);
+}
+
 function checkProductPlusPeriod() {
     const sel = document.getElementById('mProductSelect');
     const customInput = document.getElementById('mProductCustom');
@@ -2435,6 +2453,11 @@ function checkProductPlusPeriod() {
         periodBlock.style.display = 'none';
         const mPeriod = document.getElementById('mPeriod');
         if (mPeriod) mPeriod.value = '';
+    }
+
+    // لتحديث المساعد الذكي عند الكتابة اليدوية لمنتج مخصص
+    if (type === 'expense' && cat === 'شراء منتجات' && prodName) {
+        updatePurchaseBatchHelper(prodName);
     }
 }
 

@@ -169,7 +169,7 @@
         <div class="form-row full">
           <div class="form-group">
             <label class="form-label">المنتج (اختر من قائمة منتجات سلة الموجودة)</label>
-            <select id="mProductSelect" style="width: 100%;" onchange="toggleCustomProductField(); handleProductPricingChange();"></select>
+            <select id="mProductSelect" style="width: 100%;" onchange="toggleCustomProductField(); handleProductPricingChange(); handlePurchaseProductSelection();"></select>
             <input type="text" id="mProductCustom" placeholder="اكتب اسم المنتج المخصص هنا..." style="display:none; margin-top:6px; width: 100%;" oninput="checkProductPlusPeriod()">
           </div>
         </div>
@@ -211,6 +211,10 @@
               * إجمالي المحسوب: <span id="mCalcTotal" class="mono accent" style="font-weight:600;">0.00</span> ر.س
             </div>
           </div>
+        </div>
+        <!-- بطاقة مساعد اتخاذ قرار الشراء الذكي تفاعلياً -->
+        <div id="mPurchaseHelperCard" style="display:none; margin-top:12px; padding:12px; border-radius:var(--r); font-size:11px; line-height:1.6; border:1px solid transparent; transition: all 0.3s ease;">
+          <!-- سيتم تعبئة تفاصيل الدفعة السابقة هنا برمجياً -->
         </div>
       </div>
 
@@ -780,6 +784,7 @@
       <div class="nav-item" id="nav-salla-carts" onclick="nav('salla-carts')"><i class="ti ti-basket-off"></i> السلات المتروكة <span class="badge-count" id="cartBadge">...</span></div>
       <div class="nav-item" id="nav-salla-wallet" onclick="nav('salla-wallet')"><i class="ti ti-wallet"></i> كشف المحفظة</div>
       <div class="nav-item" id="nav-salla-products" onclick="nav('salla-products')"><i class="ti ti-box"></i> المخزون والمنتجات</div>
+      <div class="nav-item" id="nav-salla-purchase-batches" onclick="nav('salla-purchase-batches')"><i class="ti ti-history-toggle"></i> خطة مقارنة دفعات المشتريات</div>
       <div class="nav-item" id="nav-salla-compare" onclick="nav('salla-compare')"><i class="ti ti-chart-arrows-vertical"></i> مقارنة المبيعات</div>
       <div class="nav-item" id="nav-salla-webhooks" onclick="nav('salla-webhooks')"><i class="ti ti-webhook"></i> ربط الويب هوك (Webhook)</div>
 
@@ -1687,6 +1692,7 @@
                 <option value="negative">عجز جرد (سالب)</option>
               </select>
               <button class="btn btn-sm" onclick="nav('import')"><i class="ti ti-file-import"></i> استيراد من Excel</button>
+              <button class="btn btn-sm btn-success" id="btnSyncSallaProds" onclick="syncProductsFromSalla()" style="background:rgba(40,167,69,0.1); border-color:var(--green); color:var(--green);"><i class="ti ti-refresh"></i> استيراد ومزامنة من سلة</button>
               <button class="btn btn-sm btn-primary" onclick="openJardModal('')"><i class="ti ti-plus"></i> إضافة منتج يدوي</button>
               <button class="btn btn-sm" id="clearAllStockBtn" onclick="clearAllStock()" style="display:none; background:rgba(224,85,85,0.1); border-color:var(--red); color:var(--red);"><i class="ti ti-trash"></i> تصفير المخزون اليدوي</button>
             </div>
@@ -1896,6 +1902,78 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- PAGE: SALLA PURCHASE BATCHES COMPARISON -->
+      <div class="page pad" id="page-salla-purchase-batches">
+        <div class="import-panel" style="margin-bottom:14px; background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
+            <div>
+              <div class="import-panel-title" style="font-size:16px; font-weight:700; color:var(--text); display: flex; align-items: center; gap: 8px;">
+                <i class="ti ti-history-toggle" style="color:var(--accent); font-size:20px;"></i>
+                <span>خطة مقارنة ومتابعة دفعات المشتريات والمبيعات</span>
+              </div>
+              <div class="import-panel-sub" style="font-size:11px; color:var(--text3); margin-top:4px;">
+                تتبع دفعات مشتريات المنتجات وتدقيق كمياتها المتبقية وصافي أرباحها الفعلية بمطابقتها مع مبيعات سلة بالترتيب الزمني (FIFO).
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="text" id="pbSearchInput" oninput="renderPurchaseBatches()" placeholder="ابحث باسم المنتج..." style="padding: 6px 12px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 220px; outline:none">
+              <button class="btn btn-sm btn-primary" onclick="renderPurchaseBatches()" style="height:32px"><i class="ti ti-refresh"></i> تحديث</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIs Grid for Purchase Batches -->
+        <div class="kpi-grid" id="pbKPIs" style="margin-bottom:14px; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <div class="kpi k-accent"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">إجمالي الاستثمار بالمشتريات</div><div class="kpi-val accent" id="kpiPbTotalCost">0.00 ر.س</div><div class="kpi-sub">تكلفة كافة الدفعات المشتراة</div></div>
+          <div class="kpi k-blue"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">الإيرادات المحققة</div><div class="kpi-val blue" id="kpiPbTotalRevenue">0.00 ر.س</div><div class="kpi-sub">عائد المبيعات الموزعة</div></div>
+          <div class="kpi k-green"><i class="ti ti-chart-line kpi-ico"></i><div class="kpi-label">صافي الأرباح الفعلية</div><div class="kpi-val green" id="kpiPbTotalProfit">0.00 ر.س</div><div class="kpi-sub">بعد خصم التكاليف الثابتة والأكواد</div></div>
+          <div class="kpi k-amber"><i class="ti ti-percentage kpi-ico"></i><div class="kpi-label">نسبة اكتمال مبيعات الدفعات</div><div class="kpi-val amber" id="kpiPbCompletionRate">0%</div><div class="kpi-sub">معدل البيع العام للدفعات</div></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1.25fr 1fr; gap:14px; align-items: start;" id="pbMainLayout">
+          <!-- Master Product Table -->
+          <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+            <div class="tbl-header" style="border-bottom:1px solid var(--border2); padding-bottom:10px">
+              <div class="tbl-title" style="font-size:13px; font-weight:600;"><i class="ti ti-list" style="color:var(--accent)"></i> ملخص أداء دفعات المنتجات</div>
+            </div>
+            <div class="tbl-scroll" style="max-height: 520px; overflow-y: auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>اسم المنتج</th>
+                    <th style="text-align:center">الدفعات</th>
+                    <th>إجمالي المشتريات</th>
+                    <th>المباع</th>
+                    <th>نسبة البيع</th>
+                    <th>المتبقي</th>
+                    <th>صافي الأرباح</th>
+                    <th>حالة الدفعة الأخيرة</th>
+                  </tr>
+                </thead>
+                <tbody id="pbProductTableBody">
+                  <!-- سيتم تعبئتها ديناميكياً -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Detail Batch View -->
+          <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)" id="pbDetailCard">
+            <div class="tbl-header" style="border-bottom:1px solid var(--border2); padding-bottom:10px; display:flex; justify-content:space-between; align-items:center">
+              <div class="tbl-title" style="font-size:13px; font-weight:600;"><i class="ti ti-history" style="color:var(--accent)"></i> تفاصيل دفعات الشراء وأرباحها</div>
+              <div id="pbDetailProductName" style="font-size:11px; font-weight:700; color:var(--accent); background:var(--accent3); padding:3px 8px; border-radius:4px; display:none;">لم يتم التحديد</div>
+            </div>
+            <div style="padding:14px;" id="pbDetailContainer">
+              <div class="empty" style="padding:40px 0;">
+                <i class="ti ti-click"></i>
+                <p style="font-size:12px;color:var(--text3)">انقر على اسم أي منتج في الجدول الأيمن لعرض تحليل دفعات الشراء ومقارنة المبيعات الذكية الخاصة به.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- PAGE: SALLA WEBHOOKS -->

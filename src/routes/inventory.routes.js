@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const db = require('../config/db');
 const ConfigRepository = require('../repositories/config.repository');
 const { authenticateUser } = require('../middlewares/auth');
@@ -390,6 +391,97 @@ router.post('/inventory/products/bulk', authenticateUser, (req, res) => {
             res.json({ success: true, count: products.length });
         });
     });
+});
+
+// Sync and import products from Salla (supports direct OAuth API and offline fallback from imported orders)
+router.post('/inventory/products/sync-salla', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_salla_products) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية استيراد منتجات سلة.' });
+    }
+    
+    try {
+        const SallaService = require('../services/salla.service');
+        const token = await SallaService.getOrRefreshToken();
+        
+        if (!token) {
+            // FALLBACK: Offline mode or Salla not connected.
+            // Extract unique products from salla_imported_orders!
+            db.all(
+                "SELECT DISTINCT product_name, AVG(amount) as avg_price FROM salla_imported_orders GROUP BY product_name",
+                [],
+                (err, rows) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    if (!rows || rows.length === 0) {
+                        return res.status(400).json({ error: 'منصة سلة غير متصلة، ولم يتم العثور على أي مبيعات مستوردة مسبقاً لاستخراج المنتجات منها.' });
+                    }
+                    
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    db.serialize(() => {
+                        const stmt = db.prepare(`
+                            INSERT INTO inventory_products (product_name, quantity, cost, price, category, created_at) 
+                            VALUES (?, 0, 0, ?, 'عام', ?)
+                            ON CONFLICT(product_name) DO NOTHING
+                        `);
+                        rows.forEach(r => {
+                            if (r.product_name && r.product_name !== 'طلب بدون عناصر') {
+                                stmt.run([r.product_name.trim(), parseFloat(r.avg_price) || 0, dateStr]);
+                            }
+                        });
+                        stmt.finalize((errFinal) => {
+                            if (errFinal) return res.status(500).json({ error: errFinal.message });
+                            ConfigRepository.logActivity(req.user.username, 'SYNC', 'inventory_products', `تم استخراج وتوحيـد ${rows.length} منتج من المبيعات المستوردة (أوفلاين)`).catch(console.error);
+                            res.json({ success: true, source: 'offline_orders', count: rows.length });
+                        });
+                    });
+                }
+            );
+        } else {
+            // ONLINE MODE: Fetch from Salla API!
+            console.log('[SallaService] جاري سحب المنتجات من منصة سلة...');
+            const response = await axios.get('https://api.salla.dev/admin/v2/products?per_page=100', {
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Accept-Language': 'ar'
+                }
+            });
+            
+            const products = response.data?.data || [];
+            if (products.length === 0) {
+                return res.json({ success: true, source: 'salla_api', count: 0 });
+            }
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            db.serialize(() => {
+                const stmt = db.prepare(`
+                    INSERT INTO inventory_products (product_name, sku, quantity, cost, price, category, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(product_name) DO UPDATE SET 
+                        sku = COALESCE(excluded.sku, sku),
+                        cost = CASE WHEN excluded.cost > 0 THEN excluded.cost ELSE cost END,
+                        price = CASE WHEN excluded.price > 0 THEN excluded.price ELSE price END
+                `);
+                
+                products.forEach(p => {
+                    const name = String(p.name).trim();
+                    const sku = p.sku ? String(p.sku).trim() : null;
+                    const price = parseFloat(p.price?.amount) || 0;
+                    const cost = parseFloat(p.cost_price) || 0;
+                    const stock = parseInt(p.quantity) || 0;
+                    
+                    stmt.run([name, sku, stock, cost, price, 'عام', dateStr]);
+                });
+                
+                stmt.finalize((errFinal) => {
+                    if (errFinal) return res.status(500).json({ error: errFinal.message });
+                    ConfigRepository.logActivity(req.user.username, 'SYNC', 'inventory_products', `تم استيراد ومزامنة ${products.length} منتج مباشرة من منصة سلة (أونلاين)`).catch(console.error);
+                    res.json({ success: true, source: 'salla_api', count: products.length });
+                });
+            });
+        }
+    } catch (e) {
+        console.error('[Sync Salla Products Error]', e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 module.exports = router;
