@@ -2753,6 +2753,16 @@ function recalcPurchaseAmt() {
     document.getElementById('mCalcTotal').textContent = fmt(total);
     // تحديث حقل المبلغ الرئيسي لمساعدة المستخدم
     document.getElementById('mAmt').value = total > 0 ? total.toFixed(2) : '';
+
+    const helperTextEl = document.getElementById('mQuantityHelperText');
+    if (helperTextEl) {
+        if (qty > 0 && price > 0) {
+            helperTextEl.textContent = `الحساب التلقائي: ${qty} × ${fmt(price)} = ${fmt(total)} ر.س`;
+            helperTextEl.style.display = 'block';
+        } else {
+            helperTextEl.style.display = 'none';
+        }
+    }
 }
 
 async function saveRow() {
