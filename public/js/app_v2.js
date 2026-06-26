@@ -5769,13 +5769,15 @@ function renderPsPlusAccounts(accounts) {
     if (addBtn) addBtn.style.display = canAdd ? '' : 'none';
     if (importBtn) importBtn.style.display = canAdd ? '' : 'none';
 
-    // Calculate total KPIs first (based on the full list)
-    let totalAccounts = accounts.length;
+    // Calculate total KPIs first (based on the full list, excluding archived)
+    let totalAccounts = 0;
     let availablePs5 = 0;
     let availablePs4 = 0;
     let completedAccounts = 0;
 
     accounts.forEach(c => {
+        if (c.is_archived === 1) return; // Skip archived in KPIs
+        totalAccounts++;
         let activeSlots = 0;
         let deliveredSlots = 0;
         if (c.ps5_1_status !== 'unavailable') {
@@ -5796,7 +5798,7 @@ function renderPsPlusAccounts(accounts) {
         if (activeSlots > 0 && deliveredSlots === activeSlots) completedAccounts++;
     });
 
-    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts, accounts);
+    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts, accounts.filter(c => c.is_archived !== 1));
 
     const tbody = document.getElementById('psPlusTbody');
     if (!tbody) return;
@@ -5811,11 +5813,47 @@ function renderPsPlusAccounts(accounts) {
     const filterDuration = document.getElementById('psFilterDuration')?.value || '';
     const filterStock = document.getElementById('psFilterStock')?.value || '';
     const filterSearch = document.getElementById('psFilterSearch')?.value.trim().toLowerCase() || '';
+    const filterArchiveStatus = document.getElementById('psFilterArchiveStatus')?.value || 'active_remaining';
 
     // Apply filters
     const filtered = accounts.filter(c => {
+        // Calculate status metrics for filtering
+        const isArchived = c.is_archived === 1;
+        let activeSlots = 0;
+        let deliveredSlots = 0;
+        if (c.ps5_1_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps5_1_status === 'delivered') deliveredSlots++;
+        }
+        if (c.ps5_2_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps5_2_status === 'delivered') deliveredSlots++;
+        }
+        if (c.ps4_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps4_status === 'delivered') deliveredSlots++;
+        }
+        const isCompleted = activeSlots > 0 && deliveredSlots === activeSlots;
+        const hasRemaining = activeSlots > 0 && deliveredSlots < activeSlots;
+
+        // 1. Archive Status Filter
+        if (filterArchiveStatus === 'active_remaining') {
+            if (isArchived || !hasRemaining) return false;
+        } else if (filterArchiveStatus === 'active_all') {
+            if (isArchived) return false;
+        } else if (filterArchiveStatus === 'archived_all') {
+            if (!isArchived) return false;
+        } else if (filterArchiveStatus === 'archived_completed') {
+            if (!isArchived || !isCompleted) return false;
+        }
+
+        // 2. Type Filter
         if (filterType && c.plus_type !== filterType) return false;
+
+        // 3. Duration Filter
         if (filterDuration && c.plus_duration !== filterDuration) return false;
+
+        // 4. Stock Filter
         if (filterStock) {
             const remPs5 = (c.ps5_1_status === 'available' ? 1 : 0) + (c.ps5_2_status === 'available' ? 1 : 0);
             const remPs4 = c.ps4_status === 'available' ? 1 : 0;
@@ -5824,6 +5862,8 @@ function renderPsPlusAccounts(accounts) {
             if (filterStock === 'has_ps4' && remPs4 === 0) return false;
             if (filterStock === 'empty' && (remPs5 > 0 || remPs4 > 0)) return false;
         }
+
+        // 5. Search Filter
         if (filterSearch) {
             const emailMatch = c.email.toLowerCase().includes(filterSearch);
             const order51Match = (c.ps5_1_order || '').toLowerCase().includes(filterSearch);
@@ -5866,7 +5906,9 @@ function renderPsPlusAccounts(accounts) {
 
         // حساب حالة الحساب الإجمالية
         let overallStatus = '';
-        if (activeSlotsCount === 0) {
+        if (c.is_archived === 1) {
+            overallStatus = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">مؤرشف 📦</span>';
+        } else if (activeSlotsCount === 0) {
             overallStatus = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">بدون نسخ نشطة</span>';
         } else if (deliveredCount === activeSlotsCount) {
             overallStatus = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
@@ -5920,6 +5962,15 @@ function renderPsPlusAccounts(accounts) {
             ps4_cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
         }
 
+        let archiveBtn = '';
+        if (canEdit && canViewDetails) {
+            if (c.is_archived === 1) {
+                archiveBtn = `<button class="btn btn-sm btn-success" onclick="togglePsPlusArchive(${c.id}, false); event.stopPropagation();" style="border-color:rgba(40,167,69,0.2); background:transparent; color:var(--green)"><i class="ti ti-archive"></i> استعادة</button>`;
+            } else {
+                archiveBtn = `<button class="btn btn-sm btn-warning" onclick="togglePsPlusArchive(${c.id}, true); event.stopPropagation();" style="border-color:rgba(255,193,7,0.2); background:transparent; color:var(--orange)"><i class="ti ti-archive"></i> أرشفة</button>`;
+            }
+        }
+
         return `<tr onclick="if(${canViewDetails}) { if(!event.target.closest('button')) showPsPlusDetails(${c.id}) } else { toast('ليس لديك صلاحية عرض تفاصيل وأكواد حسابات بلس', 'error') }" style="${canViewDetails ? 'cursor:pointer' : 'cursor:default'}" title="${canViewDetails ? 'انقر لعرض كامل التفاصيل والمسؤولين' : 'لا تملك صلاحية لعرض التفاصيل'}">
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
             <td style="font-weight:600;" class="mono">${escapeHtml(canViewDetails ? c.email : maskEmail(c.email))}</td>
@@ -5933,8 +5984,9 @@ function renderPsPlusAccounts(accounts) {
             <td>${overallStatus}</td>
             <td>
                 <div style="display:flex;gap:4px">
-                    ${(canEdit && canViewDetails) ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>` : ''}
-                    ${(canDelete && canViewDetails) ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>` : ''}
+                    ${(canEdit && canViewDetails) ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}'); event.stopPropagation();"><i class="ti ti-edit"></i> تعديل</button>` : ''}
+                    ${archiveBtn}
+                    ${(canDelete && canViewDetails) ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id}); event.stopPropagation();"><i class="ti ti-trash"></i> حذف</button>` : ''}
                 </div>
             </td>
         </tr>`;
@@ -5998,6 +6050,26 @@ function exportPsPlusRemainingToExcel() {
 
     XLSX.utils.book_append_sheet(wb, ws, "النسخ المتاحة المتبقية");
     XLSX.writeFile(wb, `النسخ_المتبقية_حسب_الفلترة_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+async function togglePsPlusArchive(id, archive) {
+    const actionText = archive ? 'أرشفة' : 'إلغاء أرشفة';
+    if (!confirm(`هل أنت متأكد من ${actionText} هذا الحساب؟`)) return;
+    try {
+        const res = await fetch(`/api/ps-plus/accounts/${id}/archive`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_archived: archive ? 1 : 0 })
+        });
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || `فشل ${actionText} الحساب`);
+        }
+        toast(`تم ${actionText} الحساب بنجاح`);
+        loadPsPlusAccounts();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
 }
 
 function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {

@@ -293,6 +293,7 @@ db.serialize(() => {
             ps5_1_delivered_at TEXT,
             ps5_2_delivered_at TEXT,
             ps4_delivered_at TEXT,
+            is_archived INTEGER DEFAULT 0,
             created_at TEXT NOT NULL
         )
     `);
@@ -467,6 +468,7 @@ db.serialize(() => {
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_1_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_2_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps4_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN is_archived INTEGER DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {

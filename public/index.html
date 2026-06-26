@@ -2725,6 +2725,15 @@
               <option value="empty">مكتمل التسليم (نفذت الكمية)</option>
             </select>
             
+            <label style="margin-right:8px">الأرشفة والمخزون:</label>
+            <select id="psFilterArchiveStatus" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
+              <option value="active_remaining">النسخ المتبقية فقط (غير مؤرشف)</option>
+              <option value="active_all">النشطة (الكل)</option>
+              <option value="archived_all">المؤرشفة (الكل)</option>
+              <option value="archived_completed">المؤرشفة المكتملة</option>
+              <option value="all">الكل (مؤرشف وغير مؤرشف)</option>
+            </select>
+            
             <label style="margin-right:auto">بحث:</label>
             <input type="text" id="psFilterSearch" oninput="renderPsPlusAccounts()" placeholder="ابحث بالإيميل أو رقم الطلب..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 200px;">
           </div>

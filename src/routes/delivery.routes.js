@@ -168,6 +168,29 @@ router.delete('/ps-plus/accounts/:id', authenticateUser, (req, res) => {
     });
 });
 
+// Toggle archive status of a PlayStation Plus account
+router.put('/ps-plus/accounts/:id/archive', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin' && !req.user.can_edit_ps) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل حسابات بلس.' });
+    }
+    const { id } = req.params;
+    const { is_archived } = req.body;
+    
+    db.run(
+        "UPDATE ps_plus_accounts SET is_archived = ? WHERE id = ?",
+        [is_archived ? 1 : 0, id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            db.get("SELECT email FROM ps_plus_accounts WHERE id = ?", [id], (errGet, row) => {
+                const email = row ? row.email : 'غير معروف';
+                const actionText = is_archived ? 'أرشفة' : 'إلغاء أرشفة';
+                ConfigRepository.logActivity(req.user.username, 'UPDATE', 'ps_plus', `تم ${actionText} حساب بلس: ${email}`).catch(console.error);
+            });
+            res.json({ success: true, is_archived: is_archived ? 1 : 0 });
+        }
+    );
+});
+
 // Deliver a PlayStation Plus account slot
 router.post('/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
     if (req.user.role !== 'admin' && !req.user.can_deliver) {

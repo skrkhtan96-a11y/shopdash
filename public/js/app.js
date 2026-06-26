@@ -5934,6 +5934,7 @@ function renderPsPlusAccounts(accounts) {
             <td>
                 <div style="display:flex;gap:4px">
                     ${(canEdit && canViewDetails) ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>` : ''}
+                    ${(canEdit && canViewDetails) ? (c.is_archived ? `<button class="btn btn-sm" style="color:var(--green); border-color:rgba(40,167,69,0.2); background:transparent" onclick="togglePsPlusArchive(${c.id}, false)"><i class="ti ti-archive-off"></i> إلغاء الأرشفة</button>` : `<button class="btn btn-sm" style="color:var(--amber); border-color:rgba(255,193,7,0.2); background:transparent" onclick="togglePsPlusArchive(${c.id}, true)"><i class="ti ti-archive"></i> أرشفة</button>`) : ''}
                     ${(canDelete && canViewDetails) ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>` : ''}
                 </div>
             </td>
@@ -5998,6 +5999,24 @@ function exportPsPlusRemainingToExcel() {
 
     XLSX.utils.book_append_sheet(wb, ws, "النسخ المتاحة المتبقية");
     XLSX.writeFile(wb, `النسخ_المتبقية_حسب_الفلترة_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+async function togglePsPlusArchive(id, archive) {
+    const actionText = archive ? 'أرشفة' : 'إلغاء أرشفة';
+    if (!confirm(`هل أنت متأكد من ${actionText} هذا الحساب؟`)) return;
+    try {
+        const res = await fetch(`/api/ps-plus/accounts/${id}/archive`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_archived: archive ? 1 : 0 })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'حدث خطأ ما');
+        toast(data.message || `${actionText} الحساب بنجاح`, 'success');
+        loadPsPlusAccounts();
+    } catch (err) {
+        toast(err.message, 'error');
+    }
 }
 
 function updatePsPlusKPIs(total, ps5, ps4, completed, accounts) {
