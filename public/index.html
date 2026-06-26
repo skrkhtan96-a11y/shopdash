@@ -169,6 +169,7 @@
         <div class="form-row full">
           <div class="form-group">
             <label class="form-label">المنتج (اختر من قائمة منتجات سلة الموجودة)</label>
+            <input type="text" id="mProductSearch" placeholder="🔍 ابحث عن المنتج بالاسم..." style="margin-bottom:8px; width: 100%;" oninput="filterProductsDropdown()">
             <select id="mProductSelect" style="width: 100%;" onchange="toggleCustomProductField(); handleProductPricingChange(); handlePurchaseProductSelection();"></select>
             <input type="text" id="mProductCustom" placeholder="اكتب اسم المنتج المخصص هنا..." style="display:none; margin-top:6px; width: 100%;" oninput="checkProductPlusPeriod()">
           </div>

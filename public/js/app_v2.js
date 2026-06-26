@@ -2335,8 +2335,20 @@ function updateMarketingDesc(force = false) {
 
 // دالة تفريغ وتعبئة المنتجات في القائمة المنسدلة
 function populateProductsDropdown() {
+    const searchInput = document.getElementById('mProductSearch');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    filterProductsDropdown();
+}
+
+// دالة تصفية وتعبئة المنتجات في القائمة المنسدلة بناءً على حقل البحث
+function filterProductsDropdown() {
     const sel = document.getElementById('mProductSelect');
     if (!sel) return;
+
+    const searchInput = document.getElementById('mProductSearch');
+    const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
     // تجميع أسماء المنتجات الموحدة من دليل المنتجات (state.inventoryProducts)
     const uniqueProducts = (state.inventoryProducts || [])
@@ -2344,15 +2356,27 @@ function populateProductsDropdown() {
         .filter((val, idx, self) => val && self.indexOf(val) === idx)
         .sort();
 
+    const currentVal = sel.value;
+
     sel.innerHTML = '<option value="">-- اختر المنتج --</option>';
     uniqueProducts.forEach(prod => {
-        sel.innerHTML += `<option value="${escapeHtml(prod)}">${escapeHtml(prod)}</option>`;
+        if (!searchVal || prod.toLowerCase().includes(searchVal)) {
+            const isSelected = prod === currentVal ? 'selected' : '';
+            sel.innerHTML += `<option value="${escapeHtml(prod)}" ${isSelected}>${escapeHtml(prod)}</option>`;
+        }
     });
-    sel.innerHTML += '<option value="custom">* منتج مخصص غير مدرج بالقائمة...</option>';
     
-    // إخفاء حقل التخصيص بشكل افتراضي عند التغيير
-    document.getElementById('mProductCustom').style.display = 'none';
-    document.getElementById('mProductCustom').value = '';
+    const isCustomSelected = currentVal === 'custom' ? 'selected' : '';
+    sel.innerHTML += `<option value="custom" ${isCustomSelected}>* منتج مخصص غير مدرج بالقائمة...</option>`;
+    
+    // إخفاء حقل التخصيص بشكل افتراضي عند التغيير إلا إذا كان مخصصاً ومختاراً بالفعل
+    if (currentVal !== 'custom') {
+        const customInput = document.getElementById('mProductCustom');
+        if (customInput) {
+            customInput.style.display = 'none';
+            customInput.value = '';
+        }
+    }
 }
 
 function escapeHtml(text) {
