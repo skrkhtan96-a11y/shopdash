@@ -93,6 +93,7 @@ let state = {
     wallet: [],
     archives: [],
     adjustments: [], // تسويات الجرد اليدوية
+    pricingRules: [], // كتالوج أسعار وحزم المنتجات الديناميكي
     viewingArc: null, // null = live
     editingId: null,
     editingType: null,
@@ -456,6 +457,14 @@ async function loadLocalData() {
             state.allUnfilteredExpenses = [];
         }
 
+        // جلب قواعد التسعير الديناميكية
+        const pricingRes = await fetch(`/api/inventory/pricing-rules`);
+        if (pricingRes.ok) {
+            state.pricingRules = await pricingRes.json();
+        } else {
+            state.pricingRules = [];
+        }
+
         const canViewArchive = state.user && (state.user.role === 'admin' || !!state.user.can_view_archive_tool);
         if (canViewArchive) {
             const arcRes = await fetch(`/api/archives`);
@@ -468,7 +477,7 @@ async function loadLocalData() {
             state.archives = [];
         }
     } catch (e) {
-        console.error('خطأ في تحميل بيانات المصروفات والأرشيف:', e);
+        console.error('خطأ في تحميل بيانات المصروفات والأرشيف وقواعد التسعير:', e);
         if (hasPageAccess('expenses')) {
             toast('فشل جلب المصروفات من السيرفر', 'err');
         }
@@ -506,7 +515,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -519,6 +528,8 @@ const PAGE_TITLES = {
     'salla-carts': 'السلات المتروكة',
     'salla-wallet': 'محفظة سلة',
     'salla-products': 'المخزون والمنتجات',
+    'pricing-settings': 'إعدادات أسعار المنتجات',
+    'salla-purchase-batches': 'خطة مقارنة دفعات المشتريات',
     'salla-compare': 'مقارنة المبيعات والفروقات',
     'salla-webhooks': 'ربط الويب هوك (Webhook)',
     import: 'استيراد Excel',
@@ -612,6 +623,8 @@ function nav(name, updateHash = true) {
     if (name === 'salla-carts') renderCarts();
     if (name === 'salla-wallet') renderWallet();
     if (name === 'salla-products') renderProducts();
+    if (name === 'pricing-settings') loadPricingSettings();
+    if (name === 'salla-purchase-batches') renderPurchaseBatches();
     if (name === 'salla-compare') initComparePage();
     if (name === 'salla-webhooks') loadWebhookData();
     if (name === 'users') loadUsers();
@@ -1327,39 +1340,64 @@ function renderProducts() {
         if (e.cat === 'شراء منتجات' && e.product_name) {
             const name = e.product_name.trim();
             if (name) {
-                const isPs5Plus = name.includes('بلس') && name.includes('PS5');
                 const qty = e.quantity || 0;
                 
-                if (isPs5Plus) {
-                    // split quantity based on 2 PS5 and 1 PS4 copies per package of 3 copies
-                    const numPackages = qty / 3;
-                    const ps5Copies = Math.round(numPackages * 2);
-                    const ps4Copies = Math.round(numPackages * 1);
+                // البحث عن قاعدة التسعير المطابقة للمصروف
+                let rule = (state.pricingRules || []).find(r => r.product_name === name && r.period === (e.period || ''));
+                if (!rule && e.period) {
+                    rule = (state.pricingRules || []).find(r => r.product_name === name && !r.period);
+                }
+                
+                const copies = rule ? (rule.copies_per_unit || 1) : 1;
+                const freeProduct = rule ? rule.free_bundle_product : null;
+                const freeMult = rule ? (rule.free_bundle_qty_multiplier || 0) : 0;
+                
+                // حساب سعر النسخة الواحدة بالتجزئة للمصروف
+                const singleCopyCost = e.purchase_price ? (e.purchase_price / copies) : 0;
+                const singleCopyPrice = e.selling_price || 0;
 
-                    // 2 نسخ PS5
+                // إذا كان بلس PS5 ولديه 3 نسخ، يتم تقسيمها 2 للـ PS5 و 1 للـ PS4
+                const isPs5Plus = name.includes('PS5') && copies === 3;
+                
+                if (isPs5Plus) {
+                    const ps5Copies = Math.round(qty * 2);
+                    const ps4Copies = Math.round(qty * 1);
+
+                    // إضافة نسخ PS5
                     if (!map[name]) {
                         map[name] = { name, soldCount: 0, totalRevenue: 0, purchasedCount: 0, avgCost: 0, sellingPrice: 0 };
                     }
                     map[name].purchasedCount += ps5Copies;
-                    // Store the actual cost of the single copy
-                    if (e.purchase_price) map[name].avgCost = e.purchase_price;
-                    if (e.selling_price) map[name].sellingPrice = e.selling_price;
+                    if (singleCopyCost) map[name].avgCost = singleCopyCost;
+                    if (singleCopyPrice) map[name].sellingPrice = singleCopyPrice;
                     
-                    // نسخة PS4
+                    // إضافة نسخ PS4
                     const ps4Name = name.replace('PS5', 'PS4');
                     if (!map[ps4Name]) {
                         map[ps4Name] = { name: ps4Name, soldCount: 0, totalRevenue: 0, purchasedCount: 0, avgCost: 0, sellingPrice: 0 };
                     }
                     map[ps4Name].purchasedCount += ps4Copies;
-                    if (e.purchase_price && !map[ps4Name].avgCost) map[ps4Name].avgCost = e.purchase_price;
-                    if (e.selling_price && !map[ps4Name].sellingPrice) map[ps4Name].sellingPrice = e.selling_price;
+                    if (singleCopyCost && !map[ps4Name].avgCost) map[ps4Name].avgCost = singleCopyCost;
+                    if (singleCopyPrice && !map[ps4Name].sellingPrice) map[ps4Name].sellingPrice = singleCopyPrice;
                 } else {
+                    // منتج عادي أو سناب بلس غير مقسم
+                    const totalCopies = qty * copies;
                     if (!map[name]) {
                         map[name] = { name, soldCount: 0, totalRevenue: 0, purchasedCount: 0, avgCost: 0, sellingPrice: 0 };
                     }
-                    map[name].purchasedCount += qty;
-                    if (e.purchase_price) map[name].avgCost = e.purchase_price;
-                    if (e.selling_price) map[name].sellingPrice = e.selling_price;
+                    map[name].purchasedCount += totalCopies;
+                    if (singleCopyCost) map[name].avgCost = singleCopyCost;
+                    if (singleCopyPrice) map[name].sellingPrice = singleCopyPrice;
+                }
+
+                // معالجة الحزمة المجانية (مثال سناب شات الشهري يعطي يومي مجاني)
+                if (freeProduct && freeMult > 0 && qty > 0) {
+                    const freeQty = qty * freeMult;
+                    const freeName = freeProduct.trim();
+                    if (!map[freeName]) {
+                        map[freeName] = { name: freeName, soldCount: 0, totalRevenue: 0, purchasedCount: 0, avgCost: 0, sellingPrice: 0 };
+                    }
+                    map[freeName].purchasedCount += freeQty;
                 }
             }
         }
@@ -1369,12 +1407,81 @@ function renderProducts() {
     let prods = (state.inventoryProducts || []).map(p => {
         let purchased = 0;
         let sold = 0;
+        let totalCostSum = 0;
+        let costItemsCount = 0;
+        let latestCost = p.cost;
+        let latestPrice = p.price;
         
         state.expenses.forEach(e => {
             if (e.cat === 'شراء منتجات' && e.product_name) {
                 const name = e.product_name.trim();
                 const qty = e.quantity || 0;
-                if (name === p.product_name) purchased += qty;
+                
+                // البحث عن قاعدة التسعير المطابقة للمصروف
+                let rule = (state.pricingRules || []).find(r => r.product_name === name && r.period === (e.period || ''));
+                if (!rule && e.period) {
+                    rule = (state.pricingRules || []).find(r => r.product_name === name && !r.period);
+                }
+                
+                const copies = rule ? (rule.copies_per_unit || 1) : 1;
+                const freeProduct = rule ? rule.free_bundle_product : null;
+                const freeMult = rule ? (rule.free_bundle_qty_multiplier || 0) : 0;
+                
+                // حساب سعر النسخة الواحدة بالتجزئة للمصروف
+                const singleCopyCost = e.purchase_price ? (e.purchase_price / copies) : 0;
+
+                // إذا كان بلس PS5 ولديه 3 نسخ، يتم تقسيمها 2 للـ PS5 و 1 للـ PS4
+                const isPs5Plus = name.includes('PS5') && copies === 3;
+                
+                if (isPs5Plus) {
+                    // إذا كان المنتج الحالي في المخزون يطابق PS5
+                    if (isProductMatch(p.product_name, name, e.period)) {
+                        const ps5Copies = Math.round(qty * 2);
+                        purchased += ps5Copies;
+                        if (singleCopyCost) {
+                            totalCostSum += (singleCopyCost * ps5Copies);
+                            costItemsCount += ps5Copies;
+                            latestCost = singleCopyCost;
+                        }
+                        if (e.selling_price) latestPrice = e.selling_price;
+                    }
+                    
+                    // إذا كان المنتج الحالي في المخزون يطابق PS4
+                    const ps4Name = name.replace('PS5', 'PS4');
+                    if (isProductMatch(p.product_name, ps4Name, e.period)) {
+                        const ps4Copies = Math.round(qty * 1);
+                        purchased += ps4Copies;
+                        if (singleCopyCost) {
+                            totalCostSum += (singleCopyCost * ps4Copies);
+                            costItemsCount += ps4Copies;
+                            latestCost = singleCopyCost;
+                        }
+                        if (e.selling_price) latestPrice = e.selling_price;
+                    }
+                } else {
+                    // منتج عادي أو سناب بلس غير مقسم
+                    if (isProductMatch(p.product_name, name, e.period)) {
+                        const totalCopies = qty * copies;
+                        purchased += totalCopies;
+                        if (singleCopyCost) {
+                            totalCostSum += (singleCopyCost * totalCopies);
+                            costItemsCount += totalCopies;
+                            latestCost = singleCopyCost;
+                        }
+                        if (e.selling_price) latestPrice = e.selling_price;
+                    }
+                }
+
+                // معالجة الحزمة المجانية (مثال سناب شات الشهري يعطي يومي مجاني)
+                if (freeProduct && freeMult > 0 && qty > 0) {
+                    const freeName = freeProduct.trim();
+                    // إذا كان المنتج الحالي في المخزون يطابق المنتج المجاني
+                    if (isProductMatch(p.product_name, freeName, null)) {
+                        const freeQty = qty * freeMult;
+                        purchased += freeQty;
+                        costItemsCount += freeQty;
+                    }
+                }
             }
         });
         
@@ -1384,6 +1491,8 @@ function renderProducts() {
             });
         });
         
+        const finalAvgCost = costItemsCount > 0 ? (totalCostSum / costItemsCount) : latestCost;
+        
         return {
             id: p.id,
             name: p.product_name,
@@ -1391,9 +1500,9 @@ function renderProducts() {
             currentStock: p.quantity,
             purchasedCount: purchased,
             soldCount: sold,
-            avgCost: p.cost,
-            sellingPrice: p.price,
-            totalRevenue: sold * p.price,
+            avgCost: finalAvgCost,
+            sellingPrice: latestPrice,
+            totalRevenue: sold * latestPrice,
             notes: p.notes || ''
         };
     });
@@ -1810,6 +1919,92 @@ function renderExpRows(data) {
     document.getElementById('expFoot').innerHTML = data.length ? `<tr class="tbl-foot"><td colspan="4">الإجمالي (${data.length})</td><td><span class="mono red">${fmt(total)}</span></td><td colspan="3"></td></tr>` : '';
 }
 
+const SNAP_PRICING_CATALOG = {
+    default: {
+        'يومي': { purchase: 2.5, selling: 5 },
+        'اسبوعي': { purchase: 5, selling: 15 },
+        'شهري': { purchase: 15, selling: 25 },
+        '3 أشهر': { purchase: 45, selling: 69 },
+        '6 أشهر': { purchase: 85, selling: 129 },
+        '9 أشهر': { purchase: 130, selling: 189 },
+        'سنة': { purchase: 170, selling: 249 }
+    },
+    plus: {
+        'يومي': { purchase: 3, selling: 7.5 },
+        'اسبوعي': { purchase: 5, selling: 15 },
+        'شهري': { purchase: 15, selling: 25 },
+        '3 أشهر': { purchase: 70, selling: 99 },
+        '6 أشهر': { purchase: 130, selling: 189 },
+        '9 أشهر': { purchase: 190, selling: 269 },
+        'سنة': { purchase: 250, selling: 349 }
+    }
+};
+
+function getNormalizedCatalogPeriod(period) {
+    if (period === 'شهري' || period === 'شهر') return 'شهري';
+    if (period === '3 أشهر' || period === '3 شهور') return '3 أشهر';
+    if (period === '4 أشهر' || period === '4 شهور') return '4 أشهر';
+    if (period === '5 أشهر' || period === '5 شهور') return '5 أشهر';
+    if (period === '6 أشهر' || period === '6 شهور') return '6 أشهر';
+    if (period === '9 أشهر' || period === '9 شهور') return '9 أشهر';
+    if (period === 'سنة' || period === 'سنه' || period === 'عام') return 'سنة';
+    if (period === 'يومي' || period === 'يوم') return 'يومي';
+    if (period === 'اسبوعي' || period === 'أسبوعي' || period === 'اسبوع') return 'اسبوعي';
+    return period;
+}
+
+function isProductMatch(inventoryName, expenseName, period) {
+    if (!inventoryName || !expenseName) return false;
+    const inv = inventoryName.toLowerCase().trim();
+    const exp = expenseName.toLowerCase().trim();
+    
+    const normalizeArabic = (str) => {
+        return str
+            .replace(/[أإآأ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي')
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+    
+    const normInv = normalizeArabic(inv);
+    const normExp = normalizeArabic(exp);
+    
+    if (period) {
+        const normPeriod = normalizeArabic(period.toLowerCase().trim());
+        const hasProduct = normInv.includes(normExp) || normExp.includes(normInv);
+        const expParts = normExp.split(' ').filter(p => p.length > 2);
+        const hasParts = expParts.length > 0 && expParts.every(part => normInv.includes(part));
+        
+        if (hasProduct || hasParts) {
+            if (normPeriod === 'شهري' || normPeriod === 'شهر') {
+                return normInv.includes('شهري') || normInv.includes('شهر') || normInv.includes('monthly');
+            }
+            if (normPeriod === 'سنه' || normPeriod === 'سنة') {
+                return normInv.includes('سنه') || normInv.includes('سنة') || normInv.includes('عام') || normInv.includes('year') || normInv.includes('12 شهر') || normInv.includes('١٢ شهر');
+            }
+            if (normPeriod === 'يومي') {
+                return normInv.includes('يومي') || normInv.includes('يوم') || normInv.includes('daily');
+            }
+            if (normPeriod === 'اسبوعي') {
+                return normInv.includes('اسبوعي') || normInv.includes('أسبوعي') || normInv.includes('weekly');
+            }
+            if (normPeriod === '3 اشهر' || normPeriod === '3 أشهر') {
+                return normInv.includes('3') || normInv.includes('٣');
+            }
+            if (normPeriod === '6 اشهر' || normPeriod === '6 أشهر') {
+                return normInv.includes('6') || normInv.includes('٦');
+            }
+            if (normPeriod === '9 اشهر' || normPeriod === '9 أشهر') {
+                return normInv.includes('9') || normInv.includes('٩');
+            }
+            return normInv.includes(normPeriod);
+        }
+        return false;
+    }
+    return normInv === normExp || normInv.includes(normExp) || normExp.includes(normInv);
+}
+
 const PS5_PRICING_CATALOG = {
     essential: {
         'شهري': { purchase: 34, selling: 23, selling_ps4: 15 },
@@ -1840,55 +2035,107 @@ function handleProductPricingChange() {
     if (!sel) return;
     
     const prodName = sel.value === 'custom' ? (customInput?.value || '') : sel.value;
-    const period = document.getElementById('mPeriod')?.value || '';
+    const periodBlock = document.getElementById('mPeriodBlock');
+    const period = (periodBlock && periodBlock.style.display !== 'none') ? (document.getElementById('mPeriod')?.value || '') : '';
     
-    if (!prodName || !period) return;
+    if (!prodName) return;
     
-    const lowerName = prodName.toLowerCase();
-    const isPs5Plus = prodName.includes('بلس') && prodName.includes('PS5');
+    // Find matching rule in database pricing rules:
+    let matchedRule = (state.pricingRules || []).find(r => r.product_name === prodName && r.period === period);
     
-    if (!isPs5Plus) return;
-    
-    let tier = '';
-    if (prodName.includes('أساسي') || prodName.includes('اساسي') || lowerName.includes('essential')) {
-        tier = 'essential';
-    } else if (prodName.includes('إضافي') || prodName.includes('اضافي') || lowerName.includes('extra')) {
-        tier = 'extra';
-    } else if (prodName.includes('فاخر') || lowerName.includes('premium')) {
-        tier = 'premium';
+    // Fallback: If no match with period, look for a rule with matching product name and empty period
+    if (!matchedRule) {
+        matchedRule = (state.pricingRules || []).find(r => r.product_name === prodName && !r.period);
     }
     
-    if (!tier) return;
-    
-    let catalogPeriod = '';
-    if (period === 'شهري' || period === 'شهر') {
-        catalogPeriod = 'شهري';
-    } else if (period === '3 أشهر') {
-        catalogPeriod = '3 أشهر';
-    } else if (period === '4 أشهر') {
-        catalogPeriod = '4 أشهر';
-    } else if (period === '5 أشهر') {
-        catalogPeriod = '5 أشهر';
-    } else if (period === 'سنة') {
-        catalogPeriod = 'سنة';
-    }
-    
-    if (!catalogPeriod) return;
-    
-    const pricing = PS5_PRICING_CATALOG[tier][catalogPeriod];
-    if (pricing) {
+    if (matchedRule) {
         const elQty = document.getElementById('mQuantity');
         const elPurchase = document.getElementById('mPurchasePrice');
         const elSelling = document.getElementById('mSellingPrice');
+        const elQtyLabel = document.getElementById('mQuantityLabel');
         
-        // Default quantity of copies is 3
-        if (elQty) elQty.value = '3';
-        // Purchase price per copy is package_cost / 3
-        if (elPurchase) elPurchase.value = (pricing.purchase / 3).toFixed(4);
-        if (elSelling) elSelling.value = pricing.selling.toString();
+        if (elPurchase) elPurchase.value = matchedRule.purchase_price.toFixed(2);
+        if (elSelling) elSelling.value = matchedRule.selling_price.toFixed(2);
+        
+        const copies = matchedRule.copies_per_unit || 1;
+        if (elQtyLabel) {
+            if (copies > 1) {
+                elQtyLabel.innerHTML = `الكمية <span style="font-size:10px;color:var(--accent)">(يحتوي كل حساب على ${copies} نسخ)</span>`;
+            } else {
+                elQtyLabel.textContent = 'الكمية';
+            }
+        }
+        
+        // Default quantity to 1 if it is new/empty or old default 3
+        if (elQty && (!elQty.value || elQty.value === '3' || elQty.value === '0')) {
+            elQty.value = '1';
+        }
         
         recalcPurchaseAmt();
+        return;
     }
+
+    // Fallback: Hardcoded catalogs if DB rules don't match
+    const lowerName = prodName.toLowerCase();
+    const isPs5Plus = prodName.includes('بلس') && prodName.includes('PS5');
+    const isSnap = prodName.includes('سناب') || lowerName.includes('snap');
+    
+    if (isPs5Plus) {
+        let tier = '';
+        if (prodName.includes('أساسي') || prodName.includes('اساسي') || lowerName.includes('essential')) {
+            tier = 'essential';
+        } else if (prodName.includes('إضافي') || prodName.includes('اضافي') || lowerName.includes('extra')) {
+            tier = 'extra';
+        } else if (prodName.includes('فاخر') || lowerName.includes('premium')) {
+            tier = 'premium';
+        }
+        
+        if (tier) {
+            let catalogPeriod = getNormalizedCatalogPeriod(period);
+            if (catalogPeriod) {
+                const pricing = PS5_PRICING_CATALOG[tier][catalogPeriod];
+                if (pricing) {
+                    const elQty = document.getElementById('mQuantity');
+                    const elPurchase = document.getElementById('mPurchasePrice');
+                    const elSelling = document.getElementById('mSellingPrice');
+                    const elQtyLabel = document.getElementById('mQuantityLabel');
+                    
+                    if (elQty) elQty.value = '3';
+                    if (elPurchase) elPurchase.value = (pricing.purchase / 3).toFixed(4);
+                    if (elSelling) elSelling.value = pricing.selling.toString();
+                    if (elQtyLabel) elQtyLabel.innerHTML = `الكمية <span style="font-size:10px;color:var(--accent)">(يحتوي كل حساب على 3 نسخ)</span>`;
+                    recalcPurchaseAmt();
+                    return;
+                }
+            }
+        }
+    } else if (isSnap) {
+        let tier = 'default';
+        if (prodName.includes('بلس') || lowerName.includes('plus')) {
+            tier = 'plus';
+        }
+        
+        let catalogPeriod = getNormalizedCatalogPeriod(period);
+        if (catalogPeriod) {
+            const pricing = SNAP_PRICING_CATALOG[tier][catalogPeriod];
+            if (pricing) {
+                const elQty = document.getElementById('mQuantity');
+                const elPurchase = document.getElementById('mPurchasePrice');
+                const elSelling = document.getElementById('mSellingPrice');
+                const elQtyLabel = document.getElementById('mQuantityLabel');
+                
+                if (elQty && (!elQty.value || elQty.value === '3')) elQty.value = '1';
+                if (elPurchase) elPurchase.value = pricing.purchase.toString();
+                if (elSelling) elSelling.value = pricing.selling.toString();
+                if (elQtyLabel) elQtyLabel.textContent = 'الكمية';
+                recalcPurchaseAmt();
+                return;
+            }
+        }
+    }
+    
+    const elQtyLabel = document.getElementById('mQuantityLabel');
+    if (elQtyLabel) elQtyLabel.textContent = 'الكمية';
 }
 
 function renderExp() {
@@ -2348,28 +2595,12 @@ function filterProductsDropdown() {
     const searchInput = document.getElementById('mProductSearch');
     const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-    // تجميع المنتجات الفريدة من قائمة الطلبات والمصروفات
-    const productsMap = {};
-    sallaOrders.forEach(o => {
-        (o.items || []).forEach(it => {
-            const name = (it.name || '').trim();
-            if (name) productsMap[name] = true;
-        });
-    });
+    // تجميع أسماء المنتجات الموحدة من دليل المنتجات (state.inventoryProducts)
+    const uniqueProducts = (state.inventoryProducts || [])
+        .map(p => p.product_name.trim())
+        .filter((val, idx, self) => val && self.indexOf(val) === idx)
+        .sort();
 
-    state.expenses.forEach(e => {
-        if (e.cat === 'شراء منتجات' && e.product_name) {
-            const name = e.product_name.trim();
-            if (name) {
-                productsMap[name] = true;
-                if (name.includes('بلس') && name.includes('PS5')) {
-                    productsMap[name.replace('PS5', 'PS4')] = true;
-                }
-            }
-        }
-    });
-
-    const uniqueProducts = Object.keys(productsMap).sort();
     const currentVal = sel.value;
 
     sel.innerHTML = '<option value="">-- اختر المنتج --</option>';
@@ -2423,6 +2654,39 @@ function toggleCustomProductField() {
     checkProductPlusPeriod();
 }
 
+// دالة معالجة اختيار منتج شراء لتعبئة البيانات تلقائياً وتحديث المساعد الذكي
+function handlePurchaseProductSelection() {
+    const sel = document.getElementById('mProductSelect');
+    if (!sel) return;
+    
+    const prodName = sel.value;
+    if (!prodName || prodName === 'custom') {
+        const helperCard = document.getElementById('mPurchaseHelperCard');
+        if (helperCard) helperCard.style.display = 'none';
+        return;
+    }
+    
+    // البحث عن المنتج في دليل المنتجات الموحد
+    const prod = (state.inventoryProducts || []).find(p => p.product_name === prodName);
+    
+    // التعبئة التلقائية فقط في حالة إضافة مصروف جديد (لتجنب مسح القيم المخزنة عند تعديل مصروف سابق)
+    const isEditing = !!state.editingId;
+    if (prod && !isEditing) {
+        const elQty = document.getElementById('mQuantity');
+        const elPurchase = document.getElementById('mPurchasePrice');
+        const elSelling = document.getElementById('mSellingPrice');
+        
+        if (elQty) elQty.value = prod.quantity > 0 ? prod.quantity.toString() : '1';
+        if (elPurchase) elPurchase.value = prod.cost > 0 ? prod.cost.toFixed(2) : '0.00';
+        if (elSelling) elSelling.value = prod.price > 0 ? prod.price.toFixed(2) : '0.00';
+        
+        recalcPurchaseAmt();
+    }
+    
+    // تحديث مساعد الشراء الذكي تفاعلياً بالدفعة الأخيرة
+    updatePurchaseBatchHelper(prodName);
+}
+
 function checkProductPlusPeriod() {
     const sel = document.getElementById('mProductSelect');
     const customInput = document.getElementById('mProductCustom');
@@ -2448,7 +2712,9 @@ function checkProductPlusPeriod() {
                        lowerName.includes('ps') || 
                        prodName.includes('سوني') || 
                        lowerName.includes('sony') || 
-                       lowerName.includes('playstation');
+                       lowerName.includes('playstation') ||
+                       prodName.includes('سناب') ||
+                       lowerName.includes('snap');
                        
                         
                        
@@ -2458,6 +2724,11 @@ function checkProductPlusPeriod() {
         periodBlock.style.display = 'none';
         const mPeriod = document.getElementById('mPeriod');
         if (mPeriod) mPeriod.value = '';
+    }
+
+    // لتحديث المساعد الذكي عند الكتابة اليدوية لمنتج مخصص
+    if (type === 'expense' && cat === 'شراء منتجات' && prodName) {
+        updatePurchaseBatchHelper(prodName);
     }
 }
 
@@ -2886,86 +3157,141 @@ async function handleImport(ev, type) {
                     }
                 }
             } else {
-                // تقرير الطلبات التفصيلي المعتاد
+                // تقرير الطلبات التفصيلي المعتاد - خوارزمية تمرير ثنائي متكاملة ومرنة
                 const totalRefCounts = {};
+                const orderHasSkusJson = {};
+                const orderSkusJson = {};
+                const orderRowsCount = {};
+                
+                let lastRefId = '';
                 for (let r of rows) {
-                    const refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
+                    let refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
+                    // إذا كان الحقل فارغاً (خلايا مدمجة أو صفوف منتجات تابعة)، نستخدم المرجع السابق
+                    if (!refId && lastRefId) {
+                        refId = lastRefId;
+                    }
                     if (refId) {
-                        let itemsCount = 1;
+                        lastRefId = refId;
+                        orderRowsCount[refId] = (orderRowsCount[refId] || 0) + 1;
+                        
                         const skusJsonStr = r['skus_json'];
-                        if (skusJsonStr) {
+                        if (skusJsonStr && !orderHasSkusJson[refId]) {
                             try {
                                 const parsed = JSON.parse(skusJsonStr);
                                 if (Array.isArray(parsed) && parsed.length > 0) {
-                                    itemsCount = parsed.length;
+                                    orderHasSkusJson[refId] = true;
+                                    orderSkusJson[refId] = parsed;
                                 }
                             } catch (e) {}
                         }
-                        totalRefCounts[refId] = (totalRefCounts[refId] || 0) + itemsCount;
                     }
                 }
+                
+                // حساب إجمالي عدد البنود المتوقعة لكل مرجع
+                for (const refId in orderRowsCount) {
+                    if (orderHasSkusJson[refId]) {
+                        totalRefCounts[refId] = orderSkusJson[refId].length;
+                    } else {
+                        totalRefCounts[refId] = orderRowsCount[refId];
+                    }
+                }
+                
+                // التمرير الثاني: المعالجة والتعبئة والترميز
                 const refTracker = {};
+                const processedOrdersWithSkus = new Set();
+                let secondPassLastRefId = '';
+                
+                // ذاكرة مؤقتة لتعويض البيانات المفقودة بالخلايا المدمجة
+                let lastDateStr = TODAY;
+                let lastCustName = 'عميل خارجي';
+                let lastCustPhone = '';
+                let lastPaySlug = 'mada';
+                let lastStatusSlug = 'completed';
+                let lastStatusName = 'تم التنفيذ';
+                let lastTotalAmount = 0;
+                let lastOriginalAmount = 0;
 
                 for (let r of rows) {
-                    const refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
-                    let dateRaw = getValue(r, ['تاريخ الطلب', 'تاريخ المبيعة', 'التاريخ', 'date', 'created_at', 'Order Date', 'Date']);
-                    const custName = String(getValue(r, ['اسم العميل', 'العميل', 'customer', 'customer_name', 'Customer Name']) || 'عميل خارجي').trim();
-                    const custPhone = String(getValue(r, ['رقم الجوال', 'رقم الهاتف', 'الجوال', 'الهاتف', 'customer_phone', 'phone', 'mobile']) || '').trim();
-                    const payMethod = String(getValue(r, ['طريقة الدفع', 'الدفع', 'payment_method', 'Payment Method']) || 'mada').trim();
-                    const statusName = String(getValue(r, ['حالة الطلب', 'الحالة', 'status', 'Order Status']) || 'تم التنفيذ').trim();
-
+                    let refId = String(getValue(r, ['رقم الطلب', 'رقم المرجع', 'المرجع', 'reference_id', 'order_id', 'id', 'Order ID'])).trim();
+                    if (!refId && secondPassLastRefId) {
+                        refId = secondPassLastRefId;
+                    }
+                    
                     if (refId) {
-                        let dateStr = TODAY;
+                        secondPassLastRefId = refId;
+                        
+                        // إذا كان الطلب يعتمد على skus_json وتمت معالجته مسبقاً، نتخطى بقية صفوفه لمنع التكرار
+                        if (orderHasSkusJson[refId]) {
+                            if (processedOrdersWithSkus.has(refId)) {
+                                continue;
+                            }
+                            processedOrdersWithSkus.add(refId);
+                        }
+
+                        // قراءة وتعبئة حقول البيانات بالاعتماد على التخزين المؤقت
+                        let dateRaw = getValue(r, ['تاريخ الطلب', 'تاريخ المبيعة', 'التاريخ', 'date', 'created_at', 'Order Date', 'Date']);
+                        let dateStr = lastDateStr;
                         if (dateRaw) {
                             if (dateRaw instanceof Date) {
                                 dateStr = dateRaw.toISOString().split('T')[0];
                             } else {
                                 dateStr = String(dateRaw).substring(0, 10);
                             }
+                            lastDateStr = dateStr;
                         }
 
-                        let statusSlug = 'completed';
-                        if (statusName.includes('معلق') || statusName.includes('بانتظار الدفع') || statusName.includes('pending')) {
-                            statusSlug = 'payment_pending';
-                        } else if (statusName.includes('مراجعة') || statusName.includes('review')) {
-                            statusSlug = 'under_review';
+                        let custName = String(getValue(r, ['اسم العميل', 'العميل', 'customer', 'customer_name', 'Customer Name']) || '').trim();
+                        if (custName) lastCustName = custName; else custName = lastCustName;
+
+                        let custPhone = String(getValue(r, ['رقم الجوال', 'رقم الهاتف', 'الجوال', 'الهاتف', 'customer_phone', 'phone', 'mobile']) || '').trim();
+                        if (custPhone) lastCustPhone = custPhone; else custPhone = lastCustPhone;
+
+                        let payMethod = String(getValue(r, ['طريقة الدفع', 'الدفع', 'payment_method', 'Payment Method']) || '').trim();
+                        let paySlug = lastPaySlug;
+                        if (payMethod) {
+                            paySlug = 'mada';
+                            const lowerPay = payMethod.toLowerCase();
+                            if (lowerPay.includes('apple') || lowerPay.includes('آبل')) paySlug = 'apple_pay';
+                            else if (lowerPay.includes('stc') || lowerPay.includes('اس تي سي')) paySlug = 'stc_pay';
+                            else if (lowerPay.includes('credit') || lowerPay.includes('بطاقة') || lowerPay.includes('فيزا') || lowerPay.includes('visa') || lowerPay.includes('master')) paySlug = 'credit_card';
+                            else if (lowerPay.includes('cod') || lowerPay.includes('عند الاستلام')) paySlug = 'cod';
+                            else if (lowerPay.includes('انتظار')) paySlug = 'waiting';
+                            lastPaySlug = paySlug;
                         }
 
-                        let paySlug = 'mada';
-                        const lowerPay = payMethod.toLowerCase();
-                        if (lowerPay.includes('apple') || lowerPay.includes('آبل')) paySlug = 'apple_pay';
-                        else if (lowerPay.includes('stc') || lowerPay.includes('اس تي سي')) paySlug = 'stc_pay';
-                        else if (lowerPay.includes('credit') || lowerPay.includes('بطاقة') || lowerPay.includes('فيزا') || lowerPay.includes('visa') || lowerPay.includes('master')) paySlug = 'credit_card';
-                        else if (lowerPay.includes('cod') || lowerPay.includes('عند الاستلام')) paySlug = 'cod';
-                        else if (lowerPay.includes('انتظار')) paySlug = 'waiting';
+                        let statusName = String(getValue(r, ['حالة الطلب', 'الحالة', 'status', 'Order Status']) || '').trim();
+                        let statusSlug = lastStatusSlug;
+                        if (statusName) {
+                            statusSlug = 'completed';
+                            if (statusName.includes('معلق') || statusName.includes('بانتظار الدفع') || statusName.includes('pending')) {
+                                statusSlug = 'payment_pending';
+                            } else if (statusName.includes('مراجعة') || statusName.includes('review')) {
+                                statusSlug = 'under_review';
+                            }
+                            lastStatusSlug = statusSlug;
+                            lastStatusName = statusName;
+                        } else {
+                            statusName = lastStatusName;
+                        }
 
-                        // Get total and original amounts for currency conversion
-                        const totalAmount = parseFloat(getValue(r, ['إجمالي الطلب (شامل التخفيضات)', 'إجمالي الطلب (غير شامل التخفيضات)', 'مجموع السلة', 'إجمالي الطلب', 'إجمالي المبيعات', 'المبلغ', 'السعر', 'صافي المبيعات', 'total', 'amount', 'price', 'Net Sales', 'Total']) || 0);
-                        const originalAmount = parseFloat(getValue(r, ['original_order_amount', 'إجمالي الطلب بالعملة الأصلية']) || 0);
+                        let totalAmount = parseFloat(getValue(r, ['إجمالي الطلب (شامل التخفيضات)', 'إجمالي الطلب (غير شامل التخفيضات)', 'مجموع السلة', 'إجمالي الطلب', 'إجمالي المبيعات', 'المبلغ', 'السعر', 'صافي المبيعات', 'total', 'amount', 'price', 'Net Sales', 'Total']) || 0);
+                        if (totalAmount > 0) lastTotalAmount = totalAmount; else totalAmount = lastTotalAmount;
+
+                        let originalAmount = parseFloat(getValue(r, ['original_order_amount', 'إجمالي الطلب بالعملة الأصلية']) || 0);
+                        if (originalAmount > 0) lastOriginalAmount = originalAmount; else originalAmount = lastOriginalAmount;
+
                         const conversionFactor = originalAmount > 0 ? (totalAmount / originalAmount) : 1;
 
-                        // Check if skus_json is present to parse individual items
-                        let items = [];
-                        const skusJsonStr = r['skus_json'];
-                        if (skusJsonStr) {
-                            try {
-                                const parsed = JSON.parse(skusJsonStr);
-                                if (Array.isArray(parsed) && parsed.length > 0) {
-                                    items = parsed.map(item => {
-                                        return {
-                                            name: cleanProductName(item[0] || 'منتج مستورد'),
-                                            qty: parseInt(item[1]) || 1,
-                                            amount: (parseFloat(item[4]) || 0) * conversionFactor
-                                        };
-                                    });
-                                }
-                            } catch (e) {
-                                // ignore
-                            }
-                        }
+                        if (orderHasSkusJson[refId]) {
+                            const items = orderSkusJson[refId].map(item => {
+                                return {
+                                    name: cleanProductName(item[0] || 'منتج مستورد'),
+                                    qty: parseInt(item[1]) || 1,
+                                    amount: (parseFloat(item[4]) || 0) * conversionFactor
+                                };
+                            });
 
-                        if (items.length > 0) {
-                            items.forEach((item, idx) => {
+                            items.forEach((item) => {
                                 let finalRefId = refId;
                                 if (totalRefCounts[refId] > 1) {
                                     if (refTracker[refId] === undefined) {
@@ -2991,8 +3317,6 @@ async function handleImport(ev, type) {
                                 });
                             });
                         } else {
-                            // Fallback if no skus_json
-                            let amount = parseFloat(getValue(r, ['إجمالي الطلب (شامل التخفيضات)', 'إجمالي الطلب (غير شامل التخفيضات)', 'مجموع السلة', 'إجمالي الطلب', 'إجمالي المبيعات', 'المبلغ', 'السعر', 'صافي المبيعات', 'total', 'amount', 'price', 'Net Sales', 'Total']) || 0);
                             const prodName = cleanProductName(String(getValue(r, ['اسم المنتج', 'المنتج', 'المنتجات', 'product_name', 'items', 'Products', 'Product']) || 'منتج مستورد').trim());
                             const quantity = parseInt(getValue(r, ['الكمية', 'العدد', 'quantity', 'qty', 'Quantity']) || 1);
 
@@ -3012,7 +3336,7 @@ async function handleImport(ev, type) {
                                 status_slug: statusSlug,
                                 status_name: statusName,
                                 payment_method: paySlug,
-                                amount: amount,
+                                amount: totalAmount,
                                 customer_name: custName,
                                 customer_phone: custPhone,
                                 product_name: prodName,
@@ -3547,9 +3871,190 @@ window.addEventListener('click', (e) => {
     const expDescDropdown = document.getElementById('expDescMultiDropdown');
     const expDescBtn = document.getElementById('expDescMultiBtn');
     if (expDescDropdown && expDescBtn && !expDescBtn.contains(e.target) && !expDescDropdown.contains(e.target)) {
-        expDescDropdown.style.display = 'none';
-    }
 });
+
+// ══════════════════════════════════════════════
+//  إعدادات أسعار المنتجات
+// ══════════════════════════════════════════════
+
+let currentEditPricingRuleId = null;
+
+async function loadPricingSettings() {
+    try {
+        const res = await fetch('/api/inventory/pricing-rules');
+        if (!res.ok) throw new Error('فشل جلب قواعد التسعير');
+        const rules = await res.json();
+        state.pricingRules = rules;
+        renderPricingRules(rules);
+    } catch (e) {
+        toast(e.message, 'err');
+    }
+}
+
+function renderPricingRules(rules) {
+    const tbody = document.getElementById('pricingRulesBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // تحديث مؤشرات الأداء (KPIs)
+    const kpiTotal = document.getElementById('pricingKpiTotal');
+    const kpiBundle = document.getElementById('pricingKpiBundle');
+    if (kpiTotal) kpiTotal.textContent = rules.length;
+    if (kpiBundle) {
+        const bundleCount = rules.filter(r => r.free_bundle_product && r.free_bundle_qty_multiplier > 0).length;
+        kpiBundle.textContent = bundleCount;
+    }
+    
+    if (rules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><i class="ti ti-info-circle"></i><p>لا توجد قواعد تسعير مسجلة حالياً.</p></div></td></tr>';
+        return;
+    }
+    
+    rules.forEach((rule, idx) => {
+        const tr = document.createElement('tr');
+        
+        let bundleText = '-';
+        if (rule.free_bundle_product) {
+            bundleText = `<span class="pill pill-green">${escapeHtml(rule.free_bundle_product)} (×${rule.free_bundle_qty_multiplier})</span>`;
+        }
+        
+        const actionsHtml = `
+            <div style="display:flex;gap:4px">
+                <button class="btn btn-sm" onclick="openPricingRuleModal(${rule.id})" style="padding:4px 8px;font-size:10px"><i class="ti ti-edit"></i> تعديل</button>
+                <button class="btn btn-sm btn-danger" onclick="deletePricingRule(${rule.id})" style="padding:4px 8px;font-size:10px"><i class="ti ti-trash"></i> حذف</button>
+            </div>
+        `;
+        
+        tr.innerHTML = `
+            <td>${idx + 1}</td>
+            <td style="font-weight:bold">${escapeHtml(rule.product_name)}</td>
+            <td>${rule.period ? `<span class="pill pill-blue">${escapeHtml(rule.period)}</span>` : '<span style="color:var(--text3)">بدون فترة</span>'}</td>
+            <td>${fmt(rule.purchase_price)}</td>
+            <td>${fmt(rule.selling_price)}</td>
+            <td>${rule.copies_per_unit || 1}</td>
+            <td>${bundleText}</td>
+            <td style="font-size:11px;color:var(--text2)">${escapeHtml(rule.notes || '')}</td>
+            <td>${actionsHtml}</td>
+        `;
+        
+        tbody.appendChild(tr);
+    });
+}
+
+function openPricingRuleModal(id = null) {
+    currentEditPricingRuleId = id;
+    const modal = document.getElementById('pricingRuleModal');
+    const title = document.getElementById('pricingRuleModalTitle');
+    
+    const prodNameInput = document.getElementById('prProductName');
+    const periodSelect = document.getElementById('prPeriod');
+    const purchaseInput = document.getElementById('prPurchasePrice');
+    const sellingInput = document.getElementById('prSellingPrice');
+    const copiesInput = document.getElementById('prCopiesPerUnit');
+    const bundleProdInput = document.getElementById('prFreeBundleProduct');
+    const bundleMulInput = document.getElementById('prFreeBundleQtyMultiplier');
+    const notesInput = document.getElementById('prNotes');
+    
+    if (id) {
+        title.innerHTML = '<i class="ti ti-edit" style="color:var(--accent)"></i> تعديل قاعدة تسعير';
+        const rule = state.pricingRules.find(r => r.id === id);
+        if (rule) {
+            prodNameInput.value = rule.product_name || '';
+            periodSelect.value = rule.period || '';
+            purchaseInput.value = rule.purchase_price !== undefined ? rule.purchase_price : '';
+            sellingInput.value = rule.selling_price !== undefined ? rule.selling_price : '';
+            copiesInput.value = rule.copies_per_unit !== undefined ? rule.copies_per_unit : 1;
+            bundleProdInput.value = rule.free_bundle_product || '';
+            bundleMulInput.value = rule.free_bundle_qty_multiplier !== undefined ? rule.free_bundle_qty_multiplier : 1;
+            notesInput.value = rule.notes || '';
+        }
+    } else {
+        title.innerHTML = '<i class="ti ti-plus" style="color:var(--accent)"></i> إضافة قاعدة تسعير جديدة';
+        prodNameInput.value = '';
+        periodSelect.value = '';
+        purchaseInput.value = '';
+        sellingInput.value = '';
+        copiesInput.value = 1;
+        bundleProdInput.value = '';
+        bundleMulInput.value = 1;
+        notesInput.value = '';
+    }
+    
+    if (modal) modal.style.display = 'flex';
+}
+
+function closePricingRuleModal() {
+    const modal = document.getElementById('pricingRuleModal');
+    if (modal) modal.style.display = 'none';
+    currentEditPricingRuleId = null;
+}
+
+async function savePricingRule() {
+    const prodName = document.getElementById('prProductName').value.trim();
+    const period = document.getElementById('prPeriod').value.trim();
+    const purchasePrice = parseFloat(document.getElementById('prPurchasePrice').value) || 0;
+    const sellingPrice = parseFloat(document.getElementById('prSellingPrice').value) || 0;
+    const copiesPerUnit = parseInt(document.getElementById('prCopiesPerUnit').value) || 1;
+    const freeBundleProduct = document.getElementById('prFreeBundleProduct').value.trim() || null;
+    const freeBundleQtyMultiplier = parseFloat(document.getElementById('prFreeBundleQtyMultiplier').value) || 0;
+    const notes = document.getElementById('prNotes').value.trim() || null;
+    
+    if (!prodName) {
+        toast('يرجى إدخال اسم المنتج', 'err');
+        return;
+    }
+    
+    try {
+        const payload = {
+            product_name: prodName,
+            period,
+            purchase_price: purchasePrice,
+            selling_price: sellingPrice,
+            copies_per_unit: copiesPerUnit,
+            free_bundle_product: freeBundleProduct,
+            free_bundle_qty_multiplier: freeBundleQtyMultiplier,
+            notes
+        };
+        
+        // إذا كنا نقوم بالتعديل، فسنقوم بالإرسال لنفس الـ API حيث أنها Upsert (تعتمد على Unique key)
+        const res = await fetch('/api/inventory/pricing-rules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'فشل حفظ قاعدة التسعير');
+        }
+        
+        toast('تم حفظ قاعدة التسعير بنجاح', 'ok');
+        closePricingRuleModal();
+        await loadPricingSettings();
+    } catch (e) {
+        toast(e.message, 'err');
+    }
+}
+
+async function deletePricingRule(id) {
+    if (!confirm('هل أنت متأكد من رغبتك في حذف قاعدة التسعير هذه؟')) return;
+    
+    try {
+        const res = await fetch(`/api/inventory/pricing-rules/${id}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'فشل حذف قاعدة التسعير');
+        }
+        
+        toast('تم حذف قاعدة التسعير بنجاح', 'ok');
+        await loadPricingSettings();
+    } catch (e) {
+        toast(e.message, 'err');
+    }
+}
 
 // ══════════════════════════════════════════════
 //  إدارة المستخدمين
@@ -6031,13 +6536,15 @@ function renderPsPlusAccounts(accounts) {
     if (addBtn) addBtn.style.display = canAdd ? '' : 'none';
     if (importBtn) importBtn.style.display = canAdd ? '' : 'none';
 
-    // Calculate total KPIs first (based on the full list)
-    let totalAccounts = accounts.length;
+    // Calculate total KPIs first (based on the full list, excluding archived)
+    let totalAccounts = 0;
     let availablePs5 = 0;
     let availablePs4 = 0;
     let completedAccounts = 0;
 
     accounts.forEach(c => {
+        if (c.is_archived === 1) return; // Skip archived in KPIs
+        totalAccounts++;
         let activeSlots = 0;
         let deliveredSlots = 0;
         if (c.ps5_1_status !== 'unavailable') {
@@ -6058,7 +6565,7 @@ function renderPsPlusAccounts(accounts) {
         if (activeSlots > 0 && deliveredSlots === activeSlots) completedAccounts++;
     });
 
-    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts, accounts);
+    updatePsPlusKPIs(totalAccounts, availablePs5, availablePs4, completedAccounts, accounts.filter(c => c.is_archived !== 1));
 
     const tbody = document.getElementById('psPlusTbody');
     if (!tbody) return;
@@ -6073,11 +6580,47 @@ function renderPsPlusAccounts(accounts) {
     const filterDuration = document.getElementById('psFilterDuration')?.value || '';
     const filterStock = document.getElementById('psFilterStock')?.value || '';
     const filterSearch = document.getElementById('psFilterSearch')?.value.trim().toLowerCase() || '';
+    const filterArchiveStatus = document.getElementById('psFilterArchiveStatus')?.value || 'active_remaining';
 
     // Apply filters
     const filtered = accounts.filter(c => {
+        // Calculate status metrics for filtering
+        const isArchived = c.is_archived === 1;
+        let activeSlots = 0;
+        let deliveredSlots = 0;
+        if (c.ps5_1_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps5_1_status === 'delivered') deliveredSlots++;
+        }
+        if (c.ps5_2_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps5_2_status === 'delivered') deliveredSlots++;
+        }
+        if (c.ps4_status !== 'unavailable') {
+            activeSlots++;
+            if (c.ps4_status === 'delivered') deliveredSlots++;
+        }
+        const isCompleted = activeSlots > 0 && deliveredSlots === activeSlots;
+        const hasRemaining = activeSlots > 0 && deliveredSlots < activeSlots;
+
+        // 1. Archive Status Filter
+        if (filterArchiveStatus === 'active_remaining') {
+            if (isArchived || !hasRemaining) return false;
+        } else if (filterArchiveStatus === 'active_all') {
+            if (isArchived) return false;
+        } else if (filterArchiveStatus === 'archived_all') {
+            if (!isArchived) return false;
+        } else if (filterArchiveStatus === 'archived_completed') {
+            if (!isArchived || !isCompleted) return false;
+        }
+
+        // 2. Type Filter
         if (filterType && c.plus_type !== filterType) return false;
+
+        // 3. Duration Filter
         if (filterDuration && c.plus_duration !== filterDuration) return false;
+
+        // 4. Stock Filter
         if (filterStock) {
             const remPs5 = (c.ps5_1_status === 'available' ? 1 : 0) + (c.ps5_2_status === 'available' ? 1 : 0);
             const remPs4 = c.ps4_status === 'available' ? 1 : 0;
@@ -6086,6 +6629,8 @@ function renderPsPlusAccounts(accounts) {
             if (filterStock === 'has_ps4' && remPs4 === 0) return false;
             if (filterStock === 'empty' && (remPs5 > 0 || remPs4 > 0)) return false;
         }
+
+        // 5. Search Filter
         if (filterSearch) {
             const emailMatch = c.email.toLowerCase().includes(filterSearch);
             const order51Match = (c.ps5_1_order || '').toLowerCase().includes(filterSearch);
@@ -6128,7 +6673,9 @@ function renderPsPlusAccounts(accounts) {
 
         // حساب حالة الحساب الإجمالية
         let overallStatus = '';
-        if (activeSlotsCount === 0) {
+        if (c.is_archived === 1) {
+            overallStatus = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">مؤرشف 📦</span>';
+        } else if (activeSlotsCount === 0) {
             overallStatus = '<span class="pill" style="background:var(--surface-2);color:var(--txt-faint)">بدون نسخ نشطة</span>';
         } else if (deliveredCount === activeSlotsCount) {
             overallStatus = '<span class="pill pill-green">مكتمل التسليم ✅</span>';
@@ -6182,6 +6729,15 @@ function renderPsPlusAccounts(accounts) {
             ps4_cell = `<span class="green" style="font-size:11px; font-weight:600;"><i class="ti ti-circle-check"></i> تم التسليم (${escapeHtml(c.ps4_order)})</span>`;
         }
 
+        let archiveBtn = '';
+        if (canEdit && canViewDetails) {
+            if (c.is_archived === 1) {
+                archiveBtn = `<button class="btn btn-sm btn-success" onclick="togglePsPlusArchive(${c.id}, false); event.stopPropagation();" style="border-color:rgba(40,167,69,0.2); background:transparent; color:var(--green)"><i class="ti ti-archive"></i> استعادة</button>`;
+            } else {
+                archiveBtn = `<button class="btn btn-sm btn-warning" onclick="togglePsPlusArchive(${c.id}, true); event.stopPropagation();" style="border-color:rgba(255,193,7,0.2); background:transparent; color:var(--orange)"><i class="ti ti-archive"></i> أرشفة</button>`;
+            }
+        }
+
         return `<tr onclick="if(${canViewDetails}) { if(!event.target.closest('button')) showPsPlusDetails(${c.id}) } else { toast('ليس لديك صلاحية عرض تفاصيل وأكواد حسابات بلس', 'error') }" style="${canViewDetails ? 'cursor:pointer' : 'cursor:default'}" title="${canViewDetails ? 'انقر لعرض كامل التفاصيل والمسؤولين' : 'لا تملك صلاحية لعرض التفاصيل'}">
             <td style="color:var(--text3);font-size:10px">${i + 1}</td>
             <td style="font-weight:600;" class="mono">${escapeHtml(canViewDetails ? c.email : maskEmail(c.email))}</td>
@@ -6195,9 +6751,9 @@ function renderPsPlusAccounts(accounts) {
             <td>${overallStatus}</td>
             <td>
                 <div style="display:flex;gap:4px">
-                    ${(canEdit && canViewDetails) ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}')"><i class="ti ti-edit"></i> تعديل</button>` : ''}
-                    ${(canEdit && canViewDetails) ? (c.is_archived ? `<button class="btn btn-sm" style="color:var(--green); border-color:rgba(40,167,69,0.2); background:transparent" onclick="togglePsPlusArchive(${c.id}, false)"><i class="ti ti-archive-off"></i> إلغاء الأرشفة</button>` : `<button class="btn btn-sm" style="color:var(--amber); border-color:rgba(255,193,7,0.2); background:transparent" onclick="togglePsPlusArchive(${c.id}, true)"><i class="ti ti-archive"></i> أرشفة</button>`) : ''}
-                    ${(canDelete && canViewDetails) ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id})"><i class="ti ti-trash"></i> حذف</button>` : ''}
+                    ${(canEdit && canViewDetails) ? `<button class="btn btn-sm" onclick="editPsPlusAccount(${c.id}, '${escapeHtml(c.email)}', '${escapeHtml(c.password)}', '${escapeHtml(c.plus_type)}', '${escapeHtml(c.plus_duration)}', '${escapeHtml(c.ps5_1_order || '')}', '${escapeHtml(c.ps5_2_order || '')}', '${escapeHtml(c.ps4_order || '')}'); event.stopPropagation();"><i class="ti ti-edit"></i> تعديل</button>` : ''}
+                    ${archiveBtn}
+                    ${(canDelete && canViewDetails) ? `<button class="btn btn-sm" style="color:var(--red); border-color:rgba(224,85,85,0.2); background:transparent" onclick="deletePsPlusAccount(${c.id}); event.stopPropagation();"><i class="ti ti-trash"></i> حذف</button>` : ''}
                 </div>
             </td>
         </tr>`;
@@ -6272,12 +6828,14 @@ async function togglePsPlusArchive(id, archive) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_archived: archive ? 1 : 0 })
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'حدث خطأ ما');
-        toast(data.message || `${actionText} الحساب بنجاح`, 'success');
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || `فشل ${actionText} الحساب`);
+        }
+        toast(`تم ${actionText} الحساب بنجاح`);
         loadPsPlusAccounts();
-    } catch (err) {
-        toast(err.message, 'error');
+    } catch (e) {
+        toast(e.message, 'error');
     }
 }
 

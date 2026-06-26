@@ -354,7 +354,72 @@ db.serialize(() => {
         )
     `);
 
-    // 17. جدول المبيعات الخارجية المبسطة
+    // 16.5. جدول إعدادات أسعار المنتجات (كتالوج الأسعار الديناميكي)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS product_pricing_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_name TEXT NOT NULL,
+            period TEXT NOT NULL DEFAULT '',
+            purchase_price REAL NOT NULL DEFAULT 0,
+            selling_price REAL NOT NULL DEFAULT 0,
+            copies_per_unit INTEGER DEFAULT 1,
+            free_bundle_product TEXT DEFAULT NULL,
+            free_bundle_qty_multiplier REAL DEFAULT 0,
+            notes TEXT,
+            UNIQUE(product_name, period)
+        )
+    `);
+
+    // بذرة بيانات كتالوج الأسعار الافتراضية للمنتجات
+    db.get("SELECT COUNT(*) as count FROM product_pricing_rules", (err, row) => {
+        if (!err && row && row.count === 0) {
+            console.log('[Pricing] جدول أسعار المنتجات فارغ، جاري تعبئة الأسعار الافتراضية...');
+            const defaults = [
+                // سناب ماكس
+                ['كود سناب max', 'يومي', 2.5, 5, 1, null, 0, null],
+                ['كود سناب max', 'اسبوعي', 5, 15, 1, null, 0, null],
+                ['كود سناب max', 'شهري', 15, 25, 1, 'كود سناب max (يومي)', 1, 'شراء شهري يمنح يومي مجاني بنفس الكمية'],
+                ['كود سناب max', '3 أشهر', 45, 69, 1, null, 0, null],
+                ['كود سناب max', '6 أشهر', 85, 129, 1, null, 0, null],
+                ['كود سناب max', '9 أشهر', 130, 189, 1, null, 0, null],
+                ['كود سناب max', 'سنة', 170, 249, 1, null, 0, null],
+                // سناب بلس
+                ['سناب بلس', 'يومي', 3, 7.5, 1, null, 0, null],
+                ['سناب بلس', 'اسبوعي', 5, 15, 1, null, 0, null],
+                ['سناب بلس', 'شهري', 15, 25, 1, 'سناب بلس - يومي', 1, 'شراء شهري يمنح يومي مجاني بنفس الكمية'],
+                // بلايستيشن بلس أساسي PS5
+                ['بلس PS5 أساسي', 'شهري', 34.0, 23.0, 3, null, 0, 'الباقة 3 نسخ: 2 PS5 + 1 PS4'],
+                ['بلس PS5 أساسي', '3 أشهر', 87.0, 50.0, 3, null, 0, null],
+                ['بلس PS5 أساسي', 'سنة', 245.0, 135.0, 3, null, 0, null],
+                // بلايستيشن بلس إضافي PS5
+                ['بلس PS5 إضافي', 'شهري', 52.0, 37.0, 3, null, 0, null],
+                ['بلس PS5 إضافي', '3 أشهر', 143.0, 85.0, 3, null, 0, null],
+                ['بلس PS5 إضافي', 'سنة', 406.0, 195.0, 3, null, 0, null],
+                // بلايستيشن بلس فاخر PS5
+                ['بلس PS5 فاخر', 'شهري', 61.0, 48.0, 3, null, 0, null],
+                ['بلس PS5 فاخر', '3 أشهر', 166.0, 115.0, 3, null, 0, null],
+                ['بلس PS5 فاخر', 'سنة', 469.0, 265.0, 3, null, 0, null]
+            ];
+            const stmt = db.prepare("INSERT OR IGNORE INTO product_pricing_rules (product_name, period, purchase_price, selling_price, copies_per_unit, free_bundle_product, free_bundle_qty_multiplier, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            defaults.forEach(d => stmt.run(d));
+            stmt.finalize();
+        } else {
+            // تصحيح الأسعار القديمة لتكون أسعار الحزم الكاملة بدلاً من أسعار النسخ الفردية
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 34.0 WHERE product_name = 'بلس PS5 أساسي' AND period = 'شهري' AND purchase_price < 12`);
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 87.0 WHERE product_name = 'بلس PS5 أساسي' AND period = '3 أشهر' AND purchase_price < 30`);
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 245.0 WHERE product_name = 'بلس PS5 أساسي' AND period = 'سنة' AND purchase_price < 85`);
+            
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 52.0 WHERE product_name = 'بلس PS5 إضافي' AND period = 'شهري' AND purchase_price < 18`);
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 143.0 WHERE product_name = 'بلس PS5 إضافي' AND period = '3 أشهر' AND purchase_price < 48`);
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 406.0 WHERE product_name = 'بلس PS5 إضافي' AND period = 'سنة' AND purchase_price < 136`);
+            
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 61.0 WHERE product_name = 'بلس PS5 فاخر' AND period = 'شهري' AND purchase_price < 21`);
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 166.0 WHERE product_name = 'بلس PS5 فاخر' AND period = '3 أشهر' AND purchase_price < 56`);
+            db.run(`UPDATE product_pricing_rules SET purchase_price = 469.0 WHERE product_name = 'بلس PS5 فاخر' AND period = 'سنة' AND purchase_price < 157`);
+        }
+    });
+
+    // 18. جدول المبيعات الخارجية المبسطة
     db.run(`
         CREATE TABLE IF NOT EXISTS external_sales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -374,7 +439,7 @@ db.serialize(() => {
         )
     `);
 
-    // 18. جدول سجلات الويب هوك (Salla Webhook Logs)
+    // 19. جدول سجلات الويب هوك (Salla Webhook Logs)
     db.run(`
         CREATE TABLE IF NOT EXISTS salla_webhook_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

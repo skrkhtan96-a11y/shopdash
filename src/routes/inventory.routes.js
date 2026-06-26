@@ -484,4 +484,63 @@ router.post('/inventory/products/sync-salla', authenticateUser, async (req, res)
     }
 });
 
+// --- PRODUCT PRICING RULES ---
+
+// جلب جميع قواعد التسعير
+router.get('/inventory/pricing-rules', authenticateUser, (req, res) => {
+    db.all("SELECT * FROM product_pricing_rules ORDER BY product_name ASC, period ASC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows || []);
+    });
+});
+
+// إضافة أو تحديث قاعدة تسعير (Upsert)
+router.post('/inventory/pricing-rules', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'ليس لديك صلاحية تعديل إعدادات الأسعار.' });
+    }
+    const { product_name, period, purchase_price, selling_price, copies_per_unit, free_bundle_product, free_bundle_qty_multiplier, notes } = req.body;
+    if (!product_name) {
+        return res.status(400).json({ error: 'اسم المنتج مطلوب.' });
+    }
+    db.run(
+        `INSERT INTO product_pricing_rules (product_name, period, purchase_price, selling_price, copies_per_unit, free_bundle_product, free_bundle_qty_multiplier, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(product_name, period) DO UPDATE SET
+            purchase_price = excluded.purchase_price,
+            selling_price = excluded.selling_price,
+            copies_per_unit = excluded.copies_per_unit,
+            free_bundle_product = excluded.free_bundle_product,
+            free_bundle_qty_multiplier = excluded.free_bundle_qty_multiplier,
+            notes = excluded.notes`,
+        [
+            product_name.trim(),
+            (period || '').trim(),
+            parseFloat(purchase_price) || 0,
+            parseFloat(selling_price) || 0,
+            parseInt(copies_per_unit) || 1,
+            free_bundle_product ? free_bundle_product.trim() : null,
+            parseFloat(free_bundle_qty_multiplier) || 0,
+            notes ? notes.trim() : null
+        ],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            ConfigRepository.logActivity(req.user.username, 'UPSERT', 'product_pricing_rules', `تم تحديث تسعير: ${product_name} (${period || 'بدون فترة'})`).catch(console.error);
+            res.json({ success: true, id: this.lastID });
+        }
+    );
+});
+
+// حذف قاعدة تسعير
+router.delete('/inventory/pricing-rules/:id', authenticateUser, (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'ليس لديك صلاحية حذف إعدادات الأسعار.' });
+    }
+    db.run("DELETE FROM product_pricing_rules WHERE id = ?", [req.params.id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        ConfigRepository.logActivity(req.user.username, 'DELETE', 'product_pricing_rules', `تم حذف قاعدة تسعير ID: ${req.params.id}`).catch(console.error);
+        res.json({ success: true });
+    });
+});
+
 module.exports = router;

@@ -194,7 +194,7 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">الكمية</label>
+            <label class="form-label" id="mQuantityLabel">الكمية</label>
             <input type="number" id="mQuantity" placeholder="1" min="1" oninput="recalcPurchaseAmt()">
           </div>
           <div class="form-group">
@@ -785,6 +785,7 @@
       <div class="nav-item" id="nav-salla-carts" onclick="nav('salla-carts')"><i class="ti ti-basket-off"></i> السلات المتروكة <span class="badge-count" id="cartBadge">...</span></div>
       <div class="nav-item" id="nav-salla-wallet" onclick="nav('salla-wallet')"><i class="ti ti-wallet"></i> كشف المحفظة</div>
       <div class="nav-item" id="nav-salla-products" onclick="nav('salla-products')"><i class="ti ti-box"></i> المخزون والمنتجات</div>
+      <div class="nav-item" id="nav-pricing-settings" onclick="nav('pricing-settings')"><i class="ti ti-settings-dollar"></i> إعدادات أسعار المنتجات</div>
       <div class="nav-item" id="nav-salla-purchase-batches" onclick="nav('salla-purchase-batches')"><i class="ti ti-history-toggle"></i> خطة مقارنة دفعات المشتريات</div>
       <div class="nav-item" id="nav-salla-compare" onclick="nav('salla-compare')"><i class="ti ti-chart-arrows-vertical"></i> مقارنة المبيعات</div>
       <div class="nav-item" id="nav-salla-webhooks" onclick="nav('salla-webhooks')"><i class="ti ti-webhook"></i> ربط الويب هوك (Webhook)</div>
@@ -1719,6 +1720,103 @@
               </thead>
               <tbody id="prodBody"></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: PRICING SETTINGS (إعدادات أسعار المنتجات) -->
+      <div class="page pad" id="page-pricing-settings">
+        <div class="kpi-grid" style="margin-bottom:14px">
+          <div class="kpi k-accent"><i class="ti ti-tag kpi-ico"></i><div class="kpi-label">إجمالي قواعد التسعير</div><div class="kpi-val accent" id="pricingKpiTotal">0</div><div class="kpi-sub">قاعدة تسعير مسجلة</div></div>
+          <div class="kpi k-green"><i class="ti ti-gift kpi-ico"></i><div class="kpi-label">قواعد مع حزمة مجانية</div><div class="kpi-val green" id="pricingKpiBundle">0</div><div class="kpi-sub">تمنح منتج إضافي مجاني</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <div class="tbl-title"><i class="ti ti-settings-dollar" style="color:var(--accent)"></i> إعدادات أسعار المنتجات والحزم <span style="font-size:10px;color:var(--text3)">(يتم جلب الأسعار تلقائياً عند اختيار المنتج في بند المصروفات)</span></div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-sm btn-primary" onclick="openPricingRuleModal()"><i class="ti ti-plus"></i> إضافة قاعدة تسعير</button>
+            </div>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم المنتج</th>
+                  <th>الفترة</th>
+                  <th>سعر الشراء (ر.س)</th>
+                  <th>سعر البيع (ر.س)</th>
+                  <th>عدد النسخ/الوحدة</th>
+                  <th>حزمة مجانية</th>
+                  <th>ملاحظات</th>
+                  <th style="width:100px">العمليات</th>
+                </tr>
+              </thead>
+              <tbody id="pricingRulesBody"><tr><td colspan="9"><div class="empty"><i class="ti ti-loader loading"></i><p>جاري التحميل...</p></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: إضافة/تعديل قاعدة تسعير -->
+      <div class="modal-overlay" id="pricingRuleModal" style="display:none">
+        <div class="modal-box" style="max-width:480px">
+          <div class="modal-head">
+            <div class="modal-title" id="pricingRuleModalTitle"><i class="ti ti-plus" style="color:var(--accent)"></i> إضافة قاعدة تسعير جديدة</div>
+            <button class="modal-close" onclick="closePricingRuleModal()">&times;</button>
+          </div>
+          <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+            <div class="form-group">
+              <label class="form-label">اسم المنتج</label>
+              <input type="text" id="prProductName" placeholder="مثال: كود سناب max أو بلس PS5 أساسي">
+            </div>
+            <div class="form-group">
+              <label class="form-label">الفترة</label>
+              <select id="prPeriod">
+                <option value="">-- بدون فترة --</option>
+                <option value="يومي">يومي (Daily)</option>
+                <option value="اسبوعي">اسبوعي (Weekly)</option>
+                <option value="شهري">شهري (Monthly)</option>
+                <option value="3 أشهر">3 أشهر</option>
+                <option value="6 أشهر">6 أشهر</option>
+                <option value="9 أشهر">9 أشهر</option>
+                <option value="سنة">سنة (Year)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">سعر الشراء للوحدة (ر.س)</label>
+                <input type="number" id="prPurchasePrice" placeholder="0.00" min="0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label class="form-label">سعر البيع للوحدة (ر.س)</label>
+                <input type="number" id="prSellingPrice" placeholder="0.00" min="0" step="0.01">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">عدد النسخ/الأكواد لكل وحدة شراء</label>
+              <input type="number" id="prCopiesPerUnit" placeholder="1" min="1" value="1">
+              <div style="font-size:9px;color:var(--text3);margin-top:4px">مثال: 3 لباقة PS5 (2 PS5 + 1 PS4)، أو 1 للمنتجات العادية</div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">منتج الحزمة المجانية (اختياري)</label>
+                <input type="text" id="prFreeBundleProduct" placeholder="مثال: كود سناب max - يومي">
+              </div>
+              <div class="form-group">
+                <label class="form-label">مضاعف الكمية المجانية</label>
+                <input type="number" id="prFreeBundleQtyMultiplier" placeholder="1.0" min="0" step="0.1" value="1">
+              </div>
+            </div>
+            <div style="font-size:9px;color:var(--text3);margin-top:-8px;margin-bottom:8px">اترك اسم المنتج فارغاً إذا لم يكن هناك حزمة مجانية</div>
+            <div class="form-group">
+              <label class="form-label">ملاحظات</label>
+              <input type="text" id="prNotes" placeholder="ملاحظة اختيارية...">
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn" onclick="closePricingRuleModal()">إلغاء</button>
+            <button class="btn btn-primary" onclick="savePricingRule()"><i class="ti ti-check"></i> حفظ</button>
           </div>
         </div>
       </div>
