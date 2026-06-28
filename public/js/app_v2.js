@@ -2085,18 +2085,18 @@ function handleProductPricingChange() {
     const customInput = document.getElementById('mProductCustom');
     if (!sel) return false;
     
-    const prodName = sel.value === 'custom' ? (customInput?.value || '') : sel.value;
+    const prodName = (sel.value === 'custom' ? (customInput?.value || '') : sel.value).trim();
     const periodBlock = document.getElementById('mPeriodBlock');
-    const period = (periodBlock && periodBlock.style.display !== 'none') ? (document.getElementById('mPeriod')?.value || '') : '';
+    const period = (periodBlock && periodBlock.style.display !== 'none') ? (document.getElementById('mPeriod')?.value || '').trim() : '';
     
     if (!prodName) return false;
     
-    // Find matching rule in database pricing rules:
-    let matchedRule = (state.pricingRules || []).find(r => r.product_name === prodName && r.period === period);
+    // Find matching rule in database pricing rules (trimmed):
+    let matchedRule = (state.pricingRules || []).find(r => r.product_name && r.product_name.trim() === prodName && (r.period || '').trim() === period);
     
     // Fallback: If no match with period, look for a rule with matching product name and empty period
     if (!matchedRule) {
-        matchedRule = (state.pricingRules || []).find(r => r.product_name === prodName && !r.period);
+        matchedRule = (state.pricingRules || []).find(r => r.product_name && r.product_name.trim() === prodName && !(r.period || '').trim());
     }
     
     if (matchedRule) {
@@ -2721,21 +2721,56 @@ function handlePurchaseProductSelection() {
         return;
     }
     
-    // البحث عن المنتج في دليل المنتجات الموحد
-    const prod = (state.inventoryProducts || []).find(p => p.product_name === prodName);
-    
     // التعبئة التلقائية فقط في حالة إضافة مصروف جديد (لتجنب مسح القيم المخزنة عند تعديل مصروف سابق)
     const isEditing = !!state.editingId;
-    if (prod && !isEditing) {
+    if (isEditing) return;
+
+    // أولاً: البحث عن قاعدة تسعير مطابقة (مع التجاهل الذكي للمسافات الزائدة)
+    const periodBlock = document.getElementById('mPeriodBlock');
+    const period = (periodBlock && periodBlock.style.display !== 'none') ? (document.getElementById('mPeriod')?.value || '').trim() : '';
+    
+    let matchedRule = (state.pricingRules || []).find(r => r.product_name && r.product_name.trim() === prodName.trim() && (r.period || '').trim() === period);
+    if (!matchedRule) {
+        matchedRule = (state.pricingRules || []).find(r => r.product_name && r.product_name.trim() === prodName.trim() && !(r.period || '').trim());
+    }
+
+    if (matchedRule) {
         const elQty = document.getElementById('mQuantity');
         const elPurchase = document.getElementById('mPurchasePrice');
         const elSelling = document.getElementById('mSellingPrice');
+        const elQtyLabel = document.getElementById('mQuantityLabel');
         
-        if (elQty) elQty.value = prod.quantity > 0 ? prod.quantity.toString() : '1';
-        if (elPurchase) elPurchase.value = prod.cost > 0 ? prod.cost.toFixed(2) : '0.00';
-        if (elSelling) elSelling.value = prod.price > 0 ? prod.price.toFixed(2) : '0.00';
+        if (elPurchase) elPurchase.value = matchedRule.purchase_price.toFixed(2);
+        if (elSelling) elSelling.value = matchedRule.selling_price.toFixed(2);
+        
+        const copies = matchedRule.copies_per_unit || 1;
+        if (elQtyLabel) {
+            if (copies > 1) {
+                elQtyLabel.innerHTML = `الكمية <span style="font-size:10px;color:var(--accent)">(يحتوي كل حساب على ${copies} نسخ)</span>`;
+            } else {
+                elQtyLabel.textContent = 'الكمية';
+            }
+        }
+        
+        if (elQty && (!elQty.value || elQty.value === '3' || elQty.value === '0')) {
+            elQty.value = '1';
+        }
         
         recalcPurchaseAmt();
+    } else {
+        // ثانياً: البحث في المخزون كبديل
+        const prod = (state.inventoryProducts || []).find(p => p.product_name && p.product_name.trim() === prodName.trim());
+        if (prod) {
+            const elQty = document.getElementById('mQuantity');
+            const elPurchase = document.getElementById('mPurchasePrice');
+            const elSelling = document.getElementById('mSellingPrice');
+            
+            if (elQty) elQty.value = prod.quantity > 0 ? prod.quantity.toString() : '1';
+            if (elPurchase) elPurchase.value = prod.cost > 0 ? prod.cost.toFixed(2) : '0.00';
+            if (elSelling) elSelling.value = prod.price > 0 ? prod.price.toFixed(2) : '0.00';
+            
+            recalcPurchaseAmt();
+        }
     }
     
     // تحديث مساعد الشراء الذكي تفاعلياً بالدفعة الأخيرة
@@ -2749,7 +2784,7 @@ function checkProductPlusPeriod() {
     const mDesc = document.getElementById('mDesc');
     if (!sel || !periodBlock) return;
     
-    const prodName = sel.value === 'custom' ? (customInput?.value || '') : sel.value;
+    const prodName = (sel.value === 'custom' ? (customInput?.value || '') : sel.value).trim();
     
     // تعبئة حقل البيان (الوصف) تلقائياً باسم المنتج المختار فقط في بند شراء المنتجات
     const cat = document.getElementById('mCat').value;
@@ -2762,7 +2797,12 @@ function checkProductPlusPeriod() {
     
     const lowerName = prodName.toLowerCase();
     
-    const isPlusOrPS = prodName.includes('بلس') || 
+    // التحقق ديناميكياً إذا كان المنتج يحتوي على فترات/أدوار في إعدادات الأسعار
+    const productRules = (state.pricingRules || []).filter(r => r.product_name && r.product_name.trim() === prodName);
+    const hasPeriods = productRules.some(r => r.period && r.period.trim() !== '');
+    
+    const isPlusOrPS = hasPeriods || 
+                       prodName.includes('بلس') || 
                        lowerName.includes('plus') || 
                        lowerName.includes('ps') || 
                        prodName.includes('سوني') || 
