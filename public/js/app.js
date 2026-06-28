@@ -1404,7 +1404,46 @@ function renderProducts() {
     });
 
     // 3. احتساب المخزون الفعلي بالتكامل مع المنتجات المستقلة
-    let prods = (state.inventoryProducts || []).map(p => {
+    const allProductNames = new Set();
+    (state.inventoryProducts || []).forEach(p => {
+        if (p.product_name) allProductNames.add(p.product_name.trim());
+    });
+    (state.pricingRules || []).forEach(r => {
+        if (r.product_name) allProductNames.add(r.product_name.trim());
+    });
+
+    const combinedProducts = Array.from(allProductNames).map(name => {
+        const invProd = (state.inventoryProducts || []).find(p => p.product_name && p.product_name.trim() === name);
+        const rules = (state.pricingRules || []).filter(r => r.product_name && r.product_name.trim() === name);
+        const firstRule = rules[0] || null;
+        
+        if (invProd) {
+            return {
+                id: invProd.id,
+                product_name: invProd.product_name,
+                sku: invProd.sku || '-',
+                quantity: invProd.quantity || 0,
+                cost: invProd.cost || (firstRule ? (firstRule.purchase_price / (firstRule.copies_per_unit || 1)) : 0),
+                price: invProd.price || (firstRule ? firstRule.selling_price : 0),
+                notes: invProd.notes || (firstRule ? firstRule.notes : '')
+            };
+        } else {
+            const defaultCost = firstRule ? (firstRule.purchase_price / (firstRule.copies_per_unit || 1)) : 0;
+            const defaultPrice = firstRule ? firstRule.selling_price : 0;
+            const defaultNotes = firstRule ? firstRule.notes : '';
+            return {
+                id: `pricing-${name}`,
+                product_name: name,
+                sku: '-',
+                quantity: 0,
+                cost: defaultCost,
+                price: defaultPrice,
+                notes: defaultNotes
+            };
+        }
+    });
+
+    let prods = combinedProducts.map(p => {
         let purchased = 0;
         let sold = 0;
         let totalCostSum = 0;
