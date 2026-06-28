@@ -540,12 +540,16 @@ router.post('/webhook', async (req, res) => {
             }
         );
 
-        // Handle app.uninstalled event
+        // Handle app.uninstalled event — حذف جميع بيانات المتجر فوراً
         if (eventName === 'app.uninstalled') {
             await ConfigRepository.deleteConfig('salla_auth');
             await ConfigRepository.deleteConfig('salla_store');
-            console.log('[SallaWebhook] Store disconnected successfully due to app uninstall.');
-            return res.json({ success: true, message: 'App uninstall processed.' });
+            // حذف البيانات المستوردة بالكامل لاستكمال التزام سياسة الخصوصية
+            await new Promise((resolve) => db.run("DELETE FROM salla_imported_orders", resolve));
+            await new Promise((resolve) => db.run("DELETE FROM salla_imported_wallet", resolve));
+            await new Promise((resolve) => db.run("DELETE FROM salla_webhook_logs", resolve));
+            console.log('[SallaWebhook] Store uninstalled: All store data deleted successfully.');
+            return res.json({ success: true, message: 'App uninstall processed. All data deleted.' });
         }
 
         if (['order.created', 'order.updated', 'order.status.updated'].includes(eventName) && payload.data) {

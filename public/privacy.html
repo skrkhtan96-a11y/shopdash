@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سياسة الخصوصية — شوب داش</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0d1117; --bg2:#161b27; --bg3:#1e2535;
+      --accent:#18B2B0; --text:#e8eaf0; --text2:#8892a4; --text3:#5a6478;
+      --border:rgba(255,255,255,0.07); --green:#3dba7e; --amber:#e8a84a;
+    }
+    body { font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; line-height:1.7; }
+
+    .page-header { background:linear-gradient(160deg,rgba(24,178,176,0.08) 0%,rgba(13,17,23,0) 60%); border-bottom:1px solid var(--border); padding:48px 0 36px; text-align:center; position:relative; overflow:hidden; }
+    .page-header::before { content:''; position:absolute; top:-60px; left:50%; transform:translateX(-50%); width:500px; height:300px; background:radial-gradient(ellipse,rgba(24,178,176,0.12) 0%,transparent 70%); pointer-events:none; }
+    .header-badge { display:inline-flex; align-items:center; gap:8px; background:rgba(24,178,176,0.1); border:1px solid rgba(24,178,176,0.25); color:var(--accent); padding:6px 16px; border-radius:20px; font-size:12px; font-weight:600; margin-bottom:20px; }
+    .page-header h1 { font-size:32px; font-weight:700; color:#fff; margin-bottom:10px; }
+    .page-header .subtitle { font-size:14px; color:var(--text2); }
+    .meta-row { display:flex; justify-content:center; gap:20px; margin-top:20px; flex-wrap:wrap; }
+    .meta-tag { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text3); background:var(--bg3); border:1px solid var(--border); padding:4px 12px; border-radius:6px; }
+    .meta-tag span { color:var(--text2); }
+
+    .container { max-width:780px; margin:0 auto; padding:48px 24px 80px; }
+
+    .intro-box { background:rgba(24,178,176,0.06); border:1px solid rgba(24,178,176,0.2); border-radius:10px; padding:16px 18px; margin-bottom:32px; font-size:14px; color:var(--text2); display:flex; gap:10px; align-items:flex-start; }
+    .intro-box .ib-icon { font-size:18px; flex-shrink:0; margin-top:2px; }
+
+    .toc { background:var(--bg2); border:1px solid var(--border); border-right:3px solid var(--accent); border-radius:10px; padding:20px 24px; margin-bottom:40px; }
+    .toc-title { font-size:11px; font-weight:600; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+    .toc ol { list-style:none; display:flex; flex-direction:column; gap:6px; padding:0; }
+    .toc ol li a { color:var(--text2); text-decoration:none; font-size:13px; display:flex; align-items:center; gap:8px; transition:color 0.2s; }
+    .toc ol li a:hover { color:var(--accent); }
+    .toc ol li a::before { content:attr(data-num); font-size:10px; font-weight:700; color:var(--accent); background:rgba(24,178,176,0.1); width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+    .section { margin-bottom:40px; scroll-margin-top:24px; }
+    .section-header { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+    .section-num { width:32px; height:32px; background:rgba(24,178,176,0.1); border:1px solid rgba(24,178,176,0.25); color:var(--accent); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
+    .section-title { font-size:17px; font-weight:600; color:#fff; }
+    .section p { font-size:14px; color:var(--text2); margin-bottom:12px; }
+
+    .data-list { list-style:none; display:flex; flex-direction:column; gap:8px; margin:12px 0; padding:0; }
+    .data-list li { display:flex; gap:10px; font-size:13.5px; color:var(--text2); background:var(--bg3); border:1px solid var(--border); padding:10px 14px; border-radius:8px; }
+    .data-list li .icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+    .data-list li strong { color:var(--text); }
+
+    .highlight-box { background:rgba(61,186,126,0.06); border:1px solid rgba(61,186,126,0.2); border-radius:10px; padding:16px 18px; margin-top:14px; font-size:13.5px; color:var(--text2); display:flex; gap:10px; align-items:flex-start; }
+    .highlight-box.amber { background:rgba(232,168,74,0.06); border-color:rgba(232,168,74,0.2); }
+    .highlight-box .hb-icon { font-size:18px; flex-shrink:0; margin-top:2px; }
+
+    .security-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:14px; }
+    .security-card { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; gap:10px; align-items:flex-start; transition:border-color 0.2s; }
+    .security-card:hover { border-color:rgba(24,178,176,0.25); }
+    .sec-icon { font-size:20px; flex-shrink:0; margin-top:2px; }
+    .sec-title { font-size:13px; font-weight:600; color:var(--text); margin-bottom:2px; }
+    .sec-desc { font-size:12px; color:var(--text2); line-height:1.5; }
+
+    .rights-list { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+    .right-item { display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--text2); }
+    .right-item .check { width:22px; height:22px; background:rgba(61,186,126,0.12); border:1px solid rgba(61,186,126,0.25); border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--green); font-size:12px; flex-shrink:0; }
+
+    .contact-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:24px; text-align:center; margin-top:48px; }
+    .contact-card .ct { font-size:16px; font-weight:600; color:#fff; margin-bottom:6px; }
+    .contact-card .cs { font-size:13px; color:var(--text2); margin-bottom:16px; }
+    .contact-card a { display:inline-flex; align-items:center; gap:8px; background:rgba(24,178,176,0.1); border:1px solid rgba(24,178,176,0.3); color:var(--accent); padding:10px 24px; border-radius:8px; text-decoration:none; font-size:14px; font-weight:500; transition:all 0.2s; }
+    .contact-card a:hover { background:rgba(24,178,176,0.18); border-color:var(--accent); }
+
+    footer { text-align:center; padding:24px; font-size:12px; color:var(--text3); border-top:1px solid var(--border); margin-top:40px; }
+    footer a { color:var(--text2); text-decoration:none; }
+    footer a:hover { color:var(--accent); }
+
+    @media(max-width:600px){ .page-header h1{font-size:24px;} .security-grid{grid-template-columns:1fr;} .meta-row{gap:10px;} }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="header-badge">🔒 سياسة الخصوصية</div>
+    <h1>شوب داش — Privacy Policy</h1>
+    <p class="subtitle">تطبيق محاسبة متجر شوب ستور · منصة سلة (Salla)</p>
+    <div class="meta-row">
+      <div class="meta-tag">📋 نوع التطبيق: <span>خاص (Private)</span></div>
+      <div class="meta-tag">📅 آخر تحديث: <span>٢٩ يونيو ٢٠٢٦</span></div>
+      <div class="meta-tag">🌐 المنصة: <span>سلة Salla</span></div>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <div class="intro-box">
+      <span class="ib-icon">ℹ️</span>
+      <div>
+        <strong style="color:var(--text);display:block;margin-bottom:4px;">ما هو شوب داش؟</strong>
+        شوب داش تطبيق محاسبي خاص مرتبط بمتجر «شوب ستور» على منصة سلة فقط. وظيفته قراءة بيانات الطلبات والمبيعات والتسويات وتحليلها محاسبياً لإدارة المصروفات والأرباح والمخزون.
+        <strong style="color:var(--accent)">التطبيق يقرأ البيانات ويحلّلها فقط، ولا يعدّل أي بيانات في متجرك على سلة.</strong>
+      </div>
+    </div>
+
+    <div class="toc">
+      <div class="toc-title">📑 محتويات السياسة</div>
+      <ol>
+        <li><a href="#s1" data-num="1">البيانات التي نتعامل معها</a></li>
+        <li><a href="#s2" data-num="2">الغرض من معالجة البيانات</a></li>
+        <li><a href="#s3" data-num="3">مشاركة البيانات</a></li>
+        <li><a href="#s4" data-num="4">حماية البيانات</a></li>
+        <li><a href="#s5" data-num="5">الاحتفاظ بالبيانات وحذفها</a></li>
+        <li><a href="#s6" data-num="6">حقوقك</a></li>
+        <li><a href="#s7" data-num="7">تعديلات السياسة</a></li>
+      </ol>
+    </div>
+
+    <div class="section" id="s1">
+      <div class="section-header">
+        <div class="section-num">١</div>
+        <div class="section-title">البيانات التي نتعامل معها</div>
+      </div>
+      <p>عند ربط التطبيق بمتجرك على سلة، نقرأ ونعالج بيانات الطلبات والمبيعات الخاصة بمتجرك، وتشمل:</p>
+      <ul class="data-list">
+        <li><span class="icon">🧾</span><div><strong>بيانات الطلب:</strong> رقم مرجع الطلب، تاريخه، حالته، طريقة الدفع، والمبلغ.</div></li>
+        <li><span class="icon">📦</span><div><strong>بيانات المنتج:</strong> اسم المنتج، الكمية، وصورته المصغّرة.</div></li>
+        <li><span class="icon">👤</span><div><strong>بيانات العميل:</strong> اسم العميل ورقم جواله — تُستخدم حصراً للبحث في الطلبات ومطابقتها داخل لوحتك.</div></li>
+        <li><span class="icon">💰</span><div><strong>بيانات التسوية المالية:</strong> مبالغ التحويلات والعمولات والضريبة والصافي المودَع لحسابك.</div></li>
+      </ul>
+      <div class="highlight-box">
+        <span class="hb-icon">✅</span>
+        <div>جميع هذه البيانات تخصّ متجرك أنت، وتملك أصلاً صلاحية الوصول إليها بصفتك صاحب المتجر. التطبيق لا يتعامل مع بيانات أي متجر أو تاجر آخر.</div>
+      </div>
+    </div>
+
+    <div class="section" id="s2">
+      <div class="section-header">
+        <div class="section-num">٢</div>
+        <div class="section-title">الغرض من معالجة البيانات</div>
+      </div>
+      <p>نستخدم البيانات لغرض واحد فقط: <strong>التحليل المحاسبي الداخلي لمتجرك</strong>، ويشمل ذلك:</p>
+      <ul class="data-list">
+        <li><span class="icon">📊</span><div>حساب الإيرادات والأرباح ومقارنتها بالمصروفات.</div></li>
+        <li><span class="icon">📈</span><div>متابعة المبيعات والمخزون ودقّة الكميات.</div></li>
+        <li><span class="icon">🔄</span><div>مطابقة الطلبات مع التسويات المالية المودَعة من سلة.</div></li>
+      </ul>
+      <p style="margin-top:12px;">لا نستخدم البيانات لأي غرض تسويقي أو إعلاني، ولا لاتخاذ قرارات آلية تخص العملاء.</p>
+    </div>
+
+    <div class="section" id="s3">
+      <div class="section-header">
+        <div class="section-num">٣</div>
+        <div class="section-title">مشاركة البيانات</div>
+      </div>
+      <p>لا نشارك بياناتك مع أي طرف ثالث خارج خادمنا. تبقى البيانات داخل الخادم الخاص ولا تُباع ولا تُؤجَّر ولا تُنقل لأي جهة خارجية.</p>
+      <div class="highlight-box amber">
+        <span class="hb-icon">⚡</span>
+        <div>يستقبل الخادم أحداث الطلبات من سلة (Webhooks) ويعالجها داخلياً لتحديث لوحة المحاسبة فقط. لا تغادر هذه البيانات الخادم.</div>
+      </div>
+    </div>
+
+    <div class="section" id="s4">
+      <div class="section-header">
+        <div class="section-num">٤</div>
+        <div class="section-title">حماية البيانات</div>
+      </div>
+      <p>نطبّق إجراءات أمنية تقنية متعددة لحماية بياناتك:</p>
+      <div class="security-grid">
+        <div class="security-card"><span class="sec-icon">🗄️</span><div><div class="sec-title">تخزين معزول</div><div class="sec-desc">قاعدة البيانات خارج المسار العام، لا يمكن الوصول إليها عبر المتصفح.</div></div></div>
+        <div class="security-card"><span class="sec-icon">🔑</span><div><div class="sec-title">خادم محمي</div><div class="sec-desc">الوصول مقيّد بـ SSH ومفاتيح آمنة مع شهادة SSL سارية.</div></div></div>
+        <div class="security-card"><span class="sec-icon">🪙</span><div><div class="sec-title">توكنات محفوظة</div><div class="sec-desc">توكنات الوصول لا تُعرَض إطلاقاً في الواجهة أو أي استجابة API.</div></div></div>
+        <div class="security-card"><span class="sec-icon">✍️</span><div><div class="sec-title">توقيع رقمي HMAC</div><div class="sec-desc">نتحقق من كل حدث وارد من سلة بـ HMAC-SHA256 ونرفض أي طلب غير موثَّق.</div></div></div>
+        <div class="security-card"><span class="sec-icon">🛡️</span><div><div class="sec-title">حماية OAuth CSRF</div><div class="sec-desc">عملية الربط مؤمَّنة بمعامل state عشوائي لمنع هجمات تزوير الطلبات.</div></div></div>
+        <div class="security-card"><span class="sec-icon">🔐</span><div><div class="sec-title">وصول مقيّد</div><div class="sec-desc">اللوحة محمية بتسجيل دخول، ولا تُعرَض البيانات إلا لصاحب المتجر.</div></div></div>
+      </div>
+    </div>
+
+    <div class="section" id="s5">
+      <div class="section-header">
+        <div class="section-num">٥</div>
+        <div class="section-title">الاحتفاظ بالبيانات وحذفها</div>
+      </div>
+      <p>نحتفظ ببياناتك طوال فترة ربط التطبيق بمتجرك لتقديم خدمة التحليل المحاسبي.</p>
+      <div class="highlight-box">
+        <span class="hb-icon">🗑️</span>
+        <div>
+          <strong style="color:var(--green);display:block;margin-bottom:4px;">حذف تلقائي شامل عند إلغاء التثبيت</strong>
+          عند إلغاء تثبيت التطبيق من لوحة تحكم متجرك في سلة، يستقبل النظام حدث الإلغاء ويحذف فوراً وتلقائياً:
+          <strong style="color:var(--text)">توكنات الوصول، بيانات ربط المتجر، سجلات الطلبات المستوردة، وسجلات التسويات المالية</strong> — فتصبح حالة المتجر «غير متصل» دون أي أثر للبيانات.
+        </div>
+      </div>
+      <p style="margin-top:12px;">يمكنك في أي وقت طلب حذف بياناتك بالكامل من خلال إلغاء ربط التطبيق، أو بالتواصل معنا عبر بريد الدعم أدناه.</p>
+    </div>
+
+    <div class="section" id="s6">
+      <div class="section-header">
+        <div class="section-num">٦</div>
+        <div class="section-title">حقوقك</div>
+      </div>
+      <p>بصفتك صاحب المتجر، يحق لك:</p>
+      <div class="rights-list">
+        <div class="right-item"><div class="check">✓</div><span>معرفة البيانات التي نعالجها ونتعامل معها.</span></div>
+        <div class="right-item"><div class="check">✓</div><span>طلب حذف بياناتك من النظام بالكامل في أي وقت.</span></div>
+        <div class="right-item"><div class="check">✓</div><span>قطع ربط التطبيق في أي وقت دون قيود أو رسوم.</span></div>
+      </div>
+    </div>
+
+    <div class="section" id="s7">
+      <div class="section-header">
+        <div class="section-num">٧</div>
+        <div class="section-title">تعديلات السياسة</div>
+      </div>
+      <p>قد نحدّث هذه السياسة من وقت لآخر. عند إجراء أي تعديل جوهري، سيُحدَّث تاريخ «آخر تحديث» الظاهر أعلى الصفحة.</p>
+    </div>
+
+    <div class="contact-card">
+      <div class="ct">تواصل معنا</div>
+      <div class="cs">لأي استفسار حول الخصوصية أو لطلب حذف بياناتك</div>
+      <a href="mailto:support@nuzum.sbs">✉️ support@nuzum.sbs</a>
+    </div>
+
+  </div>
+
+  <footer>
+    <p>جميع الحقوق محفوظة © ٢٠٢٦ شوب داش &nbsp;·&nbsp; <a href="/">العودة للوحة التحكم</a></p>
+  </footer>
+
+</body>
+</html>
