@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const crypto = require('crypto');
 const db = require('../config/db');
 const ConfigRepository = require('../repositories/config.repository');
 const SallaService = require('../services/salla.service');
@@ -23,18 +24,39 @@ router.get('/auth-redirect', (req, res) => {
         return res.redirect('/?simulated_login=true');
     }
     const scopes = 'offline_access';
-    const stateParam = Math.random().toString(36).substring(2, 15);
+    const stateParam = crypto.randomBytes(16).toString('hex');
+    
+    // Save state in secure, HttpOnly cookie to verify it in the callback step
+    res.cookie('salla_oauth_state', stateParam, {
+        maxAge: 10 * 60 * 1000, // 10 minutes
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax'
+    });
+
     const authUrl = `${SALLA_AUTH_URL}?response_type=code&client_id=${process.env.SALLA_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.SALLA_REDIRECT_URI)}&scope=${encodeURIComponent(scopes)}&state=${stateParam}`;
     res.redirect(authUrl);
 });
 
 // 2. Salla OAuth callback (mounted at /callback in server.js but we can handle it)
 router.get('/callback-handler', async (req, res) => {
-    const { code, error } = req.query;
+    const { code, state, error } = req.query;
+    const cookieState = req.cookies.salla_oauth_state;
+
+    // Clear state cookie immediately
+    res.clearCookie('salla_oauth_state');
 
     if (error) {
         console.error('خطأ من سلة أثناء التصريح:', error);
         return res.redirect('/?error=auth_denied');
+    }
+
+    // CSRF Protection validation
+    if (hasRealSallaCredentials()) {
+        if (!state || !cookieState || state !== cookieState) {
+            console.error('فشل التحقق من معامل الحالة OAuth State. هجوم CSRF محتمل.');
+            return res.redirect('/?error=csrf_validation_failed');
+        }
     }
 
     try {
@@ -469,12 +491,37 @@ router.post('/clear-imports', authenticateUser, (req, res) => {
 router.post('/webhook', async (req, res) => {
     const payload = req.body;
     const eventName = payload.event || 'unknown';
+    const signature = req.headers['x-salla-signature'] || req.headers['X-Salla-Signature'] || '';
     
     console.log(`[SallaWebhook] Received event: ${eventName}`);
+
+    // Verify Salla Webhook Signature using HMAC-SHA256
+    const secret = process.env.SALLA_WEBHOOK_SECRET;
+    if (secret) {
+        if (!signature) {
+            console.error('[SallaWebhook] Signature header X-Salla-Signature is missing.');
+            return res.status(401).json({ error: 'X-Salla-Signature header is missing.' });
+        }
+        try {
+            const hmac = crypto.createHmac('sha256', secret);
+            const rawBody = req.rawBody || Buffer.from(JSON.stringify(payload));
+            const calculated = hmac.update(rawBody).digest('hex');
+            
+            if (!crypto.timingSafeEqual(Buffer.from(calculated, 'hex'), Buffer.from(signature, 'hex'))) {
+                console.error('[SallaWebhook] Invalid webhook signature detected.');
+                return res.status(401).json({ error: 'Invalid webhook signature.' });
+            }
+            console.log('[SallaWebhook] Webhook signature verified successfully.');
+        } catch (err) {
+            console.error('[SallaWebhook] Webhook signature verification error:', err.message);
+            return res.status(401).json({ error: 'Webhook signature verification failed.' });
+        }
+    } else {
+        console.warn('[SallaWebhook] SALLA_WEBHOOK_SECRET is not set in env. Skipping signature verification.');
+    }
     
     try {
         // Forward webhook payload to the WhatsApp bot at port 5001
-        const signature = req.headers['x-salla-signature'] || req.headers['X-Salla-Signature'] || '';
         axios.post('http://127.0.0.1:5001/webhook/salla', payload, {
             headers: {
                 'Content-Type': 'application/json',
@@ -492,6 +539,14 @@ router.post('/webhook', async (req, res) => {
                 if (err) console.error('[SallaWebhook] Error saving log to DB:', err.message);
             }
         );
+
+        // Handle app.uninstalled event
+        if (eventName === 'app.uninstalled') {
+            await ConfigRepository.deleteConfig('salla_auth');
+            await ConfigRepository.deleteConfig('salla_store');
+            console.log('[SallaWebhook] Store disconnected successfully due to app uninstall.');
+            return res.json({ success: true, message: 'App uninstall processed.' });
+        }
 
         if (['order.created', 'order.updated', 'order.status.updated'].includes(eventName) && payload.data) {
             const o = payload.data;

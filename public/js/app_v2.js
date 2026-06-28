@@ -2044,13 +2044,13 @@ const PS5_PRICING_CATALOG = {
 function handleProductPricingChange() {
     const sel = document.getElementById('mProductSelect');
     const customInput = document.getElementById('mProductCustom');
-    if (!sel) return;
+    if (!sel) return false;
     
     const prodName = sel.value === 'custom' ? (customInput?.value || '') : sel.value;
     const periodBlock = document.getElementById('mPeriodBlock');
     const period = (periodBlock && periodBlock.style.display !== 'none') ? (document.getElementById('mPeriod')?.value || '') : '';
     
-    if (!prodName) return;
+    if (!prodName) return false;
     
     // Find matching rule in database pricing rules:
     let matchedRule = (state.pricingRules || []).find(r => r.product_name === prodName && r.period === period);
@@ -2084,7 +2084,7 @@ function handleProductPricingChange() {
         }
         
         recalcPurchaseAmt();
-        return;
+        return true;
     }
 
     // Fallback: Hardcoded catalogs if DB rules don't match
@@ -2117,7 +2117,7 @@ function handleProductPricingChange() {
                     if (elSelling) elSelling.value = pricing.selling.toString();
                     if (elQtyLabel) elQtyLabel.innerHTML = `الكمية <span style="font-size:10px;color:var(--accent)">(يحتوي كل حساب على 3 نسخ)</span>`;
                     recalcPurchaseAmt();
-                    return;
+                    return true;
                 }
             }
         }
@@ -2141,13 +2141,14 @@ function handleProductPricingChange() {
                 if (elSelling) elSelling.value = pricing.selling.toString();
                 if (elQtyLabel) elQtyLabel.textContent = 'الكمية';
                 recalcPurchaseAmt();
-                return;
+                return true;
             }
         }
     }
     
     const elQtyLabel = document.getElementById('mQuantityLabel');
     if (elQtyLabel) elQtyLabel.textContent = 'الكمية';
+    return false;
 }
 
 function renderExp() {
