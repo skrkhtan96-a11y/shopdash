@@ -396,6 +396,136 @@ body {
   margin-bottom: 18px;
 }
 
+/* ── NEW PREMIUM KPI CARD STYLES ── */
+.kpi-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(25, 30, 48, 0.45), rgba(17, 21, 32, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 110px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(24, 178, 176, 0.3);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3), 
+              0 0 15px rgba(24, 178, 176, 0.05);
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.kpi-icon {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all 0.3s ease;
+}
+
+.kpi-card .kpi-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text2);
+  margin-top: 24px; /* Space for the absolute icon above */
+  margin-bottom: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  order: 1; /* Keep label above value */
+  text-align: right;
+}
+
+.kpi-card .kpi-val {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--text);
+  line-height: 1.2;
+  text-align: right;
+  direction: ltr;
+  order: 2; /* Keep value below label */
+}
+
+/* Color variations for icons */
+.kpi-icon.amber {
+  background: rgba(232, 168, 74, 0.1);
+  color: var(--amber);
+  border: 1px solid rgba(232, 168, 74, 0.15);
+}
+.kpi-icon.green {
+  background: rgba(61, 186, 126, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(61, 186, 126, 0.15);
+}
+.kpi-icon.red {
+  background: rgba(224, 85, 85, 0.1);
+  color: var(--red);
+  border: 1px solid rgba(224, 85, 85, 0.15);
+}
+.kpi-icon.accent {
+  background: rgba(24, 178, 176, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(24, 178, 176, 0.15);
+}
+.kpi-icon.blue {
+  background: rgba(91, 155, 214, 0.1);
+  color: var(--blue);
+  border: 1px solid rgba(91, 155, 214, 0.15);
+}
+
+.kpi-card:hover .kpi-icon.amber { background: rgba(232, 168, 74, 0.18); }
+.kpi-card:hover .kpi-icon.green { background: rgba(61, 186, 126, 0.18); }
+.kpi-card:hover .kpi-icon.red { background: rgba(224, 85, 85, 0.18); }
+.kpi-card:hover .kpi-icon.accent { background: rgba(24, 178, 176, 0.18); }
+.kpi-card:hover .kpi-icon.blue { background: rgba(91, 155, 214, 0.18); }
+
+/* Premium Hero KPI Card (Actual Net Profit) */
+.kpi-card.hero-card {
+  background: linear-gradient(135deg, rgba(24, 178, 176, 0.12), rgba(17, 21, 32, 0.5));
+  border: 1px solid rgba(24, 178, 176, 0.25);
+  box-shadow: 0 8px 32px rgba(24, 178, 176, 0.08);
+}
+
+.kpi-card.hero-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 12px 40px rgba(24, 178, 176, 0.18);
+}
+
+.kpi-card.hero-card .kpi-val.green {
+  color: #3dba7e !important;
+}
+
+.kpi-card.hero-card .kpi-val.red {
+  color: #e05555 !important;
+}
+
+.kpi-card.hero-card .kpi-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+
 .kpi {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -1186,19 +1316,20 @@ textarea {
   to { opacity: 1; }
 }
 
-.menu-toggle {
-  display: inline-flex;
-}
+@media (max-width: 880px) {
+  .menu-toggle {
+    display: inline-flex;
+  }
 
-.sidebar-close {
-  display: inline-flex;
-}
+  .sidebar-close {
+    display: inline-flex;
+  }
 
-.s-logo {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+  .s-logo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
 
   .charts-row {
     grid-template-columns: 1fr;
