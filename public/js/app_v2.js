@@ -2778,6 +2778,56 @@ function handlePurchaseProductSelection() {
     updatePurchaseBatchHelper(prodName);
 }
 
+function updatePurchaseBatchHelper(prodName) {
+    const helperCard = document.getElementById('mPurchaseHelperCard');
+    if (!helperCard) return;
+    
+    if (!prodName) {
+        helperCard.style.display = 'none';
+        return;
+    }
+    
+    // البحث عن الدفعة الأخيرة التي تم شراؤها من هذا المنتج (مطابقة مع إهمال المسافات الزائدة)
+    const purchases = (state.expenses || [])
+        .filter(e => e.cat === 'شراء منتجات' && e.product_name && e.product_name.trim() === prodName.trim())
+        .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+        
+    if (purchases.length > 0) {
+        const last = purchases[0];
+        const qty = last.quantity || 1;
+        const buyPrice = last.purchase_price || (last.amt / qty) || 0;
+        const sellPrice = last.selling_price || 0;
+        
+        helperCard.style.display = 'block';
+        helperCard.style.background = 'rgba(24, 178, 176, 0.05)';
+        helperCard.style.borderColor = 'rgba(24, 178, 176, 0.2)';
+        helperCard.style.color = 'var(--text)';
+        helperCard.innerHTML = `
+            <div style="font-weight:600;color:var(--accent);margin-bottom:4px;"><i class="ti ti-bulb"></i> مساعد الشراء الذكي (الدفعة السابقة):</div>
+            <div>آخر تاريخ شراء: <strong class="mono">${fmtDate(last.date)}</strong></div>
+            <div>الكمية السابقة: <strong class="mono">${qty}</strong> | سعر الشراء السابق: <strong class="mono">${fmt(buyPrice)} ر.س</strong></div>
+            ${sellPrice > 0 ? `<div>سعر البيع السابق: <strong class="mono">${fmt(sellPrice)} ر.س</strong></div>` : ''}
+        `;
+    } else {
+        // إذا لم يتم العثور على مشتريات سابقة، نقترح التسعير الافتراضي من الإعدادات
+        const rules = (state.pricingRules || []).filter(r => r.product_name && r.product_name.trim() === prodName.trim());
+        if (rules.length > 0) {
+            const rule = rules[0];
+            helperCard.style.display = 'block';
+            helperCard.style.background = 'rgba(255, 193, 7, 0.05)';
+            helperCard.style.borderColor = 'rgba(255, 193, 7, 0.2)';
+            helperCard.style.color = 'var(--text)';
+            helperCard.innerHTML = `
+                <div style="font-weight:600;color:var(--amber);margin-bottom:4px;"><i class="ti ti-info-circle"></i> مساعد الشراء الذكي:</div>
+                <div>لا توجد دفعات مشتريات سابقة مسجلة لهذا المنتج.</div>
+                <div>السعر المعتمد بالإعدادات: شراء <strong class="mono">${fmt(rule.purchase_price)} ر.س</strong> | بيع <strong class="mono">${fmt(rule.selling_price)} ر.س</strong></div>
+            `;
+        } else {
+            helperCard.style.display = 'none';
+        }
+    }
+}
+
 function checkProductPlusPeriod() {
     const sel = document.getElementById('mProductSelect');
     const customInput = document.getElementById('mProductCustom');
