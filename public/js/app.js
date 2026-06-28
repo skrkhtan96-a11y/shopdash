@@ -1949,8 +1949,9 @@ function renderExpRows(data) {
     <td style="font-size:10px;color:var(--text3);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note || ''}</td>
     <td onclick="event.stopPropagation();">
       <div style="display:flex;gap:4px">
-        ${canEdit ? `<button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="editRow(${r.id},'expense')"><i class="ti ti-edit"></i></button>` : ''}
-        ${canDelete ? `<button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="delRow(${r.id},'expense')"><i class="ti ti-trash"></i></button>` : ''}
+        ${canEdit ? `<button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--green);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="cloneRow(${r.id},'expense')" title="تكرار البند"><i class="ti ti-copy"></i></button>` : ''}
+        ${canEdit ? `<button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="editRow(${r.id},'expense')" title="تعديل"><i class="ti ti-edit"></i></button>` : ''}
+        ${canDelete ? `<button style="width:24px;height:24px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--red);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" onclick="delRow(${r.id},'expense')" title="حذف"><i class="ti ti-trash"></i></button>` : ''}
       </div>
     </td>
   </tr>`).join('') || '<tr><td colspan="8"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد بنود مصروفات حالياً</p></div></td></tr>';
@@ -2938,6 +2939,80 @@ function editRow(id, type) {
     document.getElementById('mCat').value = row.cat || 'أخرى';
     
     document.getElementById('modalTitle').innerHTML = `<i class="ti ti-edit" style="color:var(--amber)"></i> تعديل بند المصروفات`;
+    
+    // تفعيل وتحديث الحقول الديناميكية
+    toggleMFields();
+    
+    // تعبئة الحقول الديناميكية بناءً على الفئة المسترجعة
+    if (row.cat === 'شراء منتجات') {
+        populateProductsDropdown();
+        const sel = document.getElementById('mProductSelect');
+        const customInput = document.getElementById('mProductCustom');
+        
+        let found = false;
+        if (row.product_name) {
+            for (let opt of sel.options) {
+                if (opt.value === row.product_name) {
+                    sel.value = row.product_name;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                sel.value = 'custom';
+                customInput.style.display = 'block';
+                customInput.value = row.product_name;
+            }
+        } else {
+            sel.value = '';
+        }
+        
+        document.getElementById('mQuantity').value = row.quantity || '';
+        document.getElementById('mPurchasePrice').value = row.purchase_price || '';
+        document.getElementById('mSellingPrice').value = row.selling_price || '';
+        
+        const mPeriod = document.getElementById('mPeriod');
+        if (mPeriod) {
+            mPeriod.value = row.period || '';
+        }
+        checkProductPlusPeriod();
+        
+        // تحديث المجموع المحسوب المعروض
+        const qty = parseInt(row.quantity) || 0;
+        const price = parseFloat(row.purchase_price) || 0;
+        document.getElementById('mCalcTotal').textContent = fmt(qty * price);
+    } else if (row.cat === 'تسويق') {
+        if (row.platform_name) {
+            document.getElementById('mPlatformSelect').value = row.platform_name;
+        }
+    }
+    
+    const mReceiptUrl = document.getElementById('mReceiptUrl');
+    if (mReceiptUrl) {
+        mReceiptUrl.value = row.receipt_url || '';
+    }
+    updateDropzonePreview('expense', row.receipt_url || '');
+    
+    document.getElementById('addModal').classList.add('open');
+}
+
+function cloneRow(id, type) {
+    if (state.viewingArc) { toast('الشهر مؤرشف للقراءة فقط', 'warn'); return; }
+    if (state.user && state.user.role !== 'admin' && !state.user.can_add_expenses) { toast('عذراً، لا تملك الصلاحية لإضافة مصروفات.', 'warn'); return; }
+    state.editingId = null;
+    state.editingType = 'expense';
+
+    const row = state.expenses.find(e => e.id === id);
+    if (!row) return;
+
+    document.getElementById('mType').value = 'expense';
+    document.getElementById('mDesc').value = row.desc || '';
+    document.getElementById('mAmt').value = row.amt || 0;
+    document.getElementById('mDate').value = TODAY;
+    document.getElementById('mNote').value = row.note || '';
+    document.getElementById('mCat').value = row.cat || 'أخرى';
+    
+    document.getElementById('modalTitle').innerHTML = `<i class="ti ti-copy" style="color:var(--green)"></i> تكرار بند المصروفات`;
     
     // تفعيل وتحديث الحقول الديناميكية
     toggleMFields();
