@@ -79,20 +79,18 @@ body {
   flex-direction: column;
   position: fixed;
   top: 0;
-  right: -280px;
+  right: 0;
   height: 100vh;
   z-index: 1000;
   overflow-y: auto;
   transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.sidebar.open {
-  right: 0;
 }
 
 .content {
   flex: 1;
   min-width: 0;
   overflow-x: hidden;
+  margin-right: 260px;
 }
 
 /* ── SIDEBAR ── */
@@ -190,9 +188,9 @@ body {
   margin: 2px 8px;
   border-radius: var(--r);
   
-  /* Initial state for slide-in animation */
-  opacity: 0;
-  transform: translateX(15px);
+  /* Default visible on desktop */
+  opacity: 1;
+  transform: translateX(0);
   transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), 
               opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1),
               background 0.2s ease, 
@@ -200,18 +198,13 @@ body {
               border-color 0.2s ease;
 }
 
-.sidebar.open .nav-item {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.sidebar.open .nav-item:hover {
+.nav-item:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
   transform: translateX(-5px);
 }
 
-.sidebar.open .nav-item.active {
+.nav-item.active {
   color: var(--accent);
   background: var(--accent3);
   border-right-color: var(--accent);
@@ -1317,6 +1310,16 @@ textarea {
 }
 
 @media (max-width: 880px) {
+  .sidebar {
+    right: -280px;
+  }
+  .sidebar.open {
+    right: 0;
+  }
+  .content {
+    margin-right: 0;
+  }
+
   .menu-toggle {
     display: inline-flex;
   }
@@ -1329,6 +1332,31 @@ textarea {
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+  
+  /* Mobile staggered animation inside drawer */
+  .sidebar .nav-item {
+    opacity: 0;
+    transform: translateX(15px);
+  }
+  
+  .sidebar.open .nav-item {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  .sidebar.open .nav-item:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateX(-5px);
+  }
+  
+  .sidebar.open .nav-item.active {
+    color: var(--accent);
+    background: var(--accent3);
+    border-right-color: var(--accent);
+    font-weight: 600;
+    transform: translateX(-5px);
   }
 
   .charts-row {
