@@ -2595,9 +2595,12 @@ function filterProductsDropdown() {
     const searchInput = document.getElementById('mProductSearch');
     const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-    // تجميع أسماء المنتجات الموحدة من دليل المنتجات (state.inventoryProducts)
-    const uniqueProducts = (state.inventoryProducts || [])
-        .map(p => p.product_name.trim())
+    // تجميع أسماء المنتجات الموحدة من دليل المنتجات (state.inventoryProducts) ومن قائمة أسعار المنتجات (state.pricingRules)
+    const prodNamesFromInventory = (state.inventoryProducts || []).map(p => p.product_name.trim());
+    const prodNamesFromPricing = (state.pricingRules || []).map(r => r.product_name.trim());
+    const combined = [...prodNamesFromInventory, ...prodNamesFromPricing];
+
+    const uniqueProducts = combined
         .filter((val, idx, self) => val && self.indexOf(val) === idx)
         .sort();
 
