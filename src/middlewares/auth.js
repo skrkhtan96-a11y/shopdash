@@ -64,7 +64,7 @@ const authenticateMcp = (req, res, next) => {
 };
 
 const sessionStaticCheckMiddleware = (req, res, next) => {
-    const publicPages = ['/login.html'];
+    const publicPages = ['/login.html', '/privacy.html'];
     const isHtmlOrRoot = req.path === '/' || req.path.endsWith('.html');
     
     if (isHtmlOrRoot && !publicPages.includes(req.path)) {
