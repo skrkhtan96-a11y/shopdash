@@ -10153,6 +10153,7 @@ const COUNTRY_WALLETS = {
     'سوريا': [
         { value: 'سيرياتيل كاش (سوريا)', label: '📱 سيرياتيل كاش (سوريا)' },
         { value: 'MTN Cash (سوريا)', label: '📱 MTN Cash (سوريا)' },
+        { value: 'شام كاش (سوريا)', label: '📱 شام كاش (سوريا)' },
         { value: 'حساب USD', label: '💵 حساب USD' }
     ],
     'الأردن': [
@@ -10162,6 +10163,7 @@ const COUNTRY_WALLETS = {
         { value: 'حساب USD', label: '💵 حساب USD' }
     ],
     'السعودية': [
+        { value: 'حساب الوثيقة', label: '🏦 حساب الوثيقة' },
         { value: 'STC Pay (السعودية)', label: '📱 STC Pay (السعودية)' },
         { value: 'Urpay (السعودية)', label: '📱 Urpay (السعودية)' },
         { value: 'مصرف الراجحي (السعودية)', label: '🏦 مصرف الراجحي (السعودية)' },
