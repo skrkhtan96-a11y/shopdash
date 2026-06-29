@@ -209,6 +209,54 @@
       <p>قد نحدّث هذه السياسة من وقت لآخر. عند إجراء أي تعديل جوهري، سيُحدَّث تاريخ «آخر تحديث» الظاهر أعلى الصفحة.</p>
     </div>
 
+    <!-- Section 8: Technical Salla Integration Details -->
+    <div class="section" id="s8">
+      <div class="section-header">
+        <div class="section-num">٨</div>
+        <div class="section-title">التفاصيل التقنية ومستويات الأمان للربط بـ سلة</div>
+      </div>
+      <p>يتبع تطبيق شوب داش أعلى معايير الحماية والأمان التقنية التي تفرضها منصة سلة (Salla) لضمان حماية بيانات متجرك وحساباتك:</p>
+      
+      <ul class="data-list" style="margin-top:16px;">
+        <li>
+          <span class="icon">🔌</span>
+          <div>
+            <strong>1. بروتوكول OAuth 2.0 (المصادقة والربط الآمن):</strong>
+            <p style="font-size:12px; margin-top:4px; color:var(--text2);">
+              يتم ربط المتجر عبر بروتوكول المصادقة العالمي المعتمد من سلة. نقوم بتوليد معامل حالة عشوائي مؤقت (CSRF State Cookie) بمدة صلاحية 10 دقائق فقط للتحقق من سلامة طلب الربط ومنع هجمات التزوير.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="icon">🔑</span>
+          <div>
+            <strong>2. إدارة وتحديث التوكنات (Token Lifecycle):</strong>
+            <p style="font-size:12px; margin-top:4px; color:var(--text2);">
+              يتم تخزين توكنات الوصول والتجديد (Access &amp; Refresh Tokens) في قاعدة بيانات داخلية معزولة تماماً خارج مجلد الويب العام. يتم تجديد التوكن تلقائياً (Auto-Refresh) قبل انتهائه بـ 5 دقائق لحماية استمرارية العمل دون حفظ كلمات مرور متجرك.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="icon">🛡️</span>
+          <div>
+            <strong>3. التحقق الرقمي HMAC-SHA256 (الويب هوك):</strong>
+            <p style="font-size:12px; margin-top:4px; color:var(--text2);">
+              يتم فحص وتأكيد مصدر كافة الإشعارات الفورية (Webhooks) الواردة من منصة سلة باستخدام خوارزمية التشفير الثنائي HMAC-SHA256 مقارنة بالبيانات الخام (Raw Body). يتم استخدام المقارنة الآمنة زمنياً (timingSafeEqual) لصد هجمات قياس الوقت (Timing Attacks).
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="icon">🔎</span>
+          <div>
+            <strong>4. صلاحيات القراءة فقط (Read-Only Minimum Scope):</strong>
+            <p style="font-size:12px; margin-top:4px; color:var(--text2);">
+              يلتزم التطبيق بمبدأ الحد الأدنى من الصلاحيات؛ حيث تقتصر الصلاحيات المطلوبة على قراءة الطلبات والمنتجات وتفاصيل المحفظة فقط دون طلب أي صلاحيات تعديل أو كتابة (No Write Permissions) لضمان سلامة متجرك تماماً.
+            </p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
     <div class="contact-card">
       <div class="ct">تواصل معنا</div>
       <div class="cs">لأي استفسار حول الخصوصية أو لطلب حذف بياناتك</div>
