@@ -13,6 +13,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
         console.error('خطأ أثناء فتح قاعدة البيانات:', err.message);
     } else {
         console.log(isTest ? '🧪 Test SQLite DB connected in-memory (:memory:)' : 'قاعدة البيانات متصلة بنجاح (SQLite)');
+        // تفعيل وضع WAL وزيادة مهلة الانتظار عند التعارض (busy_timeout) لمنع أخطاء قفل البيانات
+        db.run("PRAGMA journal_mode=WAL;");
+        db.run("PRAGMA busy_timeout=5000;");
     }
 });
 

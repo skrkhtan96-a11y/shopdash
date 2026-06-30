@@ -984,6 +984,26 @@ function renderOrders() {
         return;
     }
     
+    function attrLabel(attr) {
+        if (!attr || !attr.platform) {
+            return `<span style="color:var(--text3); font-size:10.5px">مباشر / عضوي</span>`;
+        }
+        const plat = attr.platform.toLowerCase();
+        let platLabel = attr.platform;
+        if (plat === 'facebook' || plat === 'instagram' || plat === 'meta') platLabel = 'Meta Ads';
+        else if (plat === 'tiktok') platLabel = 'TikTok Ads';
+        else if (plat === 'snapchat') platLabel = 'Snapchat';
+        else if (plat === 'google') platLabel = 'Google Ads';
+        
+        if (attr.method === 'thank_you_page') {
+            return `<span style="color:#10b981; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:3px" title="إسناد موثوق 100% (صفحة الشكر)"><i class="ti ti-circle-check"></i> ${platLabel}</span>`;
+        } else if (attr.method === 'fallback_time_utm') {
+            return `<span style="color:#3b82f6; font-size:11px; font-weight:500; display:inline-flex; align-items:center; gap:3px" title="إسناد تقديري (مستند للتوقيت والجلسة)"><i class="ti ti-info-circle"></i> ${platLabel} <span style="font-size:9px; opacity:0.8">(تقديري)</span></span>`;
+        } else {
+            return `<span style="color:#f59e0b; font-size:11px; font-weight:500; display:inline-flex; align-items:center; gap:3px" title="إسناد تلقائي من ويب هوك سلة"><i class="ti ti-cpu"></i> ${platLabel} <span style="font-size:9px; opacity:0.8">(سلة)</span></span>`;
+        }
+    }
+
     body.innerHTML = sallaOrders.map((o, i) => {
         const amt = o.payment_actions?.refund_action?.paid_amount?.amount ?? o.total?.amount ?? 0;
         const prod = o.items?.[0] || {};
@@ -998,6 +1018,7 @@ function renderOrders() {
           <td><div class="product-chip">${thumb}<span class="product-name">${prod.name || '-'}</span></div></td>
           <td style="font-size:11px;color:var(--text2)">${o.customer?.full_name || '-'}</td>
           <td style="font-size:10px;color:var(--text3)">${payLabel(o.payment_method)}</td>
+          <td>${attrLabel(o.attribution)}</td>
           <td><span class="mono green">${fmt(amt)}</span></td>
           <td><span class="pill ${stCls}">${stName}</span></td>
           <td style="font-size:11px;color:var(--text3)">${fmtDate(date)}</td>
@@ -1005,7 +1026,7 @@ function renderOrders() {
     }).join('');
     
     const total = sallaOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || 0), 0);
-    document.getElementById('ordFoot').innerHTML = `<tr class="tbl-foot"><td colspan="5">الإجمالي (${sallaOrders.length})</td><td><span class="mono green">${fmt(total)}</span></td><td colspan="2"></td></tr>`;
+    document.getElementById('ordFoot').innerHTML = `<tr class="tbl-foot"><td colspan="6">الإجمالي (${sallaOrders.length})</td><td><span class="mono green">${fmt(total)}</span></td><td colspan="2"></td></tr>`;
     
     // Pager
     const pg = document.getElementById('ordPager');

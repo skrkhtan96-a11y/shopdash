@@ -263,7 +263,7 @@ router.get('/orders', authenticateUser, async (req, res) => {
     // pagination, sorting, custom filtering, and high per_page values (like 3000) that Salla API doesn't support.
     db.get("SELECT COUNT(*) as count FROM salla_imported_orders", [], async (err, countRow) => {
         if (!err && countRow && countRow.count > 0) {
-            let query = "SELECT * FROM salla_imported_orders WHERE 1=1";
+            let query = "SELECT o.*, oa.platform as attr_platform, oa.match_method as attr_method, oa.confidence as attr_confidence FROM salla_imported_orders o LEFT JOIN order_attribution oa ON o.reference_id = oa.order_id OR o.reference_id LIKE oa.order_id || '_%' WHERE 1=1";
             const params = [];
 
             if (status) {
@@ -333,6 +333,11 @@ router.get('/orders', authenticateUser, async (req, res) => {
                         customized: { name: r.status_name || 'تم التنفيذ' }
                     },
                     payment_method: r.payment_method || 'mada',
+                    attribution: {
+                        platform: r.attr_platform || null,
+                        method: r.attr_method || null,
+                        confidence: r.attr_confidence || null
+                    },
                     items: [
                         {
                             name: r.product_name || '-',
