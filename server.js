@@ -134,8 +134,8 @@ app.use((err, req, res, next) => {
 
 // Auto-Sync Salla Orders Background Jobs
 const { syncSallaOrdersToLocal } = sallaRouter;
-// Run auto-sync every 5 hours
-setInterval(syncSallaOrdersToLocal, 5 * 60 * 60 * 1000);
+// Run auto-sync every 1 hour (Reconciliation Cron)
+setInterval(syncSallaOrdersToLocal, 1 * 60 * 60 * 1000);
 // Run initial sync after 10 seconds of server startup
 setTimeout(syncSallaOrdersToLocal, 10000);
 

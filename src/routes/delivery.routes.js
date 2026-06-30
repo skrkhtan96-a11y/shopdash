@@ -219,14 +219,17 @@ router.post('/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
             const deliveredAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
             let query = '';
             if (slot === 'ps5_1') {
-                query = "UPDATE ps_plus_accounts SET ps5_1_order = ?, ps5_1_phone = ?, ps5_1_status = 'delivered', ps5_1_delivered_by = ?, ps5_1_delivered_at = ? WHERE id = ?";
+                query = "UPDATE ps_plus_accounts SET ps5_1_order = ?, ps5_1_phone = ?, ps5_1_status = 'delivered', ps5_1_delivered_by = ?, ps5_1_delivered_at = ? WHERE id = ? AND (ps5_1_status = 'available' OR ps5_1_status IS NULL OR ps5_1_status = '')";
             } else if (slot === 'ps5_2') {
-                query = "UPDATE ps_plus_accounts SET ps5_2_order = ?, ps5_2_phone = ?, ps5_2_status = 'delivered', ps5_2_delivered_by = ?, ps5_2_delivered_at = ? WHERE id = ?";
+                query = "UPDATE ps_plus_accounts SET ps5_2_order = ?, ps5_2_phone = ?, ps5_2_status = 'delivered', ps5_2_delivered_by = ?, ps5_2_delivered_at = ? WHERE id = ? AND (ps5_2_status = 'available' OR ps5_2_status IS NULL OR ps5_2_status = '')";
             } else if (slot === 'ps4') {
-                query = "UPDATE ps_plus_accounts SET ps4_order = ?, ps4_phone = ?, ps4_status = 'delivered', ps4_delivered_by = ?, ps4_delivered_at = ? WHERE id = ?";
+                query = "UPDATE ps_plus_accounts SET ps4_order = ?, ps4_phone = ?, ps4_status = 'delivered', ps4_delivered_by = ?, ps4_delivered_at = ? WHERE id = ? AND (ps4_status = 'available' OR ps4_status IS NULL OR ps4_status = '')";
             }
             db.run(query, [orderClean, phone ? phone.trim() : '', req.user.username, deliveredAt, id], function(errUpdate) {
                 if (errUpdate) return res.status(500).json({ error: errUpdate.message });
+                if (this.changes === 0) {
+                    return res.status(400).json({ error: 'عذراً، تم بيع أو حجز هذه النسخة للتو من قِبل موظف آخر. يرجى اختيار حساب آخر.' });
+                }
                 db.get("SELECT email, plus_type, plus_duration FROM ps_plus_accounts WHERE id = ?", [id], (errGet, accountRow) => {
                     const email = accountRow ? accountRow.email : 'غير معروف';
                     const type = accountRow ? accountRow.plus_type : '';
@@ -508,10 +511,13 @@ router.post('/games/slots/deliver', authenticateUser, (req, res) => {
 
             const deliveredAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
             db.run(
-                `UPDATE game_slots SET order_number = ?, phone = ?, status = 'delivered', delivered_by = ?, delivered_at = ? WHERE id = ?`,
+                `UPDATE game_slots SET order_number = ?, phone = ?, status = 'delivered', delivered_by = ?, delivered_at = ? WHERE id = ? AND (status = 'available' OR status IS NULL OR status = '')`,
                 [orderClean, phone ? phone.trim() : '', req.user.username, deliveredAt, slot_id],
                 function(errUpdate) {
                     if (errUpdate) return res.status(500).json({ error: errUpdate.message });
+                    if (this.changes === 0) {
+                        return res.status(400).json({ error: 'عذراً، تم بيع أو حجز هذه النسخة للتو من قِبل موظف آخر. يرجى اختيار نسخة أخرى.' });
+                    }
                     
                     db.get(
                         `SELECT ga.email, ga.game_name, gs.slot_type, gs.slot_index 

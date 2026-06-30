@@ -37,6 +37,7 @@
     var utm_source = urlParams.get('utm_source');
     var utm_medium = urlParams.get('utm_medium');
     var utm_campaign = urlParams.get('utm_campaign');
+    var utm_id = urlParams.get('utm_id') || urlParams.get('campaign_id') || urlParams.get('__CAMPAIGN_ID__') || '';
     var utm_content = urlParams.get('utm_content');
     var utm_term = urlParams.get('utm_term');
 
@@ -59,7 +60,7 @@
         } catch(e) {}
     }
 
-    var isAttributionVisit = utm_source || utm_medium || utm_campaign || fbclid || ttclid || sclid;
+    var isAttributionVisit = utm_source || utm_medium || utm_campaign || utm_id || fbclid || ttclid || sclid;
 
     // 4. إرسال حدث الزيارة في حال وجود معطيات إسناد
     if (isAttributionVisit) {
@@ -68,6 +69,7 @@
             utm_source: utm_source,
             utm_medium: utm_medium,
             utm_campaign: utm_campaign,
+            utm_campaign_id: utm_id,
             utm_content: utm_content,
             utm_term: utm_term,
             fbclid: fbclid,

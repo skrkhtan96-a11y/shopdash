@@ -302,15 +302,17 @@ router.get('/dashboard', authenticateUser, (req, res) => {
                 db.all(dailySalesQuery, [from, to], (errDailySales, dailySalesRows) => {
                     if (errDailySales) return res.status(500).json({ error: errDailySales.message });
 
-                    // دمج البيانات ومقارنتها بالـ Campaign ID
+                    // دمج البيانات ومقارنتها بالـ Campaign ID أو الاسم كخيار احتياطي
                     const campaignsMap = {};
 
                     // 1. ملء بيانات الصرف
                     spendRows.forEach(s => {
                         const baseCampaignId = s.campaign_id.split('_')[0];
-                        const key = `${s.platform}_${baseCampaignId}`;
+                        // نقوم بالتخزين بالـ ID والـ Name لتمكين المطابقة الثنائية
+                        const keyId = `${s.platform}_id_${baseCampaignId}`;
+                        const keyName = `${s.platform}_name_${(s.campaign_name || '').toLowerCase().trim()}`;
                         
-                        campaignsMap[key] = {
+                        const campaignObj = {
                             platform: s.platform,
                             campaign_id: baseCampaignId,
                             campaign_name: s.campaign_name,
@@ -320,15 +322,29 @@ router.get('/dashboard', authenticateUser, (req, res) => {
                             orders: 0,
                             sales: 0
                         };
+
+                        if (baseCampaignId) campaignsMap[keyId] = campaignObj;
+                        campaignsMap[keyName] = campaignObj;
                     });
 
                     // 2. ملء بيانات المبيعات الفعلية المسندة
                     salesRows.forEach(sa => {
                         const baseCampaignId = sa.campaign_id || '';
-                        const key = `${sa.platform}_${baseCampaignId}`;
+                        const baseCampaignName = (sa.campaign_name || '').toLowerCase().trim();
+                        
+                        const keyId = `${sa.platform}_id_${baseCampaignId}`;
+                        const keyName = `${sa.platform}_name_${baseCampaignName}`;
 
-                        if (!campaignsMap[key]) {
-                            campaignsMap[key] = {
+                        // نحاول المطابقة بالـ ID أولاً، ثم بالاسم كاحتياط
+                        let campaignObj = null;
+                        if (baseCampaignId && campaignsMap[keyId]) {
+                            campaignObj = campaignsMap[keyId];
+                        } else if (baseCampaignName && campaignsMap[keyName]) {
+                            campaignObj = campaignsMap[keyName];
+                        }
+
+                        if (!campaignObj) {
+                            campaignObj = {
                                 platform: sa.platform,
                                 campaign_id: baseCampaignId,
                                 campaign_name: sa.campaign_name || 'حملة غير مصنفة',
@@ -338,13 +354,18 @@ router.get('/dashboard', authenticateUser, (req, res) => {
                                 orders: 0,
                                 sales: 0
                             };
+                            if (baseCampaignId) campaignsMap[keyId] = campaignObj;
+                            if (baseCampaignName) campaignsMap[keyName] = campaignObj;
                         }
                         
-                        campaignsMap[key].orders += sa.orders_count || 0;
-                        campaignsMap[key].sales += sa.sales_amount || 0;
+                        campaignObj.orders += sa.orders_count || 0;
+                        campaignObj.sales += sa.sales_amount || 0;
                     });
 
-                    const campaignsList = Object.values(campaignsMap).map(c => {
+                    // تصفية الكائنات الفريدة لمنع التكرار الناتج عن حفظ كبسات المفاتيح المتعددة لنفس الحملة
+                    const uniqueCampaigns = Array.from(new Set(Object.values(campaignsMap)));
+
+                    const campaignsList = uniqueCampaigns.map(c => {
                         const roas = c.spend > 0 ? (c.sales / c.spend) : 0;
                         const cpa = c.orders > 0 ? (c.spend / c.orders) : 0;
                         return {

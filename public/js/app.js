@@ -14224,8 +14224,47 @@ function closeSallaOrderDetailsModal() {
 }
 
 // ── PLAYSTATION PLUS DELIVERY INTEG ──
+function normalizeProductName(str) {
+    if (!str) return '';
+    let normalized = str.toLowerCase();
+    
+    // 1. استبدال الأرقام الهندية بالإنجليزية
+    const hindiNumerals = {'٠':'0', '١':'1', '٢':'2', '٣':'3', '٤':'4', '٥':'5', '٦':'6', '٧':'7', '٨':'8', '٩':'9'};
+    for (let char in hindiNumerals) {
+        normalized = normalized.split(char).join(hindiNumerals[char]);
+    }
+    
+    // 2. توحيد الحروف المتشابهة (الألف الممدودة، الياء، التاء المربوطة)
+    normalized = normalized.replace(/[أإآ]/g, 'ا');
+    normalized = normalized.replace(/ة/g, 'ه');
+    normalized = normalized.replace(/ى/g, 'i'); // توحيد الياء والـ y
+    normalized = normalized.replace(/ي/g, 'ي');
+    
+    // 3. إزالة الحركات والتنوين
+    normalized = normalized.replace(/[\u064B-\u0652]/g, "");
+    
+    // 4. تطبيع المترادفات للمدد والمنصة والفئات
+    if (normalized.includes('12 شهر') || normalized.includes('١٢ شهر') || normalized.includes('سنوي') || normalized.includes('سنه')) {
+        normalized += ' سنة';
+    }
+    if (normalized.includes('3 اشهر') || normalized.includes('3 أشهر') || normalized.includes('ثلاثه اشهر') || normalized.includes('3')) {
+        normalized += ' 3 أشهر';
+    }
+    if (normalized.includes('اضافي') || normalized.includes('إضافي') || normalized.includes('اكسترا')) {
+        normalized += ' اضافي';
+    }
+    if (normalized.includes('اساسي') || normalized.includes('أساسي') || normalized.includes('ايسنشال')) {
+        normalized += ' اساسي';
+    }
+    if (normalized.includes('فاخر') || normalized.includes('ديلوكس') || normalized.includes('بريميوم')) {
+        normalized += ' فاخر';
+    }
+    
+    return normalized;
+}
+
 function parsePlusRequirements(productName) {
-    const name = (productName || '').toLowerCase();
+    const name = normalizeProductName(productName);
     let consoleType = 'PS5';
     if (name.includes('ps4') || name.includes('4') || name.includes('بلايستيشن 4') || name.includes('بلاي ستيشن 4')) {
         consoleType = 'PS4';
@@ -14234,18 +14273,18 @@ function parsePlusRequirements(productName) {
     }
     
     let tier = 'اساسي';
-    if (name.includes('اساسي') || name.includes('أساسي') || name.includes('essential')) {
+    if (name.includes('اساسي') || name.includes('essential')) {
         tier = 'اساسي';
-    } else if (name.includes('اضافي') || name.includes('إضافي') || name.includes('extra')) {
+    } else if (name.includes('اضافي') || name.includes('extra')) {
         tier = 'اضافي';
-    } else if (name.includes('فاخر') || name.includes('deluxe') || name.includes('premium') || name.includes('بريميوم')) {
+    } else if (name.includes('فاخر') || name.includes('deluxe') || name.includes('premium')) {
         tier = 'فاخر';
     }
     
     let duration = 'شهري';
-    if (name.includes('سنة') || name.includes('سنوي') || name.includes('yearly') || name.includes('12')) {
+    if (name.includes('سنة') || name.includes('yearly')) {
         duration = 'سنة';
-    } else if (name.includes('3 أشهر') || name.includes('3 اشهر') || name.includes('3')) {
+    } else if (name.includes('3 أشهر')) {
         duration = '3 أشهر';
     } else if (name.includes('شهر') || name.includes('monthly') || name.includes('شهري')) {
         duration = 'شهري';

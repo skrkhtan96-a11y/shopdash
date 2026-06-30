@@ -182,8 +182,25 @@ const SallaService = {
             
             await new Promise((resolve, reject) => {
                 stmt.finalize((err) => {
-                    if (err) reject(err);
-                    else resolve();
+                    if (err) {
+                        reject(err);
+                    } else {
+                        // تشغيل الإسناد الاحتياطي لكل طلب للتأكد من عدم ضياع الإسناد
+                        try {
+                            const { performFallbackAttribution } = require('../routes/salla.routes');
+                            orders.forEach(o => {
+                                const refId = String(o.reference_id);
+                                performFallbackAttribution(refId, o, (errMatch, result) => {
+                                    if (errMatch) {
+                                        console.error(`[SallaSync] Error during fallback attribution for order ${refId}:`, errMatch.message);
+                                    }
+                                });
+                            });
+                        } catch (e) {
+                            console.error('[SallaSync] Failed to perform fallback attribution during sync:', e.message);
+                        }
+                        resolve();
+                    }
                 });
             });
             
