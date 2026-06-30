@@ -608,15 +608,15 @@ router.post('/webhook', async (req, res) => {
         if (['order.created', 'order.updated', 'order.status.updated'].includes(eventName) && payload.data) {
             const o = payload.data;
             const refId = String(o.reference_id);
-            let dateStr = new Date().toISOString().split('T')[0];
+            let dateStr = new Date().toISOString().substring(0, 10);
             const rawDate = o.date || o.created_at;
             if (rawDate) {
                 if (typeof rawDate === 'number') {
-                    dateStr = new Date(rawDate * 1000).toISOString().split('T')[0];
+                    dateStr = new Date(rawDate * 1000).toISOString().substring(0, 10);
                 } else if (typeof rawDate === 'string') {
-                    dateStr = rawDate.split(' ')[0];
+                    dateStr = rawDate.substring(0, 10);
                 } else if (typeof rawDate === 'object' && rawDate.date) {
-                    dateStr = rawDate.date.split(' ')[0];
+                    dateStr = rawDate.date.substring(0, 10);
                 }
             }
             const statusSlug = o.status?.slug || 'completed';
@@ -874,10 +874,10 @@ function performFallbackAttribution(orderId, o, callback) {
             return callback(null, { platform: 'already_attributed', campaign_id: '' });
         }
         
-        // 3. البحث في الجلسات النشطة خلال الساعتين الماضيتين
+        // 3. البحث في الجلسات النشطة خلال الساعة الماضية فقط لتجنب التداخل
         let matchQuery = `
             SELECT * FROM attribution_sessions 
-            WHERE datetime(created_at) >= datetime(?, '-2 hours')
+            WHERE datetime(created_at) >= datetime(?, '-1 hours')
         `;
         const matchParams = [orderDate];
         
@@ -901,7 +901,7 @@ function performFallbackAttribution(orderId, o, callback) {
             if (!err && session) {
                 sdVid = session.sd_vid;
                 matchMethod = 'fallback_time_utm';
-                confidence = 0.8;
+                confidence = 0.4; // ثقة منخفضة للإسناد الزمني التقديري
                 
                 try {
                     touchData = JSON.parse(session.last_touch || session.first_touch);

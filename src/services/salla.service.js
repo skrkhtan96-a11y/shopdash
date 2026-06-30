@@ -122,15 +122,15 @@ const SallaService = {
             
             orders.forEach(o => {
                 const refId = String(o.reference_id);
-                let dateStr = new Date().toISOString().split('T')[0];
+                let dateStr = new Date().toISOString().substring(0, 10);
                 const rawDate = o.date || o.created_at;
                 if (rawDate) {
                     if (typeof rawDate === 'number') {
-                        dateStr = new Date(rawDate * 1000).toISOString().split('T')[0];
+                        dateStr = new Date(rawDate * 1000).toISOString().substring(0, 10);
                     } else if (typeof rawDate === 'string') {
-                        dateStr = rawDate.split(' ')[0];
+                        dateStr = rawDate.substring(0, 10);
                     } else if (typeof rawDate === 'object' && rawDate.date) {
-                        dateStr = rawDate.date.split(' ')[0];
+                        dateStr = rawDate.date.substring(0, 10);
                     }
                 }
                 const statusSlug = o.status?.slug || 'completed';

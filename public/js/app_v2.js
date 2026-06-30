@@ -5831,8 +5831,9 @@ function renderCampaigns() {
     const from = document.getElementById('adFrom')?.value || '';
     const to = document.getElementById('adTo')?.value || '';
     const platform = document.getElementById('adPlatformFilter')?.value || '';
+    const reliableOnly = document.getElementById('adReliableOnly')?.checked || false;
 
-    const url = `/api/attribution/dashboard?from=${from}&to=${to}`;
+    const url = `/api/attribution/dashboard?from=${from}&to=${to}&reliable_only=${reliableOnly}`;
     
     fetch(url)
         .then(res => res.json())

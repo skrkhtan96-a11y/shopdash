@@ -241,6 +241,7 @@ router.post('/bind', (req, res) => {
 router.get('/dashboard', authenticateUser, (req, res) => {
     const from = req.query.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const to = req.query.to || new Date().toISOString().split('T')[0];
+    const reliableOnly = req.query.reliable_only === 'true';
 
     // جلب تكاليف صرف الحملات من جدول إحصائيات المنصات المدمج
     const spendQuery = `
@@ -257,8 +258,7 @@ router.get('/dashboard', authenticateUser, (req, res) => {
     `;
 
     // جلب المبيعات الفعلية المسندة للطلبات المدفوعة
-    // الطلبات المدفوعة تعني الحالات غير الملغاة وغير المسترجعة (status_slug != 'canceled' / 'refunded')
-    const salesQuery = `
+    let salesQuery = `
         SELECT 
             oa.platform,
             oa.campaign_id,
@@ -269,8 +269,11 @@ router.get('/dashboard', authenticateUser, (req, res) => {
         JOIN salla_imported_orders o ON o.reference_id = oa.order_id OR o.reference_id LIKE oa.order_id || '_%'
         WHERE date(o.date) >= date(?) AND date(o.date) <= date(?)
           AND o.status_slug NOT IN ('canceled', 'refunded', 'returned')
-        GROUP BY oa.platform, oa.campaign_id, oa.campaign_name
     `;
+    if (reliableOnly) {
+        salesQuery += ` AND oa.match_method = 'thank_you_page'`;
+    }
+    salesQuery += ` GROUP BY oa.platform, oa.campaign_id, oa.campaign_name`;
 
     // استعلام الصرف اليومي للرسومات البيانية
     const dailySpendQuery = `
@@ -281,14 +284,17 @@ router.get('/dashboard', authenticateUser, (req, res) => {
     `;
 
     // استعلام المبيعات المسندة اليومية للرسومات البيانية
-    const dailySalesQuery = `
+    let dailySalesQuery = `
         SELECT date(o.date) as day, SUM(o.amount) as total_sales
         FROM order_attribution oa
         JOIN salla_imported_orders o ON o.reference_id = oa.order_id OR o.reference_id LIKE oa.order_id || '_%'
         WHERE date(o.date) >= date(?) AND date(o.date) <= date(?)
           AND o.status_slug NOT IN ('canceled', 'refunded', 'returned')
-        GROUP BY day
     `;
+    if (reliableOnly) {
+        dailySalesQuery += ` AND oa.match_method = 'thank_you_page'`;
+    }
+    dailySalesQuery += ` GROUP BY day`;
 
     db.all(spendQuery, [from, to], (errSpend, spendRows) => {
         if (errSpend) return res.status(500).json({ error: errSpend.message });
