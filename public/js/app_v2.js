@@ -14228,14 +14228,21 @@ function showSallaOrderDetails(refId) {
     
     let cleanPhone = '';
     if (phone && phone !== 'غير متوفر') {
-        phoneEl.textContent = phone;
-        // Clean phone number for WhatsApp link
         cleanPhone = phone.replace(/\D/g, '');
         if (cleanPhone.startsWith('05')) {
             cleanPhone = '966' + cleanPhone.substring(1);
         } else if (cleanPhone.startsWith('5') && cleanPhone.length === 9) {
             cleanPhone = '966' + cleanPhone;
         }
+        
+        let displayPhone = phone;
+        if (cleanPhone.startsWith('966')) {
+            displayPhone = '+966 ' + cleanPhone.substring(3);
+        } else if (cleanPhone) {
+            displayPhone = '+' + cleanPhone;
+        }
+        phoneEl.textContent = displayPhone;
+        
         if (waBtn) waBtn.style.display = 'inline-flex';
     } else {
         phoneEl.textContent = 'غير متوفر';
@@ -14377,8 +14384,14 @@ function initSodDeliveryWidget(order, productName) {
     sodCurrentOrder = order;
     sodCurrentRequirements = parsePlusRequirements(productName);
     
-    const reqText = `المنصة: ${sodCurrentRequirements.consoleType} | الفئة: ${sodCurrentRequirements.tier} | المدة: ${sodCurrentRequirements.duration}`;
-    document.getElementById('sodDetectedRequirements').textContent = `المطلوب: ${reqText}`;
+    // تهيئة فلاتر المتطلبات التفاعلية بالقيم المستخلصة تلقائياً
+    const consoleFilter = document.getElementById('sodConsoleFilter');
+    const tierFilter = document.getElementById('sodTierFilter');
+    const durationFilter = document.getElementById('sodDurationFilter');
+    
+    if (consoleFilter) consoleFilter.value = sodCurrentRequirements.consoleType || 'PS5';
+    if (tierFilter) tierFilter.value = sodCurrentRequirements.tier || 'اساسي';
+    if (durationFilter) durationFilter.value = sodCurrentRequirements.duration || 'شهري';
     
     const select = document.getElementById('sodDeliverySelect');
     select.innerHTML = '<option value="">-- جاري تحميل الحسابات المتوفرة... --</option>';
@@ -14403,48 +14416,67 @@ function initSodDeliveryWidget(order, productName) {
         });
 }
 
+// دالة تغيير الفلاتر يدوياً
+function onSodFilterChange() {
+    renderSodDeliveryOptions();
+}
+window.onSodFilterChange = onSodFilterChange;
+
 function renderSodDeliveryOptions() {
     const select = document.getElementById('sodDeliverySelect');
     select.innerHTML = '<option value="">-- اختر النسخة للتسليم --</option>';
     
+    // قراءة القيم المحددة في فلاتر التصفية التفاعلية
+    const reqConsole = document.getElementById('sodConsoleFilter')?.value || 'PS5';
+    const reqTier = document.getElementById('sodTierFilter')?.value || 'اساسي';
+    const reqDuration = document.getElementById('sodDurationFilter')?.value || 'شهري';
+    
     const options = [];
     sodAvailableAccounts.forEach(acc => {
         if (acc.is_archived) return;
-        if (acc.ps5_1_status === 'available') {
-            options.push({ acc, slot: 'ps5_1', slotLabel: 'PS5 (النسخة الأولى)', consoleType: 'PS5' });
-        }
-        if (acc.ps5_2_status === 'available') {
-            options.push({ acc, slot: 'ps5_2', slotLabel: 'PS5 (النسخة الثانية)', consoleType: 'PS5' });
-        }
-        if (acc.ps4_status === 'available') {
-            options.push({ acc, slot: 'ps4', slotLabel: 'PS4', consoleType: 'PS4' });
+        
+        // التحقق من تطابق الفئة والمدة
+        if (String(acc.plus_type).trim() !== reqTier) return;
+        if (String(acc.plus_duration).trim() !== reqDuration) return;
+        
+        // التحقق من تطابق المنصة (النسخة) والتحقق من كونها متاحة
+        if (reqConsole === 'PS5') {
+            if (acc.ps5_1_status === 'available') {
+                options.push({ acc, slot: 'ps5_1', slotLabel: 'PS5 (النسخة الأولى)', consoleType: 'PS5' });
+            }
+            if (acc.ps5_2_status === 'available') {
+                options.push({ acc, slot: 'ps5_2', slotLabel: 'PS5 (النسخة الثانية)', consoleType: 'PS5' });
+            }
+        } else if (reqConsole === 'PS4') {
+            if (acc.ps4_status === 'available') {
+                options.push({ acc, slot: 'ps4', slotLabel: 'PS4', consoleType: 'PS4' });
+            }
         }
     });
     
+    // تحديث شارة أعداد المخزون المتوفر لهذه التوليفة المحددة
+    const badge = document.getElementById('sodStockCountBadge');
+    if (badge) {
+        if (options.length > 0) {
+            badge.textContent = `متوفر: ${options.length} نسخ`;
+            badge.style.background = 'rgba(16, 185, 129, 0.15)';
+            badge.style.color = '#10b981';
+        } else {
+            badge.textContent = `غير متوفر (0 نسخ)`;
+            badge.style.background = 'rgba(239, 68, 68, 0.15)';
+            badge.style.color = '#fca5a5';
+        }
+    }
+    
     if (options.length === 0) {
-        select.innerHTML = '<option value="">⚠️ لا توجد حسابات أو نسخ متوفرة في المخزن!</option>';
+        select.innerHTML = '<option value="">⚠️ لا توجد حسابات أو نسخ متوفرة مطابقة للفلاتر!</option>';
+        document.getElementById('sodMatchWarning').style.display = 'none';
+        document.getElementById('sodSelectedAccountDetails').style.display = 'none';
         return;
     }
     
     options.forEach(opt => {
-        let score = 0;
-        const matchesConsole = opt.consoleType === sodCurrentRequirements.consoleType;
-        const matchesTier = String(opt.acc.plus_type).trim() === sodCurrentRequirements.tier;
-        const matchesDuration = String(opt.acc.plus_duration).trim() === sodCurrentRequirements.duration;
-        
-        if (matchesConsole) score += 4;
-        if (matchesTier) score += 2;
-        if (matchesDuration) score += 1;
-        
-        opt.score = score;
-        opt.isExactMatch = matchesConsole && matchesTier && matchesDuration;
-    });
-    
-    options.sort((a, b) => b.score - a.score);
-    
-    options.forEach(opt => {
-        const exactTag = opt.isExactMatch ? '✨ (مطابق للطلب)' : '';
-        const label = `${opt.acc.plus_type} - ${opt.acc.plus_duration} | ${opt.acc.email} | ${opt.slotLabel} ${exactTag}`;
+        const label = `${opt.acc.plus_type} - ${opt.acc.plus_duration} | ${opt.acc.email} | ${opt.slotLabel}`;
         
         const el = document.createElement('option');
         el.value = `${opt.acc.id}_${opt.slot}`;
@@ -14452,7 +14484,7 @@ function renderSodDeliveryOptions() {
         el.dataset.email = opt.acc.email;
         el.dataset.password = opt.acc.password;
         el.dataset.code = (opt.slot === 'ps5_1' ? opt.acc.ps5_1_code : (opt.slot === 'ps5_2' ? opt.acc.ps5_2_code : opt.acc.ps4_code)) || 'لا يوجد كود تفعيل خاص';
-        el.dataset.exact = opt.isExactMatch ? 'true' : 'false';
+        el.dataset.exact = 'true';
         el.dataset.tier = opt.acc.plus_type;
         el.dataset.duration = opt.acc.plus_duration;
         el.dataset.console = opt.consoleType;
@@ -14483,26 +14515,9 @@ function handleSodSelectionChange() {
     document.getElementById('sodDelPassword').textContent = selectedOption.dataset.password;
     document.getElementById('sodDelCode').textContent = selectedOption.dataset.code;
     
-    const isExact = selectedOption.dataset.exact === 'true';
-    if (isExact) {
-        warningDiv.style.display = 'none';
-        confirmBtn.className = 'btn btn-success';
-    } else {
-        warningDiv.style.display = 'block';
-        confirmBtn.className = 'btn btn-danger';
-        
-        let mismatchDetails = [];
-        if (selectedOption.dataset.console !== sodCurrentRequirements.consoleType) {
-            mismatchDetails.push(`المنصة (${selectedOption.dataset.console} بدلاً من ${sodCurrentRequirements.consoleType})`);
-        }
-        if (selectedOption.dataset.tier !== sodCurrentRequirements.tier) {
-            mismatchDetails.push(`الفئة (${selectedOption.dataset.tier} بدلاً من ${sodCurrentRequirements.tier})`);
-        }
-        if (selectedOption.dataset.duration !== sodCurrentRequirements.duration) {
-            mismatchDetails.push(`المدة (${selectedOption.dataset.duration} بدلاً من ${sodCurrentRequirements.duration})`);
-        }
-        warningText.innerHTML = `<i class="ti ti-alert-triangle"></i> تنبيه: الحساب غير مطابق في: ${mismatchDetails.join('، ')}!`;
-    }
+    // بما أنها تمت فلترتها مسبقاً، فهي مطابقة تماماً
+    warningDiv.style.display = 'none';
+    confirmBtn.className = 'btn btn-success';
 }
 
 function handleSodDeliveryConfirm() {
@@ -14521,13 +14536,6 @@ function handleSodDeliveryConfirm() {
     
     const orderId = sodCurrentOrder.reference_id || sodCurrentOrder.id;
     const phone = sodCurrentOrder.customer?.mobile || sodCurrentOrder.customer?.phone || sodCurrentOrder.customer_phone || '';
-    
-    const isExact = selectedOption.dataset.exact === 'true';
-    if (!isExact) {
-        if (!confirm('⚠️ تنبيه: الحساب المختار لا يطابق طلب العميل تماماً. هل أنت متأكد من رغبتك في تسليم هذا الحساب؟')) {
-            return;
-        }
-    }
     
     const confirmBtn = document.getElementById('sodConfirmDeliveryBtn');
     confirmBtn.disabled = true;
@@ -14576,11 +14584,12 @@ function handleSodDeliveryConfirm() {
             }
             
             closeSallaOrderDetailsModal();
-            if (typeof loadOrders === 'function') {
-                loadOrders();
-            } else {
-                location.reload();
-            }
+            
+            // تحديث كافة الشاشات والقوائم المفتوحة بالخلفية
+            if (typeof loadOrders === 'function') loadOrders();
+            if (typeof loadPsPlusAccounts === 'function') loadPsPlusAccounts();
+            if (typeof loadGamesAccounts === 'function') loadGamesAccounts();
+            if (typeof loadInventoryDashboard === 'function') loadInventoryDashboard();
         }
     })
     .catch(err => {

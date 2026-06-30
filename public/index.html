@@ -3903,11 +3903,39 @@
 
       <!-- قسم تسليم الاشتراكات والألعاب الذكي -->
       <div id="sodDeliveryWidget" style="display:none; background:rgba(30, 41, 59, 0.5); padding:15px; border-radius:8px; border:1px dashed var(--accent); margin-top:15px;">
-        <div style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; display:flex; align-items:center; gap:6px">
-          <i class="ti ti-key"></i> بوابة التسليم الذكي لحسابات بلس والألعاب
+        <div style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="display:flex; align-items:center; gap:6px"><i class="ti ti-key"></i> بوابة التسليم الذكي لحسابات بلس والألعاب</span>
+          <span id="sodStockCountBadge" style="font-size:10px; font-weight:600; padding:2px 8px; border-radius:4px; background:rgba(16, 185, 129, 0.15); color:#10b981;">جاري حساب المخزن...</span>
         </div>
         
         <div style="display:grid; grid-template-columns:1fr; gap:12px;">
+          <!-- فلاتر متطلبات الطلب التفاعلية -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:var(--bg2); padding:10px; border-radius:6px; border:1px solid var(--border2)">
+            <div>
+              <label style="font-size:9.5px; color:var(--text3); display:block; margin-bottom:4px">المنصة المطلوبة</label>
+              <select id="sodConsoleFilter" class="form-control" style="width:100%; background:var(--bg3); color:#fff; border:1px solid var(--border2); padding:4px 6px; border-radius:4px; font-size:11.5px; cursor:pointer;" onchange="onSodFilterChange()">
+                <option value="PS5">PlayStation 5</option>
+                <option value="PS4">PlayStation 4</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:9.5px; color:var(--text3); display:block; margin-bottom:4px">الفئة المطلوبة</label>
+              <select id="sodTierFilter" class="form-control" style="width:100%; background:var(--bg3); color:#fff; border:1px solid var(--border2); padding:4px 6px; border-radius:4px; font-size:11.5px; cursor:pointer;" onchange="onSodFilterChange()">
+                <option value="اساسي">اساسي (Essential)</option>
+                <option value="اضافي">اضافي (Extra)</option>
+                <option value="فاخر">فاخر (Deluxe/Premium)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:9.5px; color:var(--text3); display:block; margin-bottom:4px">المدة المطلوبة</label>
+              <select id="sodDurationFilter" class="form-control" style="width:100%; background:var(--bg3); color:#fff; border:1px solid var(--border2); padding:4px 6px; border-radius:4px; font-size:11.5px; cursor:pointer;" onchange="onSodFilterChange()">
+                <option value="شهري">شهري (Monthly)</option>
+                <option value="3 أشهر">3 أشهر (3 Months)</option>
+                <option value="سنة">سنة (Yearly)</option>
+              </select>
+            </div>
+          </div>
+
           <!-- رسالة التحذير الذكية في حال عدم التطابق -->
           <div id="sodMatchWarning" style="display:none; background:rgba(239, 68, 68, 0.2); border:1px solid #ef4444; color:#fca5a5; padding:8px 12px; border-radius:6px; font-size:11px; font-weight:bold;">
             <i class="ti ti-alert-triangle"></i> <span id="sodMatchWarningText">تنبيه: الحساب غير مطابق لطلب العميل!</span>
@@ -3915,11 +3943,11 @@
 
           <div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
-              <label style="font-size:10px; color:var(--text3)">اختر الحساب والنسخة المتاحة من المخزن:</label>
-              <span id="sodDetectedRequirements" style="font-size:10px; color:var(--accent); font-weight:600">المطلوب: جاري الكشف...</span>
+              <label style="font-size:10px; color:var(--text3)">اختر الحساب والنسخة المتاحة للتسليم:</label>
+              <span id="sodDetectedRequirements" style="display:none;"></span>
             </div>
             <select id="sodDeliverySelect" class="form-control" style="width:100%; background:var(--bg2); color:#fff; border:1px solid var(--border2); padding:8px; border-radius:6px; font-size:12px;">
-              <option value="">-- جاري تحميل الحسابات المتوفرة... --</option>
+              <option value="">-- اختر الحساب من المخزن --</option>
             </select>
           </div>
           
