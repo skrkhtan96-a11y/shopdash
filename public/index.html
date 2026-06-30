@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
+  <meta name="facebook-domain-verification" content="6nsoryfjs4o6tyww77ovrfc3134nhp">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="logo.png">
   <title>شوب ستور — لوحة التحكم المتكاملة</title>
@@ -734,14 +735,17 @@
   <!-- APP SHELL -->
   <div class="shell">
 
+    <!-- SIDEBAR OVERLAY (dim backdrop) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)" aria-hidden="true"></div>
+
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar" role="dialog" aria-modal="true" aria-label="قائمة التنقل الجانبية">
       <div class="s-logo">
         <div style="display:flex; flex-direction:column;">
           <div class="s-logo-name"><i class="ti ti-chart-pie"></i> محاسبة الأعمال</div>
           <div class="s-logo-sub">لوحة التحكم المتكاملة</div>
         </div>
-        <button class="sidebar-close" onclick="toggleSidebar(false)" title="إغلاق القائمة"><i class="ti ti-x"></i></button>
+        <button class="sidebar-close" id="sidebarCloseBtn" onclick="toggleSidebar(false)" title="إغلاق القائمة" aria-label="إغلاق القائمة" aria-expanded="false" aria-controls="sidebar"><i class="ti ti-x"></i></button>
       </div>
       
       <!-- Store Badge & Disconnect Option -->
@@ -824,7 +828,7 @@
       <!-- TOPBAR -->
       <div class="topbar">
         <div class="topbar-left">
-          <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar(true)" title="فتح القائمة"><i class="ti ti-menu-2"></i></button>
+          <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar(true)" title="فتح القائمة" aria-label="فتح القائمة" aria-expanded="false" aria-controls="sidebar"><i class="ti ti-menu-2"></i></button>
           <div>
             <div class="page-title" id="pageTitle">نظرة عامة</div>
             <div class="page-sub" id="pageSub"></div>
@@ -1590,6 +1594,7 @@
                   <th>قيمة السلة</th>
                   <th>التاريخ والوقت</th>
                   <th>الحالة</th>
+                  <th>تذكير بالواتساب</th>
                 </tr>
               </thead>
               <tbody id="cartBody"></tbody>
@@ -3809,6 +3814,135 @@
 
       <div class="modal-foot" style="margin-top:20px; padding-top:10px">
         <button class="btn btn-primary" onclick="closeActivityLogDetailsModal()"><i class="ti ti-check"></i> إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: تفاصيل طلب سلة المنبثق -->
+  <div class="modal-bg" id="sallaOrderDetailsModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); z-index: 10000; align-items: center; justify-content: center;">
+    <div class="modal" style="max-width: 550px; border-color: rgba(255,255,255,0.1); background: rgba(17, 21, 32, 0.95); backdrop-filter: blur(20px); width: 90%; border-radius: 12px; border: 1px solid var(--border); padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+      <div class="modal-title" style="font-size: 15px; font-weight: 600; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; display:flex; align-items:center; justify-content:space-between;">
+        <span style="display:flex; align-items:center; gap:8px"><i class="ti ti-shopping-cart"></i> تفاصيل طلب سلة</span>
+        <span id="sodReferenceId" class="mono" style="font-size: 12px; color: var(--text2);">#000000</span>
+      </div>
+      
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        
+        <!-- قسم العميل وبيانات التواصل -->
+        <div style="background:var(--bg3); padding:12px; border-radius:8px; border:1px solid var(--border2)">
+          <div style="font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom:10px; display:flex; align-items:center; gap:6px">
+            <i class="ti ti-user"></i> بيانات العميل والتواصل
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">اسم العميل</div>
+              <div id="sodCustomerName" style="font-weight:600; font-size:13px; color:#fff; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">رقم الجوال / الهاتف</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
+                <span id="sodCustomerPhone" class="mono" style="font-weight:600; font-size:13px; color:#fff; direction: ltr; text-align: right;">-</span>
+                <a id="sodWhatsappBtn" href="#" target="_blank" class="btn btn-xs" style="display:none; background:#25D366; border-color:#25D366; color:#fff; padding:2px 8px; font-size:10px; border-radius:4px; font-weight:600; align-items:center; gap:4px; text-decoration:none;">
+                  <i class="ti ti-brand-whatsapp"></i> واتساب
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- قسم تفاصيل المنتج والطلب -->
+        <div style="background:var(--bg3); padding:12px; border-radius:8px; border:1px solid var(--border2)">
+          <div style="font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom:10px; display:flex; align-items:center; gap:6px">
+            <i class="ti ti-package"></i> تفاصيل المنتج والكمية
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px">
+            <div id="sodProductThumbContainer" style="width:40px; height:40px; border-radius:6px; background:var(--bg2); border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; overflow:hidden">
+              <i class="ti ti-photo" style="font-size:18px; color:var(--text3)"></i>
+            </div>
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">المنتج المبيع</div>
+              <div id="sodProductName" style="font-weight:600; font-size:13px; color:#fff; margin-top:2px;">-</div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">الكمية</div>
+              <div id="sodQuantity" style="font-weight:600; font-size:13px; color:#fff; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">طريقة الدفع</div>
+              <div id="sodPaymentMethod" class="pill" style="display:inline-block; font-size:11px; margin-top:4px; text-align:center;">-</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- قسم الحالة والمبالغ -->
+        <div style="background:var(--bg3); padding:12px; border-radius:8px; border:1px solid var(--border2)">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">حالة الطلب</div>
+              <div id="sodStatus" style="margin-top:4px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">إجمالي المبلغ</div>
+              <div id="sodAmount" class="mono green" style="font-weight:700; font-size:14px; margin-top:2px;">-</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px; color:var(--text3)">تاريخ الطلب</div>
+              <div id="sodDate" style="font-weight:600; font-size:12px; color:#fff; margin-top:2px;">-</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- قسم تسليم الاشتراكات والألعاب الذكي -->
+      <div id="sodDeliveryWidget" style="display:none; background:rgba(30, 41, 59, 0.5); padding:15px; border-radius:8px; border:1px dashed var(--accent); margin-top:15px;">
+        <div style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; display:flex; align-items:center; gap:6px">
+          <i class="ti ti-key"></i> بوابة التسليم الذكي لحسابات بلس والألعاب
+        </div>
+        
+        <div style="display:grid; grid-template-columns:1fr; gap:12px;">
+          <!-- رسالة التحذير الذكية في حال عدم التطابق -->
+          <div id="sodMatchWarning" style="display:none; background:rgba(239, 68, 68, 0.2); border:1px solid #ef4444; color:#fca5a5; padding:8px 12px; border-radius:6px; font-size:11px; font-weight:bold;">
+            <i class="ti ti-alert-triangle"></i> <span id="sodMatchWarningText">تنبيه: الحساب غير مطابق لطلب العميل!</span>
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+              <label style="font-size:10px; color:var(--text3)">اختر الحساب والنسخة المتاحة من المخزن:</label>
+              <span id="sodDetectedRequirements" style="font-size:10px; color:var(--accent); font-weight:600">المطلوب: جاري الكشف...</span>
+            </div>
+            <select id="sodDeliverySelect" class="form-control" style="width:100%; background:var(--bg2); color:#fff; border:1px solid var(--border2); padding:8px; border-radius:6px; font-size:12px;">
+              <option value="">-- جاري تحميل الحسابات المتوفرة... --</option>
+            </select>
+          </div>
+          
+          <div id="sodSelectedAccountDetails" style="display:none; background:var(--bg2); padding:10px; border-radius:6px; border:1px solid var(--border2); font-size:11px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+              <span style="color:var(--text3)">البريد الإلكتروني:</span>
+              <span id="sodDelEmail" class="mono" style="color:#fff; font-weight:600">-</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+              <span style="color:var(--text3)">كلمة المرور:</span>
+              <span id="sodDelPassword" class="mono" style="color:#fff; font-weight:600">-</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span style="color:var(--text3)">الكود/التعليمات:</span>
+              <span id="sodDelCode" style="color:var(--accent)">-</span>
+            </div>
+          </div>
+          
+          <div style="display:flex; gap:10px; margin-top:5px;">
+            <button id="sodConfirmDeliveryBtn" class="btn btn-success" style="flex:1; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px">
+              <i class="ti ti-send"></i> تأكيد التسليم وتحديث حالة المخزن
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot" style="margin-top:20px; padding-top:10px; display:flex; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="closeSallaOrderDetailsModal()"><i class="ti ti-check"></i> إغلاق</button>
       </div>
     </div>
   </div>

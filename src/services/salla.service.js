@@ -54,7 +54,7 @@ const SallaService = {
         return sallaAuth.access_token;
     },
 
-    syncOrders: async (throwOnError = false) => {
+    syncOrders: async (throwOnError = false, forceFull = false) => {
         try {
             const token = await SallaService.getOrRefreshToken();
             if (!token) {
@@ -65,33 +65,80 @@ const SallaService = {
                 return 0;
             }
             
-            console.log('[SallaService] جاري سحب أحدث الطلبات من منصة سلة...');
-            const response = await axios.get('https://api.salla.dev/admin/v2/orders?per_page=30', {
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Accept-Language': 'ar'
-                }
-            });
+            console.log('[SallaService] جاري سحب الطلبات من منصة سلة...');
             
-            const orders = response.data?.data || [];
+            let nextPageUrl = 'https://api.salla.dev/admin/v2/orders?per_page=50';
+            let orders = [];
+            let stopSync = false;
+            let pageCount = 0;
+            
+            while (nextPageUrl && !stopSync && pageCount < 60) {
+                pageCount++;
+                console.log(`[SallaService] Fetching orders page ${pageCount} from: ${nextPageUrl}`);
+                const response = await axios.get(nextPageUrl, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Accept-Language': 'ar'
+                    }
+                });
+                
+                const pageOrders = response.data?.data || [];
+                if (pageOrders.length === 0) break;
+                
+                orders.push(...pageOrders);
+                
+                // Check if the last order on this page already exists in the database
+                if (!forceFull) {
+                    const lastOrder = pageOrders[pageOrders.length - 1];
+                    if (lastOrder) {
+                        const lastRefId = String(lastOrder.reference_id);
+                        const exists = await new Promise((resolve) => {
+                            db.get("SELECT 1 FROM salla_imported_orders WHERE reference_id = ? OR reference_id LIKE ? LIMIT 1", 
+                                [lastRefId, lastRefId + '_%'], 
+                                (err, row) => resolve(!err && row ? true : false)
+                            );
+                        });
+                        if (exists) {
+                            console.log(`[SallaService] Order ${lastRefId} already exists in DB. Stopping pagination.`);
+                            stopSync = true;
+                        }
+                    }
+                }
+                
+                // Get next page URL
+                nextPageUrl = response.data?.pagination?.links?.next || null;
+            }
+            
+            console.log(`[SallaService] تم جلب ${orders.length} طلب من سلة.`);
             if (orders.length === 0) return 0;
             
             let newCount = 0;
             
             const stmt = db.prepare(`
                 INSERT OR REPLACE INTO salla_imported_orders 
-                (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity, customer_phone) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             
             orders.forEach(o => {
                 const refId = String(o.reference_id);
-                const dateStr = o.created_at ? o.created_at.split(' ')[0] : new Date().toISOString().split('T')[0];
+                let dateStr = new Date().toISOString().split('T')[0];
+                const rawDate = o.date || o.created_at;
+                if (rawDate) {
+                    if (typeof rawDate === 'number') {
+                        dateStr = new Date(rawDate * 1000).toISOString().split('T')[0];
+                    } else if (typeof rawDate === 'string') {
+                        dateStr = rawDate.split(' ')[0];
+                    } else if (typeof rawDate === 'object' && rawDate.date) {
+                        dateStr = rawDate.date.split(' ')[0];
+                    }
+                }
                 const statusSlug = o.status?.slug || 'completed';
                 const statusName = o.status?.name || 'تم التنفيذ';
                 const paymentMethod = o.payment_method || 'mada';
                 const amount = parseFloat(o.total?.amount || o.payment_actions?.refund_action?.paid_amount?.amount || 0);
                 const customerName = o.customer ? `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim() : 'عميل خارجي';
+                const customerPhone = o.customer ? (o.customer.mobile || o.customer.phone || '') : '';
                 
                 const items = o.items || [];
                 if (items.length > 0) {
@@ -101,7 +148,7 @@ const SallaService = {
                         const qty = parseInt(item.quantity) || 1;
                         
                         stmt.run([
-                            refId + '_' + item.id,
+                            refId + '_' + (item.id || item.product_id || Math.floor(Math.random() * 100000)),
                             dateStr,
                             statusSlug,
                             statusName,
@@ -110,7 +157,8 @@ const SallaService = {
                             customerName,
                             prodName,
                             thumbnail,
-                            qty
+                            qty,
+                            customerPhone
                         ]);
                         newCount++;
                     });
@@ -125,7 +173,8 @@ const SallaService = {
                         customerName,
                         'طلب بدون عناصر',
                         '',
-                        1
+                        1,
+                        customerPhone
                     ]);
                     newCount++;
                 }

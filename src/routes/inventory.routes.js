@@ -438,7 +438,7 @@ router.post('/inventory/products/sync-salla', authenticateUser, async (req, res)
         } else {
             // ONLINE MODE: Fetch from Salla API!
             console.log('[SallaService] جاري سحب المنتجات من منصة سلة...');
-            const response = await axios.get('https://api.salla.dev/admin/v2/products?per_page=100', {
+            const response = await axios.get('https://api.salla.dev/admin/v2/products?per_page=20', {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
                     'Accept-Language': 'ar'

@@ -113,6 +113,59 @@ db.serialize(() => {
         )
     `);
 
+    // 6.1 جدول جلسات التتبع التسويقية
+    db.run(`
+        CREATE TABLE IF NOT EXISTS attribution_sessions (
+            sd_vid TEXT PRIMARY KEY,
+            first_touch TEXT, -- JSON يحتوي على UTMs للزيارة الأولى
+            last_touch TEXT,  -- JSON يحتوي على UTMs للزيارة الأخيرة
+            fbp TEXT,
+            fbc TEXT,
+            fbclid TEXT,
+            ttclid TEXT,
+            sclid TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // 6.2 جدول إسناد الطلبات
+    db.run(`
+        CREATE TABLE IF NOT EXISTS order_attribution (
+            order_id TEXT PRIMARY KEY,
+            sd_vid TEXT,
+            platform TEXT,        -- facebook, tiktok, snapchat, google, organic, direct
+            campaign_id TEXT,
+            campaign_name TEXT,
+            adset_id TEXT,
+            ad_id TEXT,
+            utm_source TEXT,
+            utm_medium TEXT,
+            utm_campaign TEXT,
+            utm_content TEXT,
+            utm_term TEXT,
+            match_method TEXT,    -- thank_you_page, phone_match, email_match, fallback
+            confidence REAL,      -- دقة الإسناد من 0 إلى 1
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // 6.3 جدول صرف الحملات الإعلانية اليومي
+    db.run(`
+        CREATE TABLE IF NOT EXISTS campaign_spend (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            campaign_id TEXT NOT NULL,
+            campaign_name TEXT,
+            date TEXT NOT NULL,   -- YYYY-MM-DD
+            spend REAL DEFAULT 0,
+            impressions INTEGER DEFAULT 0,
+            clicks INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(platform, campaign_id, date)
+        )
+    `);
+
     // 7. جدول المستخدمين (المصادقة والصلاحيات)
     db.run(`
         CREATE TABLE IF NOT EXISTS users (
@@ -443,6 +496,7 @@ db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS salla_webhook_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT,
             event_name TEXT NOT NULL,
             payload TEXT,
             status TEXT DEFAULT 'success',
@@ -450,6 +504,8 @@ db.serialize(() => {
             received_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+
+    db.run("ALTER TABLE salla_webhook_logs ADD COLUMN event_id TEXT", (err) => { /* تجاهل الخطأ */ });
 
 
 

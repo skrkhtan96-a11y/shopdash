@@ -60,10 +60,13 @@ app.use('/api', generalLimiter);
 // Protect static HTML pages (excluding login.html)
 app.use(sessionStaticCheckMiddleware);
 
-// Protect all API routes starting with /api (excluding /api/auth/, /api/ai/, and /api/mcp)
+// --- IMPORT ROUTERS ---
+const attributionRouter = require('./src/routes/attribution.routes');
+
+// Protect all API routes starting with /api (excluding /api/auth/, /api/ai/, /api/mcp and /api/attribution)
+app.use('/api/attribution', attributionRouter);
 app.use('/api', apiProtectionMiddleware);
 
-// --- IMPORT ROUTERS ---
 const authRouter = require('./src/routes/auth.routes');
 const userRouter = require('./src/routes/user.routes');
 const expenseRouter = require('./src/routes/expense.routes');

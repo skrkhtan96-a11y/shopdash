@@ -992,7 +992,7 @@ function renderOrders() {
         const stName = o.status?.customized?.name || o.status?.name || st;
         const thumb = prod.thumbnail ? `<img src="${prod.thumbnail}" class="product-thumb" onerror="this.style.display='none'">` : '';
         const date = (o.date?.date || o.created_at || '').substring(0, 10);
-        return `<tr>
+        return `<tr style="cursor:pointer" onclick="showSallaOrderDetails('${o.reference_id || o.id}')" title="اضغط لعرض تفاصيل الطلب ورقم الهاتف">
           <td style="color:var(--text3);font-size:10px">${(ordPage - 1) * 15 + i + 1}</td>
           <td><span class="mono" style="font-size:11px">#${o.reference_id || o.id}</span></td>
           <td><div class="product-chip">${thumb}<span class="product-name">${prod.name || '-'}</span></div></td>
@@ -1787,7 +1787,7 @@ function renderOverview() {
             const st = o.status?.slug || '';
             const stCls = st === 'completed' ? 'pill-green' : st === 'under_review' ? 'pill-accent' : 'pill-amber';
             const thumb = prod.thumbnail ? `<img src="${prod.thumbnail}" class="product-thumb" onerror="this.style.display='none'">` : '';
-            return `<tr>
+            return `<tr style="cursor:pointer" onclick="showSallaOrderDetails('${o.reference_id || o.id}')" title="اضغط لعرض تفاصيل الطلب ورقم الهاتف">
               <td><span class="mono" style="font-size:10px">#${o.reference_id || o.id}</span></td>
               <td><div class="product-chip">${thumb}<span class="product-name">${prod.name || '-'}</span></div></td>
               <td style="font-size:11px;color:var(--text2)">${o.customer?.full_name || '-'}</td>
@@ -14135,4 +14135,343 @@ function exportFacebookCampaignPDF(campaignName) {
     win.document.close();
     win.focus();
     toast('تم فتح تقرير القرار بنجاح ✅', 'ok');
+}
+
+// ── SHOW SALLA ORDER DETAILS MODAL ──
+function showSallaOrderDetails(refId) {
+    const order = sallaOrders.find(o => String(o.reference_id || o.id) === String(refId));
+    if (!order) return;
+
+    document.getElementById('sodReferenceId').textContent = '#' + (order.reference_id || order.id);
+    document.getElementById('sodCustomerName').textContent = order.customer?.full_name || order.customer?.name || 'عميل خارجي';
+    
+    // Display mobile number
+    const phone = order.customer?.mobile || order.customer?.phone || order.customer_phone || '';
+    const phoneEl = document.getElementById('sodCustomerPhone');
+    const waBtn = document.getElementById('sodWhatsappBtn');
+    
+    let cleanPhone = '';
+    if (phone && phone !== 'غير متوفر') {
+        phoneEl.textContent = phone;
+        // Clean phone number for WhatsApp link
+        cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.startsWith('05')) {
+            cleanPhone = '966' + cleanPhone.substring(1);
+        } else if (cleanPhone.startsWith('5') && cleanPhone.length === 9) {
+            cleanPhone = '966' + cleanPhone;
+        }
+        if (waBtn) waBtn.style.display = 'inline-flex';
+    } else {
+        phoneEl.textContent = 'غير متوفر';
+        if (waBtn) waBtn.style.display = 'none';
+    }
+    
+    const prod = order.items?.[0] || {};
+    document.getElementById('sodProductName').textContent = prod.name || '-';
+    document.getElementById('sodQuantity').textContent = prod.quantity || order.quantity || 1;
+    
+    const payMethod = order.payment_method || 'mada';
+    const payEl = document.getElementById('sodPaymentMethod');
+    payEl.textContent = payLabel(payMethod);
+    
+    const amt = order.payment_actions?.refund_action?.paid_amount?.amount ?? order.total?.amount ?? 0;
+    document.getElementById('sodAmount').textContent = fmt(amt);
+    
+    const date = (order.date?.date || order.created_at || '').substring(0, 10);
+    document.getElementById('sodDate').textContent = fmtDate(date);
+    
+    // Status styling
+    const st = order.status?.slug || '';
+    const stName = order.status?.customized?.name || order.status?.name || st;
+    const stCls = st === 'completed' ? 'pill-green' : st === 'under_review' ? 'pill-accent' : 'pill-amber';
+    document.getElementById('sodStatus').innerHTML = `<span class="pill ${stCls}">${stName}</span>`;
+    
+    // Update WhatsApp link with formatted text template
+    if (cleanPhone && waBtn) {
+        const custNameSalute = order.customer?.full_name || order.customer?.name || 'عميلنا العزيز';
+        const orderId = order.reference_id || order.id;
+        const messageText = `أهلاً بك يا *${custNameSalute}* 🌸\n\nمعك متجر *شوب ستور*. يسعدنا خدمتك! 💕\nنود إبلاغك بأن طلبك رقم *#${orderId}* بحالة *[${stName}]* حالياً.\n\nإذا كان لديك أي استفسار أو ترغب في تعديل الطلب، نحن هنا لمساعدتك دائماً. 😊📱`;
+        waBtn.href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
+    }
+    
+    // Thumbnail
+    const thumbContainer = document.getElementById('sodProductThumbContainer');
+    if (prod.thumbnail) {
+        thumbContainer.innerHTML = `<img src="${prod.thumbnail}" style="width:100%; height:100%; object-fit:cover;">`;
+    } else {
+        thumbContainer.innerHTML = `<i class="ti ti-photo" style="font-size:18px; color:var(--text3)"></i>`;
+    }
+    
+    // Check if PlayStation Plus or similar product for smart delivery
+    const prodName = (prod.name || order.product_name || '').toLowerCase();
+    const isPsPlus = prodName.includes('بلس') || prodName.includes('plus') || prodName.includes('playstation') || prodName.includes('بلايستيشن');
+    const deliveryWidget = document.getElementById('sodDeliveryWidget');
+    if (isPsPlus && deliveryWidget) {
+        deliveryWidget.style.display = 'block';
+        initSodDeliveryWidget(order, prod.name || order.product_name);
+    } else if (deliveryWidget) {
+        deliveryWidget.style.display = 'none';
+    }
+
+    // Show modal
+    const modal = document.getElementById('sallaOrderDetailsModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeSallaOrderDetailsModal() {
+    const modal = document.getElementById('sallaOrderDetailsModal');
+    if (modal) modal.style.display = 'none';
+}
+
+// ── PLAYSTATION PLUS DELIVERY INTEG ──
+function parsePlusRequirements(productName) {
+    const name = (productName || '').toLowerCase();
+    let consoleType = 'PS5';
+    if (name.includes('ps4') || name.includes('4') || name.includes('بلايستيشن 4') || name.includes('بلاي ستيشن 4')) {
+        consoleType = 'PS4';
+    } else if (name.includes('ps5') || name.includes('5') || name.includes('بلايستيشن 5') || name.includes('بلاي ستيشن 5')) {
+        consoleType = 'PS5';
+    }
+    
+    let tier = 'اساسي';
+    if (name.includes('اساسي') || name.includes('أساسي') || name.includes('essential')) {
+        tier = 'اساسي';
+    } else if (name.includes('اضافي') || name.includes('إضافي') || name.includes('extra')) {
+        tier = 'اضافي';
+    } else if (name.includes('فاخر') || name.includes('deluxe') || name.includes('premium') || name.includes('بريميوم')) {
+        tier = 'فاخر';
+    }
+    
+    let duration = 'شهري';
+    if (name.includes('سنة') || name.includes('سنوي') || name.includes('yearly') || name.includes('12')) {
+        duration = 'سنة';
+    } else if (name.includes('3 أشهر') || name.includes('3 اشهر') || name.includes('3')) {
+        duration = '3 أشهر';
+    } else if (name.includes('شهر') || name.includes('monthly') || name.includes('شهري')) {
+        duration = 'شهري';
+    }
+    
+    return { consoleType, tier, duration };
+}
+
+let sodAvailableAccounts = [];
+let sodCurrentOrder = null;
+let sodCurrentRequirements = null;
+
+function initSodDeliveryWidget(order, productName) {
+    sodCurrentOrder = order;
+    sodCurrentRequirements = parsePlusRequirements(productName);
+    
+    const reqText = `المنصة: ${sodCurrentRequirements.consoleType} | الفئة: ${sodCurrentRequirements.tier} | المدة: ${sodCurrentRequirements.duration}`;
+    document.getElementById('sodDetectedRequirements').textContent = `المطلوب: ${reqText}`;
+    
+    const select = document.getElementById('sodDeliverySelect');
+    select.innerHTML = '<option value="">-- جاري تحميل الحسابات المتوفرة... --</option>';
+    document.getElementById('sodMatchWarning').style.display = 'none';
+    document.getElementById('sodSelectedAccountDetails').style.display = 'none';
+    
+    const confirmBtn = document.getElementById('sodConfirmDeliveryBtn');
+    confirmBtn.disabled = false;
+    confirmBtn.className = 'btn btn-success';
+    confirmBtn.innerHTML = '<i class="ti ti-send"></i> تأكيد التسليم وتحديث حالة المخزن';
+    confirmBtn.onclick = handleSodDeliveryConfirm;
+
+    fetch('/api/ps-plus/accounts')
+        .then(res => res.json())
+        .then(accounts => {
+            sodAvailableAccounts = accounts;
+            renderSodDeliveryOptions();
+        })
+        .catch(err => {
+            console.error('Error fetching accounts:', err);
+            select.innerHTML = '<option value="">❌ فشل تحميل الحسابات من المخزن</option>';
+        });
+}
+
+function renderSodDeliveryOptions() {
+    const select = document.getElementById('sodDeliverySelect');
+    select.innerHTML = '<option value="">-- اختر النسخة للتسليم --</option>';
+    
+    const options = [];
+    sodAvailableAccounts.forEach(acc => {
+        if (acc.is_archived) return;
+        if (acc.ps5_1_status === 'available') {
+            options.push({ acc, slot: 'ps5_1', slotLabel: 'PS5 (النسخة الأولى)', consoleType: 'PS5' });
+        }
+        if (acc.ps5_2_status === 'available') {
+            options.push({ acc, slot: 'ps5_2', slotLabel: 'PS5 (النسخة الثانية)', consoleType: 'PS5' });
+        }
+        if (acc.ps4_status === 'available') {
+            options.push({ acc, slot: 'ps4', slotLabel: 'PS4', consoleType: 'PS4' });
+        }
+    });
+    
+    if (options.length === 0) {
+        select.innerHTML = '<option value="">⚠️ لا توجد حسابات أو نسخ متوفرة في المخزن!</option>';
+        return;
+    }
+    
+    options.forEach(opt => {
+        let score = 0;
+        const matchesConsole = opt.consoleType === sodCurrentRequirements.consoleType;
+        const matchesTier = String(opt.acc.plus_type).trim() === sodCurrentRequirements.tier;
+        const matchesDuration = String(opt.acc.plus_duration).trim() === sodCurrentRequirements.duration;
+        
+        if (matchesConsole) score += 4;
+        if (matchesTier) score += 2;
+        if (matchesDuration) score += 1;
+        
+        opt.score = score;
+        opt.isExactMatch = matchesConsole && matchesTier && matchesDuration;
+    });
+    
+    options.sort((a, b) => b.score - a.score);
+    
+    options.forEach(opt => {
+        const exactTag = opt.isExactMatch ? '✨ (مطابق للطلب)' : '';
+        const label = `${opt.acc.plus_type} - ${opt.acc.plus_duration} | ${opt.acc.email} | ${opt.slotLabel} ${exactTag}`;
+        
+        const el = document.createElement('option');
+        el.value = `${opt.acc.id}_${opt.slot}`;
+        el.textContent = label;
+        el.dataset.email = opt.acc.email;
+        el.dataset.password = opt.acc.password;
+        el.dataset.code = (opt.slot === 'ps5_1' ? opt.acc.ps5_1_code : (opt.slot === 'ps5_2' ? opt.acc.ps5_2_code : opt.acc.ps4_code)) || 'لا يوجد كود تفعيل خاص';
+        el.dataset.exact = opt.isExactMatch ? 'true' : 'false';
+        el.dataset.tier = opt.acc.plus_type;
+        el.dataset.duration = opt.acc.plus_duration;
+        el.dataset.console = opt.consoleType;
+        
+        select.appendChild(el);
+    });
+    
+    select.onchange = handleSodSelectionChange;
+}
+
+function handleSodSelectionChange() {
+    const select = document.getElementById('sodDeliverySelect');
+    const selectedOption = select.options[select.selectedIndex];
+    const detailsDiv = document.getElementById('sodSelectedAccountDetails');
+    const warningDiv = document.getElementById('sodMatchWarning');
+    const warningText = document.getElementById('sodMatchWarningText');
+    const confirmBtn = document.getElementById('sodConfirmDeliveryBtn');
+    
+    if (!selectedOption || !selectedOption.value) {
+        detailsDiv.style.display = 'none';
+        warningDiv.style.display = 'none';
+        confirmBtn.className = 'btn btn-success';
+        return;
+    }
+    
+    detailsDiv.style.display = 'block';
+    document.getElementById('sodDelEmail').textContent = selectedOption.dataset.email;
+    document.getElementById('sodDelPassword').textContent = selectedOption.dataset.password;
+    document.getElementById('sodDelCode').textContent = selectedOption.dataset.code;
+    
+    const isExact = selectedOption.dataset.exact === 'true';
+    if (isExact) {
+        warningDiv.style.display = 'none';
+        confirmBtn.className = 'btn btn-success';
+    } else {
+        warningDiv.style.display = 'block';
+        confirmBtn.className = 'btn btn-danger';
+        
+        let mismatchDetails = [];
+        if (selectedOption.dataset.console !== sodCurrentRequirements.consoleType) {
+            mismatchDetails.push(`المنصة (${selectedOption.dataset.console} بدلاً من ${sodCurrentRequirements.consoleType})`);
+        }
+        if (selectedOption.dataset.tier !== sodCurrentRequirements.tier) {
+            mismatchDetails.push(`الفئة (${selectedOption.dataset.tier} بدلاً من ${sodCurrentRequirements.tier})`);
+        }
+        if (selectedOption.dataset.duration !== sodCurrentRequirements.duration) {
+            mismatchDetails.push(`المدة (${selectedOption.dataset.duration} بدلاً من ${sodCurrentRequirements.duration})`);
+        }
+        warningText.innerHTML = `<i class="ti ti-alert-triangle"></i> تنبيه: الحساب غير مطابق في: ${mismatchDetails.join('، ')}!`;
+    }
+}
+
+function handleSodDeliveryConfirm() {
+    const select = document.getElementById('sodDeliverySelect');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (!selectedOption || !selectedOption.value) {
+        toast('يرجى اختيار حساب أولاً للتسليم', 'warning');
+        return;
+    }
+    
+    const val = selectedOption.value;
+    const parts = val.split('_');
+    const accountId = parts[0];
+    const slot = parts[1];
+    
+    const orderId = sodCurrentOrder.reference_id || sodCurrentOrder.id;
+    const phone = sodCurrentOrder.customer?.mobile || sodCurrentOrder.customer?.phone || sodCurrentOrder.customer_phone || '';
+    
+    const isExact = selectedOption.dataset.exact === 'true';
+    if (!isExact) {
+        if (!confirm('⚠️ تنبيه: الحساب المختار لا يطابق طلب العميل تماماً. هل أنت متأكد من رغبتك في تسليم هذا الحساب؟')) {
+            return;
+        }
+    }
+    
+    const confirmBtn = document.getElementById('sodConfirmDeliveryBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="ti ti-loader"></i> جاري تسجيل التسليم...';
+    
+    fetch('/api/ps-plus/accounts/deliver', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            id: accountId,
+            slot: slot,
+            order_id: String(orderId),
+            phone: phone
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) {
+            toast(data.error, 'error');
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="ti ti-send"></i> تأكيد التسليم وتحديث حالة المخزن';
+        } else {
+            toast('تم تسجيل التسليم وتحديث المخزن بنجاح ✅', 'ok');
+            
+            const custName = sodCurrentOrder.customer?.full_name || sodCurrentOrder.customer?.name || 'عميلنا العزيز';
+            const email = selectedOption.dataset.email;
+            const password = selectedOption.dataset.password;
+            const code = selectedOption.dataset.code;
+            const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
+            
+            const message = `أهلاً بك يا *${custName}* 🌸\n\nيسعدنا تسليم طلبك الخاص باشتراك *PlayStation Plus* (طلب رقم *#${orderId}*):\n\n🎮 الحساب: *${slotName}*\n📧 البريد الإلكتروني: \`${email}\`\n🔑 كلمة المرور: \`${password}\`\n\n📌 تعليمات التفعيل / الكود:\n${code}\n\nنتمنى لك تجربة ممتعة! وإذا واجهتك أي مشكلة، نحن دائماً في الخدمة. 😊🕹️`;
+            
+            let cleanPhone = phone.replace(/\D/g, '');
+            if (cleanPhone.startsWith('05')) {
+                cleanPhone = '966' + cleanPhone.substring(1);
+            } else if (cleanPhone.startsWith('5') && cleanPhone.length === 9) {
+                cleanPhone = '966' + cleanPhone;
+            }
+            
+            if (cleanPhone) {
+                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+            } else {
+                alert(`لم يتم العثور على رقم جوال للعميل. إليك الرسالة لنسخها:\n\n${message}`);
+            }
+            
+            closeSallaOrderDetailsModal();
+            if (typeof loadOrders === 'function') {
+                loadOrders();
+            } else {
+                location.reload();
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Error delivering account:', err);
+        toast('حدث خطأ أثناء الاتصال بالسيرفر لتسجيل التسليم', 'error');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="ti ti-send"></i> تأكيد التسليم وتحديث حالة المخزن';
+    });
 }

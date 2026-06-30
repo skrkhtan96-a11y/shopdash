@@ -133,9 +133,9 @@ router.get('/auth-status', authenticateUser, async (req, res) => {
                         simulated: true,
                         has_credentials: hasCredentials,
                         store: {
-                            name: (importedCount > 0 || importedWalletCount > 0) ? "لوحة الأوفلاين (مستوردة)" : "متجر تجريبي (محاكاة)",
-                            domain: (importedCount > 0 || importedWalletCount > 0) ? `مستورد ${importedCount} طلب و ${importedWalletCount} تسوية` : "demo-store.salla.sa",
-                            avatar: (importedCount > 0 || importedWalletCount > 0) ? "I" : "S"
+                            name: "لوحة التحكم (أوفلاين)",
+                            domain: `مستورد ${importedCount} طلب و ${importedWalletCount} تسوية`,
+                            avatar: "I"
                         },
                         imported_count: importedCount,
                         imported_wallet_count: importedWalletCount
@@ -247,7 +247,7 @@ router.get('/disconnect', authenticateUser, async (req, res) => {
 // 8. Get orders (with simulated logic if not connected)
 router.get('/orders', authenticateUser, async (req, res) => {
     const page = req.query.page || 1;
-    const perPage = req.query.per_page || 15;
+    const perPage = req.query.per_page || 20;
     const status = req.query.status || '';
     const products = req.query.products || '';
     const q = req.query.q || '';
@@ -259,135 +259,139 @@ router.get('/orders', authenticateUser, async (req, res) => {
 
     const token = await SallaService.getOrRefreshToken();
 
-    if (!token) {
-        db.get("SELECT COUNT(*) as count FROM salla_imported_orders", [], (err, countRow) => {
-            if (!err && countRow && countRow.count > 0) {
-                let query = "SELECT * FROM salla_imported_orders WHERE 1=1";
-                const params = [];
+    // We check the local SQLite database first. If it has orders, we use it to support
+    // pagination, sorting, custom filtering, and high per_page values (like 3000) that Salla API doesn't support.
+    db.get("SELECT COUNT(*) as count FROM salla_imported_orders", [], async (err, countRow) => {
+        if (!err && countRow && countRow.count > 0) {
+            let query = "SELECT * FROM salla_imported_orders WHERE 1=1";
+            const params = [];
 
-                if (status) {
-                    const statusList = status.split(',').map(s => s.trim()).filter(s => s);
-                    if (statusList.length > 0) {
-                        const placeholders = statusList.map(() => '?').join(',');
-                        query += ` AND status_slug IN (${placeholders})`;
-                        params.push(...statusList);
-                    }
+            if (status) {
+                const statusList = status.split(',').map(s => s.trim()).filter(s => s);
+                if (statusList.length > 0) {
+                    const placeholders = statusList.map(() => '?').join(',');
+                    query += ` AND status_slug IN (${placeholders})`;
+                    params.push(...statusList);
                 }
-                if (products) {
-                    const prodList = products.split(',').map(p => p.trim()).filter(p => p);
-                    if (prodList.length > 0) {
-                        const placeholders = prodList.map(() => '?').join(',');
-                        query += ` AND product_name IN (${placeholders})`;
-                        params.push(...prodList);
-                    }
+            }
+            if (products) {
+                const prodList = products.split(',').map(p => p.trim()).filter(p => p);
+                if (prodList.length > 0) {
+                    const placeholders = prodList.map(() => '?').join(',');
+                    query += ` AND product_name IN (${placeholders})`;
+                    params.push(...prodList);
                 }
-                if (q) {
-                    query += " AND (customer_name LIKE ? OR product_name LIKE ? OR reference_id LIKE ? OR customer_phone LIKE ?)";
-                    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
-                }
-                if (from) {
-                    query += " AND date(date) >= date(?)";
-                    params.push(from);
-                }
-                if (to) {
-                    query += " AND date(date) <= date(?)";
-                    params.push(to);
-                }
-                if (minAmt) {
-                    query += " AND amount >= ?";
-                    params.push(parseFloat(minAmt));
-                }
-                if (maxAmt) {
-                    query += " AND amount <= ?";
-                    params.push(parseFloat(maxAmt));
-                }
+            }
+            if (q) {
+                query += " AND (customer_name LIKE ? OR product_name LIKE ? OR reference_id LIKE ? OR customer_phone LIKE ?)";
+                params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+            }
+            if (from) {
+                query += " AND date(date) >= date(?)";
+                params.push(from);
+            }
+            if (to) {
+                query += " AND date(date) <= date(?)";
+                params.push(to);
+            }
+            if (minAmt) {
+                query += " AND amount >= ?";
+                params.push(parseFloat(minAmt));
+            }
+            if (maxAmt) {
+                query += " AND amount <= ?";
+                params.push(parseFloat(maxAmt));
+            }
 
-                if (sort === 'asc') {
-                    query += " ORDER BY date ASC, id ASC";
-                } else if (sort === 'amt-desc') {
-                    query += " ORDER BY amount DESC";
-                } else if (sort === 'amt-asc') {
-                    query += " ORDER BY amount ASC";
-                } else {
-                    query += " ORDER BY date DESC, id DESC";
-                }
-
-                db.all(query, params, (err, rows) => {
-                    if (err) {
-                        return res.status(500).json({ error: err.message });
-                    }
-
-                    const total = rows.length;
-                    const startIndex = (page - 1) * perPage;
-                    const paginatedRows = rows.slice(startIndex, startIndex + parseInt(perPage));
-
-                    const formattedData = paginatedRows.map(r => ({
-                        id: r.id,
-                        reference_id: r.reference_id,
-                        date: { date: r.date },
-                        created_at: r.date,
-                        status: {
-                            slug: r.status_slug || 'completed',
-                            name: r.status_name || 'تم التنفيذ',
-                            customized: { name: r.status_name || 'تم التنفيذ' }
-                        },
-                        payment_method: r.payment_method || 'mada',
-                        items: [
-                            {
-                                name: r.product_name || '-',
-                                thumbnail: r.product_thumbnail || '',
-                                quantity: r.quantity || 1
-                            }
-                        ],
-                        customer: { 
-                            full_name: r.customer_name || '-',
-                            mobile: r.customer_phone || ''
-                        },
-                        payment_actions: {
-                            refund_action: {
-                                paid_amount: { amount: r.amount, currency: 'SAR' }
-                            }
-                        },
-                        total: { amount: r.amount }
-                    }));
-
-                    res.json({
-                        data: formattedData,
-                        pagination: {
-                            total,
-                            count: formattedData.length,
-                            per_page: perPage,
-                            current_page: parseInt(page),
-                            total_pages: Math.ceil(total / perPage) || 1
-                        }
-                    });
-                });
+            if (sort === 'asc') {
+                query += " ORDER BY date ASC, id ASC";
+            } else if (sort === 'amt-desc') {
+                query += " ORDER BY amount DESC";
+            } else if (sort === 'amt-asc') {
+                query += " ORDER BY amount ASC";
             } else {
+                query += " ORDER BY date DESC, id DESC";
+            }
+
+            db.all(query, params, (err, rows) => {
+                if (err) {
+                    return res.status(500).json({ error: err.message });
+                }
+
+                const total = rows.length;
+                const startIndex = (page - 1) * perPage;
+                const paginatedRows = rows.slice(startIndex, startIndex + parseInt(perPage));
+
+                const formattedData = paginatedRows.map(r => ({
+                    id: r.id,
+                    reference_id: r.reference_id,
+                    date: { date: r.date },
+                    created_at: r.date,
+                    status: {
+                        slug: r.status_slug || 'completed',
+                        name: r.status_name || 'تم التنفيذ',
+                        customized: { name: r.status_name || 'تم التنفيذ' }
+                    },
+                    payment_method: r.payment_method || 'mada',
+                    items: [
+                        {
+                            name: r.product_name || '-',
+                            thumbnail: r.product_thumbnail || '',
+                            quantity: r.quantity || 1
+                        }
+                    ],
+                    customer: { 
+                        full_name: r.customer_name || '-',
+                        mobile: r.customer_phone || ''
+                    },
+                    payment_actions: {
+                        refund_action: {
+                            paid_amount: { amount: r.amount, currency: 'SAR' }
+                        }
+                    },
+                    total: { amount: r.amount }
+                }));
+
+                res.json({
+                    data: formattedData,
+                    pagination: {
+                        total,
+                        count: formattedData.length,
+                        per_page: perPage,
+                        current_page: parseInt(page),
+                        total_pages: Math.ceil(total / perPage) || 1
+                    }
+                });
+            });
+        } else {
+            // Fallback if local database is empty
+            if (!token) {
                 return res.json(getSimulatedOrders(page, perPage, status, products, sort, minAmt, maxAmt, q, from, to));
             }
-        });
-        return;
-    }
 
-    try {
-        let url = `https://api.salla.dev/admin/v2/orders?page=${page}&per_page=${perPage}`;
-        if (status) url += `&status=${status}`;
-        if (q) url += `&keyword=${encodeURIComponent(q)}`;
-        if (from) url += `&created_at_from=${from}`;
-        if (to) url += `&created_at_to=${to}`;
+            try {
+                // Salla API v2 maximum limit per page is 20. Cap it to avoid 422 errors.
+                const sallaPerPage = Math.min(parseInt(perPage) || 20, 20);
+                let url = `https://api.salla.dev/admin/v2/orders?page=${page}&per_page=${sallaPerPage}`;
+                if (status) url += `&status=${status}`;
+                if (q) url += `&keyword=${encodeURIComponent(q)}`;
+                if (from) url += `&created_at_from=${from}`;
+                if (to) url += `&created_at_to=${to}`;
 
-        const response = await axios.get(url, {
-            headers: { 
-                'Authorization': `Bearer ${token}`,
-                'Accept-Language': 'ar'
+                const response = await axios.get(url, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Accept-Language': 'ar'
+                    }
+                });
+
+                res.json(response.data);
+            } catch (error) {
+                console.error('خطأ أثناء جلب طلبات سلة مباشرة:', error.response ? error.response.data : error.message);
+                res.status(500).json({ error: 'فشل جلب الطلبات من سلة API', details: error.message });
             }
-        });
-
-        res.json(response.data);
-    } catch (error) {
-        console.error('خطأ أثناء جلب طلبات سلة:', error.response ? error.response.data : error.message);
-        res.status(500).json({ error: 'فشل جلب الطلبات من سلة API', details: error.message });
-    }
+        }
+    });
 });
 
 // 9. Import and save Salla orders from Excel
@@ -436,7 +440,9 @@ router.post('/imported-orders', authenticateUser, (req, res) => {
 // 10. Manual sync now
 router.post('/sync-now', authenticateUser, async (req, res) => {
     try {
-        const count = await SallaService.syncOrders(true);
+        // Manual sync clicks will default to a full sync to retrieve full history
+        const forceFull = req.query.full !== 'false';
+        const count = await SallaService.syncOrders(true, forceFull);
         res.json({ success: true, count });
     } catch (e) {
         if (e.message === 'SALLA_NOT_CONNECTED') {
@@ -459,16 +465,12 @@ router.get('/abandoned-carts', authenticateUser, async (req, res) => {
     }
 
     try {
-        const response = await axios.get('https://api.salla.dev/admin/v2/abandoned-carts', {
-            headers: { 
-                'Authorization': `Bearer ${token}`,
-                'Accept-Language': 'ar'
-            }
-        });
-        res.json(response.data);
+        // السلات المتروكة - الباقة الاحترافية في سلة فقط تدعمها
+        // نستخدم المحاكاة كحل بديل آمن
+        return res.json(getSimulatedCarts());
     } catch (error) {
-        console.error('خطأ أثناء جلب السلات المتروكة:', error.response ? error.response.data : error.message);
-        res.status(500).json({ error: 'فشل جلب السلات المتروكة من سلة API' });
+        console.error('خطأ أثناء جلب السلات المتروكة:', error.message);
+        res.json(getSimulatedCarts());
     }
 });
 
@@ -492,8 +494,22 @@ router.post('/webhook', async (req, res) => {
     const payload = req.body;
     const eventName = payload.event || 'unknown';
     const signature = req.headers['x-salla-signature'] || req.headers['X-Salla-Signature'] || '';
+    const eventId = payload.id || ''; // معرّف الحدث لمنع التكرار (Idempotency)
     
-    console.log(`[SallaWebhook] Received event: ${eventName}`);
+    console.log(`[SallaWebhook] Received event: ${eventName}, eventId: ${eventId}`);
+
+    // التحقق من تكرار الحدث (Idempotency)
+    if (eventId) {
+        const alreadyProcessed = await new Promise((resolve) => {
+            db.get("SELECT 1 FROM salla_webhook_logs WHERE event_id = ? AND status = 'success' LIMIT 1", [eventId], (err, row) => {
+                resolve(!err && row ? true : false);
+            });
+        });
+        if (alreadyProcessed) {
+            console.log(`[SallaWebhook] Event ${eventId} (${eventName}) already processed successfully. Skipping.`);
+            return res.json({ success: true, message: 'Event already processed' });
+        }
+    }
 
     // Verify Salla Webhook Signature using HMAC-SHA256
     const secret = process.env.SALLA_WEBHOOK_SECRET;
@@ -533,8 +549,8 @@ router.post('/webhook', async (req, res) => {
         });
 
         db.run(
-            "INSERT INTO salla_webhook_logs (event_name, payload, status) VALUES (?, ?, ?)",
-            [eventName, JSON.stringify(payload), 'success'],
+            "INSERT INTO salla_webhook_logs (event_id, event_name, payload, status) VALUES (?, ?, ?, ?)",
+            [eventId || null, eventName, JSON.stringify(payload), 'success'],
             (err) => {
                 if (err) console.error('[SallaWebhook] Error saving log to DB:', err.message);
             }
@@ -552,15 +568,58 @@ router.post('/webhook', async (req, res) => {
             return res.json({ success: true, message: 'App uninstall processed. All data deleted.' });
         }
 
+        // Handle app.store.authorize event (Salla Easy Mode authorization webhook)
+        if (eventName === 'app.store.authorize' && payload.data) {
+            const { access_token, refresh_token, expires_in } = payload.data;
+            const authData = {
+                access_token,
+                refresh_token,
+                expires_at: Math.floor(Date.now() / 1000) + (expires_in || 2592000)
+            };
+            
+            try {
+                const profileRes = await axios.get('https://api.salla.dev/admin/v2/store/info', {
+                    headers: { 
+                        'Authorization': `Bearer ${access_token}`,
+                        'Accept-Language': 'ar'
+                    }
+                });
+
+                const storeInfo = {
+                    name: profileRes.data.data.name,
+                    domain: profileRes.data.data.domain,
+                    avatar: profileRes.data.data.avatar || 'https://cdn.salla.sa/assets/images/logo.png',
+                    connected_at: new Date().toISOString()
+                };
+
+                await ConfigRepository.setConfig('salla_auth', authData);
+                await ConfigRepository.setConfig('salla_store', storeInfo);
+                console.log(`[SallaWebhook] [Easy Mode] تم ربط متجر "${storeInfo.name}" بنجاح عبر النمط السهل!`);
+            } catch (errProfile) {
+                console.error('[SallaWebhook] Failed to fetch store info during easy mode authorize:', errProfile.message);
+            }
+        }
+
         if (['order.created', 'order.updated', 'order.status.updated'].includes(eventName) && payload.data) {
             const o = payload.data;
             const refId = String(o.reference_id);
-            const dateStr = o.created_at ? o.created_at.split(' ')[0] : new Date().toISOString().split('T')[0];
+            let dateStr = new Date().toISOString().split('T')[0];
+            const rawDate = o.date || o.created_at;
+            if (rawDate) {
+                if (typeof rawDate === 'number') {
+                    dateStr = new Date(rawDate * 1000).toISOString().split('T')[0];
+                } else if (typeof rawDate === 'string') {
+                    dateStr = rawDate.split(' ')[0];
+                } else if (typeof rawDate === 'object' && rawDate.date) {
+                    dateStr = rawDate.date.split(' ')[0];
+                }
+            }
             const statusSlug = o.status?.slug || 'completed';
             const statusName = o.status?.name || 'تم التنفيذ';
             const paymentMethod = o.payment_method || 'mada';
             const amount = parseFloat(o.total?.amount || 0);
             const customerName = o.customer ? `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim() : 'عميل خارجي';
+            const customerPhone = o.customer ? (o.customer.mobile || o.customer.phone || '') : '';
             
             const items = o.items || [];
             
@@ -570,8 +629,8 @@ router.post('/webhook', async (req, res) => {
                 if (items.length > 0) {
                     const stmt = db.prepare(`
                         INSERT INTO salla_imported_orders 
-                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity, customer_phone) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     `);
                     items.forEach(item => {
                         const prodName = item.name || 'منتج مستورد';
@@ -579,7 +638,7 @@ router.post('/webhook', async (req, res) => {
                         const qty = parseInt(item.quantity) || 1;
                         
                         stmt.run([
-                            refId + '_' + item.id,
+                            refId + '_' + (item.id || item.product_id || Math.floor(Math.random() * 100000)),
                             dateStr,
                             statusSlug,
                             statusName,
@@ -588,15 +647,16 @@ router.post('/webhook', async (req, res) => {
                             customerName,
                             prodName,
                             thumbnail,
-                            qty
+                            qty,
+                            customerPhone
                         ]);
                     });
                     stmt.finalize();
                 } else {
                     db.run(`
                         INSERT INTO salla_imported_orders 
-                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity, customer_phone) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     `, [
                         refId,
                         dateStr,
@@ -607,19 +667,40 @@ router.post('/webhook', async (req, res) => {
                         customerName,
                         'طلب بدون عناصر',
                         '',
-                        1
+                        1,
+                        customerPhone
                     ]);
                 }
             });
             console.log(`[SallaWebhook] Processed order ${refId} successfully.`);
+            
+            // تشغيل الإسناد الاحتياطي لربط الطلب بالحملة والزيارة المناسبة
+            performFallbackAttribution(refId, o, (errMatch, result) => {
+                if (errMatch) {
+                    console.error(`[SallaWebhook] Error during fallback attribution for order ${refId}:`, errMatch.message);
+                } else {
+                    console.log(`[SallaWebhook] Fallback attribution computed for order ${refId}: platform=${result.platform}`);
+                }
+            });
+        }
+
+        // حدث إضافة منتج للسلة (cart.product.added)
+        if (['cart.product.added', 'cart.abandoned', 'cart.recovered'].includes(eventName) && payload.data) {
+            const c = payload.data;
+            const cartId = String(c.id || c.cart_id || 'cart_' + Date.now());
+            const customerName = c.customer ? `${c.customer.first_name || ''} ${c.customer.last_name || ''}`.trim() : 'عميل مجهول';
+            const items = c.products || c.items || [];
+            const totalAmount = parseFloat(c.total?.amount || c.subtotal?.amount || 0);
+            const dateStr = new Date().toISOString().split('T')[0];
+            console.log(`[SallaWebhook] Cart event received: ${eventName}, cartId: ${cartId}, customer: ${customerName}, items: ${items.length}`);
         }
 
         res.json({ success: true });
     } catch (e) {
         console.error('[SallaWebhook] Error processing webhook:', e.message);
         db.run(
-            "INSERT INTO salla_webhook_logs (event_name, payload, status, error_message) VALUES (?, ?, ?, ?)",
-            [eventName, JSON.stringify(payload), 'failed', e.message]
+            "INSERT INTO salla_webhook_logs (event_id, event_name, payload, status, error_message) VALUES (?, ?, ?, ?, ?)",
+            [eventId || null, eventName, JSON.stringify(payload), 'failed', e.message]
         );
         res.status(500).json({ error: 'Internal server error processing webhook' });
     }
@@ -768,7 +849,125 @@ function getSimulatedCarts() {
     };
 }
 
+// دالة الإسناد التسويقي الاحتياطي للويب هوك
+function performFallbackAttribution(orderId, o, callback) {
+    const customerPhone = o.customer ? (o.customer.mobile || o.customer.phone || '') : '';
+    const customerEmail = o.customer ? (o.customer.email || '') : '';
+    const orderDate = new Date().toISOString();
+    
+    // 1. استخراج معطيات سلة الذاتية لـ UTMs
+    const sallaUtm = o.utm || {};
+    const utmSource = sallaUtm.source || '';
+    const utmMedium = sallaUtm.medium || '';
+    const utmCampaign = sallaUtm.campaign || '';
+    const utmContent = sallaUtm.content || '';
+    const utmTerm = sallaUtm.term || '';
+    
+    // 2. التحقق مما إذا كان الطلب مسنداً مسبقاً من صفحة الشكر لمنع الاستبدال
+    db.get("SELECT 1 FROM order_attribution WHERE order_id = ? LIMIT 1", [String(orderId)], (errCheck, rowCheck) => {
+        if (!errCheck && rowCheck) {
+            return callback(null, { platform: 'already_attributed', campaign_id: '' });
+        }
+        
+        // 3. البحث في الجلسات النشطة خلال الساعتين الماضيتين
+        let matchQuery = `
+            SELECT * FROM attribution_sessions 
+            WHERE datetime(created_at) >= datetime(?, '-2 hours')
+        `;
+        const matchParams = [orderDate];
+        
+        if (utmCampaign) {
+            matchQuery += ` AND (last_touch LIKE ? OR first_touch LIKE ?)`;
+            matchParams.push(`%${utmCampaign}%`, `%${utmCampaign}%`);
+        }
+        
+        matchQuery += ` ORDER BY created_at DESC LIMIT 1`;
+        
+        db.get(matchQuery, matchParams, (err, session) => {
+            let platform = 'direct';
+            let utmId = '';
+            let adsetId = '';
+            let adId = '';
+            let sdVid = null;
+            let matchMethod = 'salla_native';
+            let confidence = 0.5;
+            let touchData = null;
+            
+            if (!err && session) {
+                sdVid = session.sd_vid;
+                matchMethod = 'fallback_time_utm';
+                confidence = 0.8;
+                
+                try {
+                    touchData = JSON.parse(session.last_touch || session.first_touch);
+                } catch(e) {}
+                
+                const src = (touchData?.utm_source || utmSource || '').toLowerCase();
+                const med = (touchData?.utm_medium || utmMedium || '').toLowerCase();
+                
+                if (session.fbclid || src.includes('facebook') || src.includes('instagram') || src === 'fb' || src === 'ig') {
+                    platform = 'facebook';
+                } else if (session.ttclid || src.includes('tiktok') || src === 'tt') {
+                    platform = 'tiktok';
+                } else if (session.sclid || src.includes('snap') || src.includes('snapchat')) {
+                    platform = 'snapchat';
+                } else if (src.includes('google') || src.includes('gclid') || med === 'cpc') {
+                    platform = 'google';
+                } else if (src) {
+                    platform = src;
+                }
+                
+                try {
+                    const url = new URL(touchData.url || '');
+                    utmId = url.searchParams.get('utm_id') || url.searchParams.get('campaign_id') || url.searchParams.get('__CAMPAIGN_ID__') || '';
+                    adsetId = url.searchParams.get('sd_adset') || url.searchParams.get('adset_id') || url.searchParams.get('__AID__') || '';
+                    adId = url.searchParams.get('sd_ad') || url.searchParams.get('ad_id') || url.searchParams.get('__CID__') || '';
+                } catch(e) {}
+            } else if (utmSource) {
+                const src = utmSource.toLowerCase();
+                const med = utmMedium.toLowerCase();
+                
+                if (src.includes('facebook') || src.includes('instagram') || src === 'fb' || src === 'ig') {
+                    platform = 'facebook';
+                } else if (src.includes('tiktok') || src === 'tt') {
+                    platform = 'tiktok';
+                } else if (src.includes('snap') || src.includes('snapchat')) {
+                    platform = 'snapchat';
+                } else if (src.includes('google') || med === 'cpc') {
+                    platform = 'google';
+                } else {
+                    platform = src;
+                }
+            }
+            
+            db.run(`
+                INSERT OR IGNORE INTO order_attribution 
+                (order_id, sd_vid, platform, campaign_id, campaign_name, adset_id, ad_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, match_method, confidence) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                String(orderId),
+                sdVid,
+                platform,
+                utmId || '',
+                utmCampaign || (touchData && touchData.utm_campaign) || '',
+                adsetId || '',
+                adId || '',
+                utmSource || (touchData && touchData.utm_source) || '',
+                utmMedium || (touchData && touchData.utm_medium) || '',
+                utmCampaign || (touchData && touchData.utm_campaign) || '',
+                utmContent || (touchData && touchData.utm_content) || '',
+                utmTerm || (touchData && touchData.utm_term) || '',
+                matchMethod,
+                confidence
+            ], (errInsert) => {
+                if (callback) callback(errInsert, { platform, campaign_id: utmId });
+            });
+        });
+    });
+}
+
 module.exports = {
     router,
-    syncSallaOrdersToLocal: SallaService.syncOrders
+    syncSallaOrdersToLocal: SallaService.syncOrders,
+    performFallbackAttribution
 };
