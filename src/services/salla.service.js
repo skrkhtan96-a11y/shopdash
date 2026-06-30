@@ -219,6 +219,35 @@ const SallaService = {
             }
             return 0;
         }
+    },
+
+    updateOrderStatus: async (orderId, slug) => {
+        try {
+            const token = await SallaService.getOrRefreshToken();
+            if (!token) {
+                console.error('[SallaService] Salla not connected, cannot update order status.');
+                return { success: false, error: 'SALLA_NOT_CONNECTED' };
+            }
+            
+            // Clean order suffix if any (e.g. 12345_678 -> 12345)
+            const cleanOrderId = String(orderId).split('_')[0];
+            
+            console.log(`[SallaService] Updating order status for ${cleanOrderId} to ${slug}...`);
+            const response = await axios.post(`https://api.salla.dev/admin/v2/orders/${cleanOrderId}/status`, {
+                slug: slug
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log(`[SallaService] Order ${cleanOrderId} status updated to ${slug} on Salla.`);
+            return { success: true, data: response.data };
+        } catch (error) {
+            console.error('[SallaService] Failed to update order status:', error.response ? error.response.data : error.message);
+            return { success: false, error: error.response ? error.response.data : error.message };
+        }
     }
 };
 

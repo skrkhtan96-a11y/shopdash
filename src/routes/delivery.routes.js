@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../config/db');
 const ConfigRepository = require('../repositories/config.repository');
 const { authenticateUser, requireRole } = require('../middlewares/auth');
+const SallaService = require('../services/salla.service');
 
 // --- PLAYSTATION PLUS ACCOUNTS ---
 
@@ -237,6 +238,12 @@ router.post('/ps-plus/accounts/deliver', authenticateUser, (req, res) => {
                     const slotName = slot === 'ps4' ? 'PS4' : 'PS5';
                     ConfigRepository.logActivity(req.user.username, 'DELIVER', 'ps_plus', `تم تسليم نسخة ${slotName} من حساب بلس ${type} (${duration}) ${email} للطلب رقم: ${orderClean}`).catch(console.error);
                 });
+                
+                // تحديث حالة الطلب في سلة إلى "تم التنفيذ" تلقائياً
+                SallaService.updateOrderStatus(orderClean, 'completed').catch(err => {
+                    console.error(`[Delivery] Failed to update Salla order status for ${orderClean}:`, err.message);
+                });
+
                 res.json({ success: true });
             });
         }
@@ -536,6 +543,12 @@ router.post('/games/slots/deliver', authenticateUser, (req, res) => {
                             }
                         }
                     );
+
+                    // تحديث حالة الطلب في سلة إلى "تم التنفيذ" تلقائياً
+                    SallaService.updateOrderStatus(orderClean, 'completed').catch(err => {
+                        console.error(`[Delivery] Failed to update Salla order status for ${orderClean}:`, err.message);
+                    });
+
                     res.json({ success: true });
                 }
             );
