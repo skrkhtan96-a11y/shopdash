@@ -14288,6 +14288,24 @@ function showSallaOrderDetails(refId) {
     // Check if PlayStation Plus or similar product for smart delivery
     const prodName = (prod.name || order.product_name || '').toLowerCase();
     const isPsPlus = prodName.includes('بلس') || prodName.includes('plus') || prodName.includes('playstation') || prodName.includes('بلايستيشن');
+    
+    // إظهار وتعبئة مواصفات الطلب المستخلصة للبلس والألعاب
+    const specsContainer = document.getElementById('sodParsedSpecsContainer');
+    if (isPsPlus) {
+        const specs = parsePlusRequirements(prod.name || order.product_name);
+        if (specsContainer) {
+            specsContainer.style.display = 'block';
+            const specConsole = document.getElementById('sodSpecConsole');
+            const specTier = document.getElementById('sodSpecTier');
+            const specDuration = document.getElementById('sodSpecDuration');
+            if (specConsole) specConsole.textContent = specs.consoleType || '-';
+            if (specTier) specTier.textContent = specs.tier || '-';
+            if (specDuration) specDuration.textContent = specs.duration || '-';
+        }
+    } else if (specsContainer) {
+        specsContainer.style.display = 'none';
+    }
+
     const deliveryWidget = document.getElementById('sodDeliveryWidget');
     if (isPsPlus && deliveryWidget) {
         deliveryWidget.style.display = 'block';

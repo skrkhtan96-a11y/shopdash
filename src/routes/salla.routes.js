@@ -638,7 +638,13 @@ router.post('/webhook', async (req, res) => {
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     `);
                     items.forEach(item => {
-                        const prodName = item.name || 'منتج مستورد';
+                        let prodName = item.name || 'منتج مستورد';
+                        if (item.options && Array.isArray(item.options) && item.options.length > 0) {
+                            const opts = item.options.map(opt => opt.value || opt.name).filter(v => v).join(' - ');
+                            if (opts) {
+                                prodName += ' - ' + opts;
+                            }
+                        }
                         const thumbnail = item.thumbnail || '';
                         const qty = parseInt(item.quantity) || 1;
                         
