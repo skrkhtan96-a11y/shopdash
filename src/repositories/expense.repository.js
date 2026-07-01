@@ -73,8 +73,33 @@ const ExpenseRepository = {
                     receipt_url || null
                 ],
                 function (err) {
-                    if (err) reject(err);
-                    else resolve(this.lastID);
+                    if (err) {
+                        reject(err);
+                    } else {
+                        const insertId = this.lastID;
+                        // تحديث مخزون المشتريات تلقائياً عند إضافة بند مشتريات جديد
+                        if (cat === 'مشتريات' && product_name && quantity) {
+                            const qty = parseInt(quantity);
+                            db.run(
+                                `UPDATE inventory_products
+                                 SET quantity = quantity + ?
+                                 WHERE LOWER(TRIM(product_name)) = LOWER(TRIM(?))`,
+                                [qty, product_name],
+                                function(errUpdate) {
+                                    if (!errUpdate && this.changes === 0) {
+                                        // المنتج غير موجود → أنشئه
+                                        const todayDate = new Date().toISOString().split('T')[0];
+                                        db.run(
+                                            `INSERT INTO inventory_products (product_name, quantity, salla_quantity, created_at)
+                                             VALUES (?, ?, 0, ?)`,
+                                            [product_name, qty, todayDate]
+                                        );
+                                    }
+                                }
+                            );
+                        }
+                        resolve(insertId);
+                    }
                 }
             );
         });
@@ -110,9 +135,22 @@ const ExpenseRepository = {
 
     delete: (id) => {
         return new Promise((resolve, reject) => {
-            db.run("DELETE FROM expenses WHERE id = ?", [id], function (err) {
-                if (err) reject(err);
-                else resolve(this.changes);
+            // جلب تفاصيل المصروف قبل حذفه لتعديل المخزون
+            db.get("SELECT cat, product_name, quantity FROM expenses WHERE id = ?", [id], (errGet, row) => {
+                if (!errGet && row && row.cat === 'مشتريات' && row.product_name && row.quantity) {
+                    const qty = parseInt(row.quantity);
+                    db.run(
+                        `UPDATE inventory_products
+                         SET quantity = MAX(0, quantity - ?)
+                         WHERE LOWER(TRIM(product_name)) = LOWER(TRIM(?))`,
+                        [qty, row.product_name]
+                    );
+                }
+                
+                db.run("DELETE FROM expenses WHERE id = ?", [id], function (err) {
+                    if (err) reject(err);
+                    else resolve(this.changes);
+                });
             });
         });
     },

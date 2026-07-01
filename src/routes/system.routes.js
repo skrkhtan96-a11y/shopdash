@@ -173,7 +173,21 @@ router.get('/external-sales', authenticateUser, (req, res) => {
         return res.status(403).json({ error: 'غير مصرح لك باستعراض المبيعات الخارجية.' });
     }
 
-    db.all("SELECT * FROM external_sales ORDER BY created_at DESC", [], (err, rows) => {
+    const { from, to } = req.query;
+    let query = "SELECT * FROM external_sales WHERE 1=1";
+    const params = [];
+
+    if (from) {
+        query += " AND date(created_at) >= date(?)";
+        params.push(from);
+    }
+    if (to) {
+        query += " AND date(created_at) <= date(?)";
+        params.push(to);
+    }
+    query += " ORDER BY created_at DESC";
+
+    db.all(query, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         
         const stats = {

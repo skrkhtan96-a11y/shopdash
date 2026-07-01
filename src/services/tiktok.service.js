@@ -1,4 +1,34 @@
 const axios = require('axios');
+const db = require('../config/db');
+const { decryptToken } = require('../utils/crypto');
+
+async function getTikTokConfig() {
+    return new Promise((resolve, reject) => {
+        db.get("SELECT * FROM ad_platform_config WHERE platform = 'tiktok' AND is_active = 1", [], (err, row) => {
+            if (!err && row) {
+                try {
+                    const decrypted = decryptToken(row.access_token);
+                    return resolve({
+                        account_id: row.account_id,
+                        access_token: decrypted
+                    });
+                } catch (e) {
+                    console.error("Failed to decrypt tiktok config token:", e);
+                }
+            }
+            // Fallback to ads_connections
+            db.get("SELECT * FROM ads_connections WHERE platform = 'tiktok' AND status = 'connected'", [], (err2, row2) => {
+                if (err2 || !row2) resolve(null);
+                else {
+                    resolve({
+                        account_id: row2.account_id,
+                        access_token: row2.access_token
+                    });
+                }
+            });
+        });
+    });
+}
 
 const TikTokService = {
     fetchLiveCampaigns: async (token, advertiserId, fromDate, toDate) => {
@@ -19,6 +49,7 @@ const TikTokService = {
             return null;
         }
     },
+    
     fetchSingleAdvertiserCampaigns: async (token, advertiserId, fromDate, toDate) => {
         try {
             const todayStr = new Date().toISOString().split('T')[0];
@@ -27,7 +58,6 @@ const TikTokService = {
 
             console.log(`[TikTokService] Fetching campaigns metadata for advertiser: ${advertiserId}...`);
             
-            // 1. جلب معلومات الحملات الإعلانية الأساسية
             const campaignsRes = await axios.get("https://business-api.tiktok.com/open_api/v1.3/campaign/get/", {
                 headers: { 
                     'Access-Token': token,
@@ -55,7 +85,6 @@ const TikTokService = {
                 return null;
             }
 
-            // 2. تقسيم النطاق الزمني لطلب التقارير إلى دفعات لا تزيد كل منها عن 30 يوماً
             const chunks = [];
             let curr = new Date(start);
             const endLimit = new Date(end);
@@ -74,7 +103,6 @@ const TikTokService = {
             const results = [];
             const campaignsInReport = new Set();
 
-            // 3. استدعاء واجهة التقارير الموحدة
             for (const chunk of chunks) {
                 console.log(`[TikTokService] Fetching report metrics from ${chunk.start} to ${chunk.end}...`);
                 const reportRes = await axios.get("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/", {
@@ -123,7 +151,6 @@ const TikTokService = {
                 }
             }
 
-            // 4. إضافتها بقيم صفرية لضمان ظهورها بالجدول
             Object.keys(campaignMeta).forEach(cid => {
                 if (!campaignsInReport.has(cid)) {
                     results.push({
@@ -147,6 +174,56 @@ const TikTokService = {
             console.error("[TikTokService] Failed to fetch live TikTok campaigns and reports:", e.message);
             return null;
         }
+    },
+
+    fetchTikTokCampaignInsights: async (dateFrom, dateTo) => {
+        const config = await getTikTokConfig();
+        if (!config) throw new Error('TikTok غير مُهيَّأ');
+
+        const token = config.access_token;
+        const accountId = config.account_id;
+
+        const body = {
+            advertiser_id: accountId,
+            report_type: 'BASIC',
+            data_level: 'AUCTION_ADGROUP',
+            dimensions: ['adgroup_id', 'stat_time_day'],
+            metrics: [
+                'campaign_id', 'campaign_name',
+                'adgroup_id', 'adgroup_name',
+                'spend', 'impressions', 'clicks',
+                'real_time_conversion',
+                'real_time_value'
+            ],
+            start_date: dateFrom,
+            end_date: dateTo,
+            page_size: 1000
+        };
+
+        const response = await axios.post('https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/', body, {
+            headers: {
+                'Access-Token': token,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = response.data || {};
+        if (data.code !== 0) throw new Error(`TikTok error: ${data.message}`);
+
+        return (data.data?.list || []).map(row => ({
+            platform: 'tiktok',
+            account_id: accountId,
+            campaign_id: row.dimensions?.campaign_id || row.metrics?.campaign_id,
+            campaign_name: row.metrics?.campaign_name,
+            adset_id: row.dimensions?.adgroup_id,
+            adset_name: row.metrics?.adgroup_name,
+            date: row.dimensions?.stat_time_day?.split(' ')[0],
+            spend: parseFloat(row.metrics?.spend || 0),
+            impressions: parseInt(row.metrics?.impressions || 0),
+            clicks: parseInt(row.metrics?.clicks || 0),
+            platform_purchases: parseInt(row.metrics?.real_time_conversion || 0),
+            platform_revenue: parseFloat(row.metrics?.real_time_value || 0),
+        }));
     }
 };
 

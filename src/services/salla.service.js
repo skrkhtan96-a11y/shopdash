@@ -243,6 +243,20 @@ const SallaService = {
             });
             
             console.log(`[SallaService] Order ${cleanOrderId} status updated to ${slug} on Salla.`);
+            
+            // Update local DB status immediately to keep UI in sync
+            db.run(
+                "UPDATE salla_imported_orders SET status_slug = ?, status_name = ? WHERE reference_id = ? OR reference_id LIKE ?",
+                [slug, slug === 'completed' ? 'تم التنفيذ' : slug, cleanOrderId, cleanOrderId + '_%'],
+                (dbErr) => {
+                    if (dbErr) {
+                        console.error('[SallaService] Failed to update local DB order status:', dbErr.message);
+                    } else {
+                        console.log('[SallaService] Local DB order status updated.');
+                    }
+                }
+            );
+
             return { success: true, data: response.data };
         } catch (error) {
             console.error('[SallaService] Failed to update order status:', error.response ? error.response.data : error.message);

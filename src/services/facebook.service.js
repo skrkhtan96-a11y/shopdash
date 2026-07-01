@@ -1,10 +1,40 @@
 const axios = require('axios');
+const db = require('../config/db');
+const { decryptToken } = require('../utils/crypto');
+
+async function getMetaConfig() {
+    return new Promise((resolve, reject) => {
+        db.get("SELECT * FROM ad_platform_config WHERE platform = 'meta' AND is_active = 1", [], (err, row) => {
+            if (!err && row) {
+                try {
+                    const decrypted = decryptToken(row.access_token);
+                    return resolve({
+                        account_id: row.account_id,
+                        access_token: decrypted
+                    });
+                } catch (e) {
+                    console.error("Failed to decrypt meta config token:", e);
+                }
+            }
+            // Fallback to ads_connections
+            db.get("SELECT * FROM ads_connections WHERE platform = 'facebook' AND status = 'connected'", [], (err2, row2) => {
+                if (err2 || !row2) resolve(null);
+                else {
+                    resolve({
+                        account_id: row2.account_id,
+                        access_token: row2.access_token
+                    });
+                }
+            });
+        });
+    });
+}
 
 const FacebookService = {
     fetchAdAccounts: async (token) => {
         try {
             console.log("[FacebookService] Fetching ad accounts...");
-            const response = await axios.get("https://graph.facebook.com/v18.0/me/adaccounts", {
+            const response = await axios.get("https://graph.facebook.com/v21.0/me/adaccounts", {
                 params: {
                     fields: 'id,name,account_status,balance,currency,amount_spent',
                     access_token: token
@@ -14,7 +44,7 @@ const FacebookService = {
                 return response.data.data.map(acc => ({
                     id: acc.id,
                     name: acc.name || 'حساب فيسبوك إعلاني',
-                    balance: parseFloat(acc.balance || 0) / 100, // FB returns balance in cents/micro-currency
+                    balance: parseFloat(acc.balance || 0) / 100,
                     currency: acc.currency || 'SAR',
                     status: acc.account_status === 1 ? 'active' : 'paused'
                 }));
@@ -52,8 +82,7 @@ const FacebookService = {
 
             console.log(`[FacebookService] Fetching campaign metadata for: ${adAccountId}...`);
             
-            // 1. Fetch campaigns configuration (budget, status)
-            const configRes = await axios.get(`https://graph.facebook.com/v18.0/${adAccountId}/campaigns`, {
+            const configRes = await axios.get(`https://graph.facebook.com/v21.0/${adAccountId}/campaigns`, {
                 params: {
                     fields: 'id,name,status,daily_budget,lifetime_budget,budget_remaining',
                     limit: 100,
@@ -64,7 +93,7 @@ const FacebookService = {
             const campaignMeta = {};
             if (configRes.data && configRes.data.data) {
                 configRes.data.data.forEach(c => {
-                    const budget = parseFloat(c.daily_budget || c.lifetime_budget || 0) / 100; // FB returns budgets in cents
+                    const budget = parseFloat(c.daily_budget || c.lifetime_budget || 0) / 100;
                     const budgetMode = c.daily_budget ? 'BUDGET_MODE_DAY' : c.lifetime_budget ? 'BUDGET_MODE_TOTAL' : 'BUDGET_MODE_INFINITE';
                     campaignMeta[c.id] = {
                         name: c.name,
@@ -75,9 +104,8 @@ const FacebookService = {
                 });
             }
 
-            // 2. Fetch daily performance insights
             console.log(`[FacebookService] Fetching insights for ${adAccountId} from ${start} to ${end}...`);
-            const insightsRes = await axios.get(`https://graph.facebook.com/v18.0/${adAccountId}/insights`, {
+            const insightsRes = await axios.get(`https://graph.facebook.com/v21.0/${adAccountId}/insights`, {
                 params: {
                     level: 'campaign',
                     time_increment: 1,
@@ -99,14 +127,12 @@ const FacebookService = {
 
                     campaignsInReport.add(campaignId);
 
-                    // Parse conversions from actions (purchase is preferred, fallback to link clicks/leads/etc)
                     let conversions = 0;
                     if (r.actions && Array.isArray(r.actions)) {
                         const purchaseAction = r.actions.find(a => ['purchase', 'offsite_conversion.fb_pixel_purchase'].includes(a.action_type));
                         if (purchaseAction) {
                             conversions = parseInt(purchaseAction.value || 0);
                         } else {
-                            // Find any conversion type action
                             const leadAction = r.actions.find(a => ['lead', 'onsite_conversion.messaging_first_reply'].includes(a.action_type));
                             if (leadAction) {
                                 conversions = parseInt(leadAction.value || 0);
@@ -130,7 +156,6 @@ const FacebookService = {
                 });
             }
 
-            // 3. Add campaigns with zero spend to make sure they show in tables
             Object.keys(campaignMeta).forEach(cid => {
                 if (!campaignsInReport.has(cid)) {
                     results.push({
@@ -154,7 +179,70 @@ const FacebookService = {
             console.error(`[FacebookService] Failed to fetch insights for: ${adAccountId}:`, e.message);
             return [];
         }
+    },
+
+    fetchMetaCampaignInsights: async (dateFrom, dateTo) => {
+        const config = await getMetaConfig();
+        if (!config) throw new Error('Meta غير مُهيَّأ — أضف التوكن وحساب الإعلانات');
+
+        const token = config.access_token;
+        const accountId = config.account_id;
+
+        const fields = [
+            'campaign_id',
+            'campaign_name',
+            'adset_id',
+            'adset_name',
+            'spend',
+            'impressions',
+            'clicks',
+            'actions',
+            'action_values',
+            'cpc',
+            'cpm',
+            'ctr'
+        ].join(',');
+
+        const params = {
+            fields,
+            level: 'adset',
+            time_range: JSON.stringify({ since: dateFrom, until: dateTo }),
+            time_increment: 1,
+            limit: 500,
+            access_token: token
+        };
+
+        const cleanAccountId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+        const response = await axios.get(`https://graph.facebook.com/v21.0/${cleanAccountId}/insights`, { params });
+        const data = response.data || {};
+
+        return (data.data || []).map(row => ({
+            platform: 'meta',
+            account_id: accountId,
+            campaign_id: row.campaign_id,
+            campaign_name: row.campaign_name,
+            adset_id: row.adset_id,
+            adset_name: row.adset_name,
+            date: row.date_start,
+            spend: parseFloat(row.spend || 0),
+            impressions: parseInt(row.impressions || 0),
+            clicks: parseInt(row.clicks || 0),
+            platform_purchases: extractAction(row.actions, 'purchase'),
+            platform_revenue: extractActionValue(row.action_values, 'purchase'),
+        }));
     }
 };
+
+function extractAction(actions, actionType) {
+    if (!Array.isArray(actions)) return 0;
+    const found = actions.find(a => a.action_type === actionType);
+    return found ? parseInt(found.value || 0) : 0;
+}
+
+function extractActionValue(actionValues, actionType) {
+    if (!Array.isArray(actionValues)) return 0;
+    const found = actionValues.find(a => a.action_type === actionType);
+    return found ? parseFloat(found.value || 0) : 0;
+}
 
 module.exports = FacebookService;

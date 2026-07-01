@@ -510,6 +510,51 @@ db.serialize(() => {
 
     db.run("ALTER TABLE salla_webhook_logs ADD COLUMN event_id TEXT", (err) => { /* تجاهل الخطأ */ });
 
+    // الجداول الجديدة للمراحل القادمة لصفحة تحليل المنتجات الشاملة
+    db.run(`
+        CREATE TABLE IF NOT EXISTS product_mapping (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            salla_product_id   TEXT UNIQUE NOT NULL,
+            sku                TEXT,
+            display_name       TEXT,
+            normalized_name    TEXT,
+            inventory_source   TEXT DEFAULT 'ledger',
+            real_units_table   TEXT,
+            reorder_threshold  INTEGER DEFAULT 3,
+            is_active          INTEGER DEFAULT 1,
+            created_at         TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS stock_movements (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            salla_product_id   TEXT NOT NULL,
+            movement_type      TEXT NOT NULL,
+            quantity           INTEGER NOT NULL,
+            source_type        TEXT,
+            source_id          TEXT,
+            reason             TEXT,
+            actor              TEXT DEFAULT 'system',
+            created_at         TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(movement_type, source_type, source_id, salla_product_id)
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS purchase_batches (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            salla_product_id   TEXT NOT NULL,
+            quantity           INTEGER NOT NULL,
+            unit_cost          REAL NOT NULL,
+            total_cost         REAL,
+            supplier           TEXT,
+            purchased_at       TEXT,
+            note               TEXT,
+            created_at         TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
 
 
     // ترقية جدول إحصائيات الإعلانات لإضافة الميزانية ونمط الميزانية
@@ -593,6 +638,46 @@ db.serialize(() => {
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps5_2_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN ps4_delivered_at TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ps_plus_accounts ADD COLUMN is_archived INTEGER DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
+
+    // ترقية جدول inventory_products لإضافة مخزون سلة المزدوج
+    db.run("ALTER TABLE inventory_products ADD COLUMN salla_quantity INTEGER DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE inventory_products ADD COLUMN salla_product_id TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE inventory_products ADD COLUMN last_synced_from_salla TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE inventory_products ADD COLUMN reorder_threshold INTEGER DEFAULT 3", (err) => { /* تجاهل الخطأ */ });
+
+    // ترقية جدول campaign_spend لإضافة أعمدة الأداء والمجموعات الإعلانية
+    db.run("ALTER TABLE campaign_spend ADD COLUMN account_id TEXT", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE campaign_spend ADD COLUMN adset_id TEXT", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE campaign_spend ADD COLUMN adset_name TEXT", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE campaign_spend ADD COLUMN platform_purchases INTEGER DEFAULT 0", (err) => { /* تجاهل */ });
+    db.run("ALTER TABLE campaign_spend ADD COLUMN platform_revenue REAL DEFAULT 0", (err) => { /* تجاهل */ });
+
+    // إنشاء جدول ad_platform_config لتهيئة منصات الإعلانات
+    db.run(`
+        CREATE TABLE IF NOT EXISTS ad_platform_config (
+            platform       TEXT PRIMARY KEY,
+            account_id     TEXT NOT NULL,
+            access_token   TEXT NOT NULL,
+            token_type     TEXT DEFAULT 'system_user',
+            extra_config   TEXT,
+            is_active      INTEGER DEFAULT 1,
+            last_verified  TEXT,
+            created_at     TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // إنشاء جدول campaign_analyses لحفظ تحليلات الذكاء الاصطناعي
+    db.run(`
+        CREATE TABLE IF NOT EXISTS campaign_analyses (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_from     TEXT NOT NULL,
+            period_to       TEXT NOT NULL,
+            campaigns_count INTEGER,
+            analysis_text   TEXT,
+            data_snapshot   TEXT,
+            created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {

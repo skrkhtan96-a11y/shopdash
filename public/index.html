@@ -48,6 +48,14 @@
       color: var(--text) !important;
     }
     
+    /* Product Overview Custom Row Colors */
+    tr.table-danger-custom {
+      background: rgba(239, 68, 68, 0.04) !important;
+    }
+    tr.table-warning-custom {
+      background: rgba(245, 158, 11, 0.03) !important;
+    }
+    
     /* Floating Scroll Navigation Widget */
     .scroll-navigation-widget {
       position: fixed;
@@ -672,62 +680,72 @@
 
   <!-- MODAL: إعدادات الربط الإعلاني الموحد -->
   <div class="modal-bg" id="adConnectModal">
-    <div class="modal" style="max-width: 580px;">
-      <div class="modal-title"><i class="ti ti-plug" style="color:var(--accent)"></i> إعدادات الاتصال بالحسابات الإعلانية</div>
+    <div class="modal" style="max-width: 620px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+      <div class="modal-title" style="border-bottom: 1px solid var(--border2); padding-bottom: 12px; margin-bottom: 15px;"><i class="ti ti-plug" style="color:var(--accent)"></i> إعدادات الربط والاتصال بالحسابات الإعلانية</div>
       
-      <div style="font-size:12px; color:var(--text2); margin-bottom: 20px; line-height: 1.5;">
-        قم بالربط المباشر أو تفعيل وضع المحاكاة التسويقية الفوري لمنصات الإعلانات لتغذية اللوحة ببيانات الأداء الإعلاني وربطها بمبيعات سلة تلقائياً.
+      <div style="font-size:12px; color:var(--text2); margin-bottom: 20px; line-height: 1.6;">
+        أدخل رموز الوصول ومعرف الحسابات الإعلانية الفعلية لتغذية لوحة التحكم ببيانات الصرف والظهور الحقيقية ومطابقتها مع نظام الإسناد. يتم تشفير رموز الوصول بشكل آمن في قاعدة البيانات.
       </div>
 
-      <!-- Platform List inside Modal -->
-      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom: 20px;">
+      <!-- Platforms Configurations -->
+      <div style="display:flex; flex-direction:column; gap:16px; margin-bottom: 20px;">
         
-        <!-- Platform: Facebook -->
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg3); border-radius:8px; border:1px solid var(--border2)">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:36px; height:36px; border-radius:50%; background:#1877F2; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px"><i class="ti ti-brand-facebook"></i></div>
+        <!-- Platform: Meta -->
+        <div style="padding:14px; background:rgba(24, 119, 242, 0.05); border-radius:8px; border:1px solid rgba(24, 119, 242, 0.2)">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div style="width:28px; height:28px; border-radius:50%; background:#1877F2; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px"><i class="ti ti-brand-facebook"></i></div>
+              <div style="font-weight:600; font-size:13px; color: var(--text);">إعدادات فيس بوك / إنستغرام إعلانات</div>
+            </div>
+            <span id="fbStatusText" style="font-size:10px;" class="pill pill-red">غير متصل</span>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom: 10px;">
             <div>
-              <div style="font-weight:600; font-size:13px">فيس بوك / إنستغرام إعلانات</div>
-              <div style="font-size:10px; color:var(--text3);" id="fbStatusText">غير متصل</div>
+              <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">Account ID (معرّف الحساب)</label>
+              <input type="text" id="metaAccountId" placeholder="act_XXXXXXXX" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+            </div>
+            <div>
+              <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">System User Access Token</label>
+              <input type="password" id="metaToken" placeholder="EAAxxxxxx..." style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
             </div>
           </div>
-          <div id="fbActionBtn">
-            <button class="btn btn-sm btn-primary" onclick="connectAdPlatform('facebook')">ربط المنصة</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; margin-bottom:12px; gap:8px;">
+            <a href="https://business.facebook.com/settings/system-users" target="_blank" class="btn btn-sm btn-outline-secondary" style="font-size:9.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; text-decoration:none; color:var(--text2); background:var(--bg3); display:inline-flex; align-items:center; gap:4px; flex:1; justify-content:center;"><i class="ti ti-external-link"></i> الذهاب لإنشاء توكن Meta</a>
+            <a href="https://adsmanager.facebook.com/" target="_blank" class="btn btn-sm btn-outline-secondary" style="font-size:9.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; text-decoration:none; color:var(--text2); background:var(--bg3); display:inline-flex; align-items:center; gap:4px; flex:1; justify-content:center;"><i class="ti ti-external-link"></i> جلب معرف الحساب (Meta ID)</a>
           </div>
-        </div>
-
-        <!-- Platform: Snapchat -->
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg3); border-radius:8px; border:1px solid var(--border2)">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:36px; height:36px; border-radius:50%; background:#FFFC00; display:flex; align-items:center; justify-content:center; color:#000; font-size:18px"><i class="ti ti-brand-snapchat"></i></div>
-            <div>
-              <div style="font-weight:600; font-size:13px">سناب شات إعلانات</div>
-              <div style="font-size:10px; color:var(--text3);" id="snapStatusText">غير متصل</div>
-            </div>
-          </div>
-          <div id="snapActionBtn">
-            <button class="btn btn-sm btn-primary" onclick="connectAdPlatform('snapchat')">ربط المنصة</button>
-          </div>
+          <button class="btn btn-sm btn-primary" onclick="savePlatformConfig('meta')" style="width:100%;"><i class="ti ti-device-floppy"></i> حفظ وتفعيل ربط Meta</button>
         </div>
 
         <!-- Platform: TikTok -->
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg3); border-radius:8px; border:1px solid var(--border2)">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:36px; height:36px; border-radius:50%; background:#000000; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; border:1px solid var(--border2)"><i class="ti ti-brand-tiktok"></i></div>
+        <div style="padding:14px; background:rgba(0, 0, 0, 0.2); border-radius:8px; border:1px solid var(--border)">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div style="width:28px; height:28px; border-radius:50%; background:#000; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; border: 1px solid var(--border2)"><i class="ti ti-brand-tiktok"></i></div>
+              <div style="font-weight:600; font-size:13px; color: var(--text);">إعدادات تيك توك إعلانات (TikTok Ads)</div>
+            </div>
+            <span id="tiktokStatusText" style="font-size:10px;" class="pill pill-red">غير متصل</span>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom: 10px;">
             <div>
-              <div style="font-weight:600; font-size:13px">تيك توك إعلانات</div>
-              <div style="font-size:10px; color:var(--text3);" id="tiktokStatusText">غير متصل</div>
+              <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">Advertiser ID (معرّف المعلن)</label>
+              <input type="text" id="tiktokAccountId" placeholder="XXXXXXXXXXXX" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+            </div>
+            <div>
+              <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">Long-lived Access Token</label>
+              <input type="password" id="tiktokToken" placeholder="LTAxxxxxx..." style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
             </div>
           </div>
-          <div id="tiktokActionBtn">
-            <button class="btn btn-sm btn-primary" onclick="connectAdPlatform('tiktok')">ربط المنصة</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; margin-bottom:12px; gap:8px;">
+            <a href="https://business-api.tiktok.com/portal/auth?app_id=7646601182546231297&state=nuzum_tiktok&redirect_uri=https%3A%2F%2Fshop.nuzum.sbs%2Fnuzum" target="_blank" class="btn btn-sm btn-outline-secondary" style="font-size:9.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; text-decoration:none; color:var(--text2); background:var(--bg3); display:inline-flex; align-items:center; gap:4px; flex:1; justify-content:center;"><i class="ti ti-plug"></i> تفويض وجلب توكن TikTok</a>
+            <a href="https://ads.tiktok.com/" target="_blank" class="btn btn-sm btn-outline-secondary" style="font-size:9.5px; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; text-decoration:none; color:var(--text2); background:var(--bg3); display:inline-flex; align-items:center; gap:4px; flex:1; justify-content:center;"><i class="ti ti-external-link"></i> جلب معرف المعلن (TikTok ID)</a>
           </div>
+          <button class="btn btn-sm btn-primary" onclick="savePlatformConfig('tiktok')" style="width:100%;"><i class="ti ti-device-floppy"></i> حفظ وتفعيل ربط TikTok</button>
         </div>
 
       </div>
 
-      <div class="modal-foot">
-        <button class="btn btn-primary" style="width:100%" onclick="closeAdsConnectModal()">إغلاق اللوحة</button>
+      <div class="modal-foot" style="border-top: 1px solid var(--border2); padding-top: 12px; display: flex; gap: 8px;">
+        <button class="btn btn-outline-secondary" style="flex:1" onclick="closeAdsConnectModal()">إغلاق النافذة</button>
       </div>
     </div>
   </div>
@@ -782,6 +800,7 @@
         <div class="nav-item" id="nav-games" onclick="nav('games')"><i class="ti ti-device-gamepad-2"></i> مخزون الألعاب</div>
         <div class="nav-item" id="nav-games-deliveries" onclick="nav('games-deliveries')"><i class="ti ti-report"></i> تقرير تسليم الألعاب</div>
         <div class="nav-item" id="nav-inventory-dashboard" onclick="nav('inventory-dashboard')"><i class="ti ti-chart-bar"></i> داشبورد المخزون المتبقي</div>
+        <div class="nav-item" id="nav-product-overview" onclick="nav('product-overview')"><i class="ti ti-packages"></i> تحليل المنتجات الشامل</div>
       </div>
 
       <div class="s-sep"></div>
@@ -846,6 +865,37 @@
           <button class="btn btn-sm" onclick="openArchModal()" id="newMonthBtn" style="color:var(--amber); border-color:rgba(232,168,74,0.3); background:transparent;"><i class="ti ti-calendar-plus"></i> بدء شهر جديد</button>
           <button class="btn btn-sm" onclick="syncSalla()" id="syncBtn"><i class="ti ti-refresh"></i> تحديث مزامنة سلة</button>
           <button class="btn btn-sm btn-primary" onclick="openModal()" id="addBtn"><i class="ti ti-plus"></i> إضافة مصروف</button>
+        </div>
+      </div>
+
+      <!-- ═══ شريط الفلتر الزمني العالمي ═══ -->
+      <div id="globalDateBar" class="filter-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin: 12px 14px; padding: 12px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border); border-radius: var(--r);">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <!-- التنقل الشهري -->
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button id="btnDatePrev" class="btn btn-sm btn-outline-secondary" onclick="window.globalDateFilter.prevMonth()" title="الشهر السابق">
+              <i class="ti ti-chevron-right"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-light" style="font-weight:600; cursor:default; min-width:120px;" disabled>
+              <i class="ti ti-calendar" style="margin-left:4px;"></i>
+              <span id="globalDateLabel">يوليو 2026</span>
+            </button>
+            <button id="btnDateNext" class="btn btn-sm btn-outline-secondary" onclick="window.globalDateFilter.nextMonth()" title="الشهر التالي">
+              <i class="ti ti-chevron-left"></i>
+            </button>
+          </div>
+          <span id="activePeriodBadge" class="pill pill-green" style="font-size:10px;">هذا الشهر</span>
+        </div>
+
+        <!-- فترة مخصصة -->
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <label style="font-size:11.5px; color:var(--text2);">الفترة من:</label>
+          <input type="date" id="customDateFrom" onchange="applyCustomDateRange()" style="padding:4px 8px; font-size:11px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); outline:none">
+          <label style="font-size:11.5px; color:var(--text2);">إلى:</label>
+          <input type="date" id="customDateTo" onchange="applyCustomDateRange()" style="padding:4px 8px; font-size:11px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); outline:none">
+          <button class="btn btn-sm btn-outline-secondary" onclick="window.globalDateFilter.resetToGlobal()" title="إعادة تعيين للفترة الحالية" style="padding: 4px 8px; display: flex; align-items: center; justify-content: center;">
+            <i class="ti ti-rotate-clockwise-2"></i>
+          </button>
         </div>
       </div>
 
@@ -1021,7 +1071,8 @@
             <div class="tbl-title">لوحة تحكم الحملات الإعلانية الموحدة</div>
             <div style="display:flex; gap:6px;">
               <button class="btn btn-sm" id="btnAdsConnect" onclick="openAdsConnectModal()"><i class="ti ti-plug"></i> إعدادات الربط الإعلاني</button>
-              <button class="btn btn-sm btn-primary" onclick="syncCampaigns()"><i class="ti ti-refresh"></i> مزامنة وتحديث الحملات</button>
+              <button class="btn btn-sm" onclick="syncCampaigns()"><i class="ti ti-refresh"></i> مزامنة وتحديث الحملات</button>
+              <button class="btn btn-sm btn-success" onclick="analyzeCampaigns()" id="btnAnalyze" style="background:rgba(16, 185, 129, 0.1); border-color:var(--green); color:var(--green);"><i class="ti ti-robot"></i> تحليل Claude الذكي</button>
             </div>
           </div>
           <div class="filter-bar" style="margin-top: 15px;">
@@ -1034,8 +1085,8 @@
             </select>
             <label style="margin-right:8px">حالة الحملة:</label>
             <select id="adStatusFilter" onchange="renderCampaigns()">
-              <option value="active" selected>نشطة فقط</option>
-              <option value="all">كافة الحملات (الكل)</option>
+              <option value="all" selected>كافة الحملات (الكل)</option>
+              <option value="active">نشطة فقط</option>
               <option value="paused">متوقفة فقط</option>
             </select>
             <label style="margin-right:8px">من:</label>
@@ -1090,29 +1141,45 @@
         </div>
 
         <!-- Campaigns Table -->
-        <div class="tbl-wrap">
+        <div class="tbl-wrap" style="margin-bottom: 20px;">
           <div class="tbl-header">
-            <div class="tbl-title">تفاصيل أداء الحملات الإعلانية <span class="tbl-count" id="campCount" style="font-size:10px;color:var(--text3)"></span></div>
+            <div class="tbl-title">تفاصيل أداء الحملات الإعلانية المدمج (إسناد حقيقي vs المنصة) <span class="tbl-count" id="campCount" style="font-size:10px;color:var(--text3)"></span></div>
           </div>
           <div class="tbl-scroll">
-            <table>
+            <table class="table table-hover" id="campaignsTable">
               <thead>
                 <tr>
-                  <th>اسم الحملة الإعلانية</th>
+                  <th>اسم الحملة</th>
                   <th>المنصة</th>
-                  <th>الحالة</th>
+                  <th>الصرف الفعلي</th>
                   <th>مرات الظهور</th>
                   <th>النقرات</th>
-                  <th>نسبة النقر CTR</th>
-                  <th>الإنفاق الإعلاني</th>
-                  <th>المبيعات المنسوبة</th>
-                  <th>العائد ROAS</th>
+                  <th>
+                    طلبات حقيقية
+                    <i class="ti ti-info-circle text-success" title="من نظام الإسناد الفعلي"></i>
+                  </th>
+                  <th>
+                    طلبات المنصة
+                    <i class="ti ti-alert-triangle text-warning" title="أرقام المنصة — قد تكون مضخّمة"></i>
+                  </th>
+                  <th>ROAS الحقيقي</th>
+                  <th>CPA</th>
+                  <th>صافي الربح</th>
+                  <th>جودة البيانات</th>
                 </tr>
               </thead>
               <tbody id="campBody"></tbody>
-              <tfoot id="campFoot"></tfoot>
             </table>
           </div>
+        </div>
+
+        <!-- Claude Analysis Box -->
+        <div id="claudeAnalysisBox" class="tbl-wrap pad" style="display:none; margin-top:20px; border:1px solid var(--green);">
+          <div style="font-weight:700; font-size:14px; color:var(--green); margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+            <span><i class="ti ti-robot"></i> تحليل Claude الذكي — استناداً لبيانات الإسناد الحقيقية</span>
+            <small id="analysisDate" style="font-size:10px; color:var(--text3);"></small>
+          </div>
+          <div id="claudeAnalysisText" style="white-space: pre-wrap; line-height: 1.8; font-size:12.5px; color:var(--text2);"></div>
         </div>
       </div>
 
@@ -2049,6 +2116,178 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- PAGE: PRODUCT OVERVIEW -->
+      <div class="page pad" id="page-product-overview">
+        <div class="import-panel" style="margin-bottom:14px; background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
+            <div>
+              <div class="import-panel-title" style="font-size:16px; font-weight:700; color:var(--text); display: flex; align-items: center; gap: 8px;">
+                <i class="ti ti-packages" style="color:var(--accent); font-size:20px;"></i>
+                <span>تحليل المنتجات الشامل (المشتريات + المخزون + مبيعات سلة)</span>
+              </div>
+              <div class="import-panel-sub" style="font-size:11px; color:var(--text3); margin-top:4px;">
+                لوحة تحليلية متكاملة لمراقبة ومطابقة مشتريات المنتجات، المخزون المتوفر، والمبيعات النشطة المستوردة من سلة مع حساب الكميات المتبقية وتنبيهات إعادة الطلب.
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn btn-sm btn-primary" onclick="loadProductOverview()"><i class="ti ti-refresh"></i> تحديث البيانات</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIs Grid for Product Overview -->
+        <div class="kpi-grid" id="productOverviewKPIs" style="margin-bottom:14px; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <div class="kpi k-accent"><i class="ti ti-box kpi-ico"></i><div class="kpi-label">عدد المنتجات النشطة</div><div class="kpi-val accent" id="kpiPoTotalProducts">0</div><div class="kpi-sub">المنتجات الخاضعة للتحليل</div></div>
+          <div class="kpi k-blue"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">إجمالي كمية المشتريات</div><div class="kpi-val blue" id="kpiPoTotalPurchased">0 وحدة</div><div class="kpi-sub">المستوردة من المشتريات</div></div>
+          <div class="kpi k-green"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">إجمالي مبلغ الشراء</div><div class="kpi-val green" id="kpiPoTotalCost">0.00 ر.س</div><div class="kpi-sub">قيمة رأس المال المستثمر</div></div>
+          <div class="kpi k-amber"><i class="ti ti-device-gamepad-2 kpi-ico"></i><div class="kpi-label">إجمالي طلبات سلة</div><div class="kpi-val amber" id="kpiPoTotalSallaOrders">0 وحدة</div><div class="kpi-sub">طلبات سلة المنجزة والمعلقة</div></div>
+        </div>
+
+        <!-- Search and Filter Bar -->
+        <div class="tbl-wrap" style="margin-bottom:14px; padding:12px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+          <div class="filter-bar" style="margin: 0; padding: 0; border: none; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+              <label style="display:flex; align-items:center; gap:4px;"><i class="ti ti-search" style="color:var(--accent);"></i> بحث:</label>
+              <input type="text" id="poSearch" placeholder="بحث باسم المنتج..." oninput="filterProductOverviewTable()" style="padding:6px 10px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); width:240px; outline:none">
+              
+              <label style="margin-right:8px">حالة المخزون المتبقي:</label>
+              <select id="poStockFilter" onchange="filterProductOverviewTable()" style="padding:6px 8px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); outline:none">
+                <option value="all">كافة الحالات</option>
+                <option value="critical">🔴 نافد (0 أو أقل)</option>
+                <option value="low">🟡 قريب النفاد (أقل من 3)</option>
+                <option value="ok">🟢 متوفر</option>
+                <option value="diff">⚠️ يوجد فارق</option>
+              </select>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-sm btn-primary" onclick="syncInventoryFromSalla()" id="btnSyncSalla" style="display:flex; align-items:center; gap:4px">
+                <i class="ti ti-refresh"></i>
+                جلب وتحديث من سلة
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="loadProductOverview()" style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0">
+                <i class="ti ti-reload"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- شريط حالة آخر تزامن والتنبيهات للمنتجات غير المطابقة -->
+        <div id="poSyncStatus" class="alert alert-light py-2 px-3 mb-3 small text-muted d-none" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--r); font-size:11.5px; display: flex; flex-direction:column; gap:6px;">
+          <div>آخر تزامن مع سلة: <span id="poLastSyncTime" class="fw-bold" style="color:var(--accent)">—</span></div>
+          <div id="poUnmatchedContainer" class="d-none" style="border-top:1px dashed var(--border2); padding-top:6px; color:var(--amber); font-weight:600">
+            <i class="ti ti-alert-triangle"></i> <span id="poUnmatchedText">0 منتج من سلة بدون مطابقة محلية (تم إضافتها تلقائياً برصيد 0 في المشتريات).</span>
+          </div>
+        </div>
+
+        <!-- Main Overview Table -->
+        <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+          <div class="tbl-header" style="border-bottom:1px solid var(--border2); padding-bottom:10px">
+            <div class="tbl-title" style="font-size:13px; font-weight:600;"><i class="ti ti-list" style="color:var(--accent)"></i> المنتجات وتحليلات المخزون</div>
+          </div>
+          <div class="tbl-scroll" style="max-height: 600px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>اسم المنتج</th>
+                  <th style="text-align:center">كمية المشتريات</th>
+                  <th style="text-align:center">مبلغ الشراء</th>
+                  <th style="text-align:center">متوسط التكلفة</th>
+                  <th style="text-align:center">مخزون المشتريات</th>
+                  <th style="text-align:center">مخزون سلة</th>
+                  <th style="text-align:center">الفارق</th>
+                  <th style="text-align:center">طلبات سلة</th>
+                  <th style="text-align:center">المتبقي (سلة)</th>
+                  <th style="text-align:center">الحالة</th>
+                </tr>
+              </thead>
+              <tbody id="poTableBody">
+                <tr>
+                  <td colspan="10" style="text-align:center; color:var(--text3); padding:30px">
+                    <i class="ti ti-loader spinner" style="font-size:20px; display:inline-block; vertical-align:middle; margin-left:8px"></i>
+                    جاري تحميل تحليلات المنتجات...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: تفاصيل المنتج المنبثقة لتحليل المنتجات الشامل -->
+      <div class="modal-bg" id="poDetailModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); z-index: 10000; align-items: center; justify-content: center;">
+        <div class="modal" style="max-width: 650px; max-height: 90vh; overflow-y: auto; border-color: rgba(255,255,255,0.1); background: rgba(17, 21, 32, 0.95); backdrop-filter: blur(20px); width: 90%; border-radius: 12px; border: 1px solid var(--border); padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+          <div class="modal-title" style="font-size: 15px; font-weight: 600; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="display:flex; align-items:center; gap:8px"><i class="ti ti-package"></i> تفاصيل وتحليل المنتج</span>
+            <span id="poDetailProductNameBadge" style="font-size: 12px; color: var(--text2); font-weight:600;">-</span>
+          </div>
+          
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <!-- قسم التنبيهات وإعدادات التنبيه -->
+            <div style="background:var(--bg3); padding:12px; border-radius:8px; border:1px solid var(--border2)">
+              <div style="font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom:8px; display:flex; align-items:center; gap:6px">
+                <i class="ti ti-alert-circle"></i> تنبيهات وإعادة الطلب
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#fff;">
+                <span>حد إعادة الطلب (Reorder Threshold):</span>
+                <span id="poDetailThreshold" class="mono" style="font-weight:700; color:var(--amber)">3 قطع</span>
+              </div>
+            </div>
+
+            <!-- قسم آخر 5 عمليات شراء -->
+            <div style="background:var(--bg3); padding:12px; border-radius:8px; border:1px solid var(--border2)">
+              <div style="font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom:8px; display:flex; align-items:center; gap:6px">
+                <i class="ti ti-receipt"></i> آخر 5 عمليات شراء (مشتريات)
+              </div>
+              <div class="tbl-scroll" style="max-height: 180px; overflow-y: auto; font-size:11px;">
+                <table style="width:100%">
+                  <thead>
+                    <tr style="text-align:right">
+                      <th>التاريخ</th>
+                      <th>البيان</th>
+                      <th>الكمية</th>
+                      <th>التكلفة للقطعة</th>
+                      <th>الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody id="poDetailPurchasesBody">
+                    <!-- سيتم تعبئتها ديناميكياً -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- قسم آخر 5 طلبات سلة -->
+            <div style="background:var(--bg3); padding:12px; border-radius:8px; border:1px solid var(--border2)">
+              <div style="font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom:8px; display:flex; align-items:center; gap:6px">
+                <i class="ti ti-shopping-cart"></i> آخر 5 طلبات سلة مستلمة
+              </div>
+              <div class="tbl-scroll" style="max-height: 180px; overflow-y: auto; font-size:11px;">
+                <table style="width:100%">
+                  <thead>
+                    <tr style="text-align:right">
+                      <th>المرجع</th>
+                      <th>التاريخ</th>
+                      <th>العميل</th>
+                      <th>الكمية</th>
+                      <th>المبلغ</th>
+                      <th>الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody id="poDetailOrdersBody">
+                    <!-- سيتم تعبئتها ديناميكياً -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-foot" style="margin-top:20px; padding-top:10px; display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary" onclick="closePoDetailModal()"><i class="ti ti-check"></i> إغلاق</button>
+          </div>
+        </div>
       </div>
 
       <!-- PAGE: SALLA PURCHASE BATCHES COMPARISON -->

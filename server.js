@@ -57,6 +57,9 @@ app.use(cors({
 // Apply general rate limiter to all API endpoints
 app.use('/api', generalLimiter);
 
+// Serve Y-Go landing page publicly
+app.use('/ygo', express.static(path.join(__dirname, 'ygo')));
+
 // Protect static HTML pages (excluding login.html)
 app.use(sessionStaticCheckMiddleware);
 
@@ -77,6 +80,7 @@ const inventoryRouter = require('./src/routes/inventory.routes');
 const systemRouter = require('./src/routes/system.routes');
 const aiRouter = require('./src/routes/ai.routes');
 const uploadRouter = require('./src/routes/upload.routes');
+const campaignsRouter = require('./src/routes/campaigns.routes');
 
 // --- MOUNT APIS & PAGES ---
 
@@ -89,6 +93,7 @@ app.use('/api/users', userRouter);
 app.use('/api/expenses', expenseRouter);
 app.use('/api/salla', sallaRouter.router);
 app.use('/api/ads', adsRouter.router);
+app.use('/api/campaigns', campaignsRouter);
 app.use('/api', deliveryRouter);
 app.use('/api', inventoryRouter);
 app.use('/api', systemRouter);

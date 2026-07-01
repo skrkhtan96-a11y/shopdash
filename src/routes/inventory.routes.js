@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require('axios');
 const db = require('../config/db');
 const ConfigRepository = require('../repositories/config.repository');
+const SallaService = require('../services/salla.service');
 const { authenticateUser } = require('../middlewares/auth');
 
 // --- CERTIFICATES ---
@@ -538,8 +539,340 @@ router.delete('/inventory/pricing-rules/:id', authenticateUser, (req, res) => {
     }
     db.run("DELETE FROM product_pricing_rules WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        ConfigRepository.logActivity(req.user.username, 'DELETE', 'product_pricing_rules', `تم حذف قاعدة تسعير ID: ${req.params.id}`).catch(console.error);
+ConfigRepository.logActivity(req.user.username, 'DELETE', 'product_pricing_rules', `تم حذف قاعدة تسعير ID: ${req.params.id}`).catch(console.error);
         res.json({ success: true });
+    });
+});
+
+// ─── GET /api/inventory/product-overview ───
+router.get('/inventory/product-overview', authenticateUser, (req, res) => {
+    const { from, to } = req.query;
+    const params = [];
+
+    let expDateFilter = '';
+    if (from) {
+        expDateFilter += ' AND date(date) >= date(?)';
+        params.push(from);
+    }
+    if (to) {
+        expDateFilter += ' AND date(date) <= date(?)';
+        params.push(to);
+    }
+
+    let ordersDateFilter = '';
+    if (from) {
+        ordersDateFilter += ' AND date(date) >= date(?)';
+        params.push(from);
+    }
+    if (to) {
+        ordersDateFilter += ' AND date(date) <= date(?)';
+        params.push(to);
+    }
+
+    const sql = `
+        SELECT
+            ip.product_name,
+            ip.salla_product_id,
+            ip.last_synced_from_salla,
+
+            -- مخزون المشتريات (من المصروفات المجمّعة)
+            COALESCE(p.total_purchased_qty, 0)  AS total_purchased_qty,
+            COALESCE(p.total_purchase_cost, 0)  AS total_purchase_cost,
+            COALESCE(p.avg_unit_cost, 0)        AS avg_unit_cost,
+            ip.quantity                         AS purchase_stock,
+
+            -- مخزون سلة
+            ip.salla_quantity                   AS salla_stock,
+
+            -- الفارق (سلة − مشتريات)
+            (ip.salla_quantity - ip.quantity)   AS stock_diff,
+
+            -- طلبات سلة
+            COALESCE(s.salla_qty, 0)            AS salla_orders_qty,
+            COALESCE(s.pending_qty, 0)          AS salla_orders_pending,
+            COALESCE(s.completed_qty, 0)        AS salla_orders_completed,
+
+            -- المتبقي المحسوب (من مخزون سلة كمصدر رئيسي)
+            (ip.salla_quantity - COALESCE(s.pending_qty, 0)) AS remaining_stock,
+
+            COALESCE(ip.reorder_threshold, 3)   AS reorder_threshold,
+            p.last_purchase_date
+
+        FROM inventory_products ip
+
+        LEFT JOIN (
+            SELECT
+                product_name,
+                SUM(quantity)                              AS total_purchased_qty,
+                SUM(amt)                                   AS total_purchase_cost,
+                ROUND(SUM(amt)/NULLIF(SUM(quantity),0),2)  AS avg_unit_cost,
+                MAX(date)                                  AS last_purchase_date
+            FROM expenses
+            WHERE cat = 'مشتريات' AND product_name IS NOT NULL AND product_name != '' ${expDateFilter}
+            GROUP BY product_name
+        ) p ON LOWER(TRIM(p.product_name)) = LOWER(TRIM(ip.product_name))
+
+        LEFT JOIN (
+            SELECT
+                product_name,
+                SUM(quantity) AS salla_qty,
+                SUM(CASE WHEN status_slug = 'under-review' THEN quantity ELSE 0 END) AS pending_qty,
+                SUM(CASE WHEN status_slug = 'completed'    THEN quantity ELSE 0 END) AS completed_qty
+            FROM salla_imported_orders
+            WHERE status_slug IN ('under-review', 'completed') AND product_name IS NOT NULL AND product_name != '' ${ordersDateFilter}
+            GROUP BY product_name
+        ) s ON LOWER(TRIM(s.product_name)) = LOWER(TRIM(ip.product_name))
+
+        ORDER BY 
+            ABS(ip.salla_quantity - ip.quantity) DESC,  -- الفارق الأكبر أولاً
+            remaining_stock ASC
+    `;
+
+    db.all(sql, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, data: rows });
+    });
+});
+
+// ─── POST /api/inventory/sync-from-salla ───
+router.post('/inventory/sync-from-salla', authenticateUser, async (req, res) => {
+    try {
+        const token = await SallaService.getOrRefreshToken();
+        if (!token) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'انتهت صلاحية ربط سلة — أعد تفويض التطبيق' 
+            });
+        }
+
+        // جلب قائمة المنتجات من سلة (مع pagination)
+        let allProducts = [];
+        let cursor = null;
+
+        do {
+            const url = cursor
+                ? `https://api.salla.dev/admin/v2/products?cursor=${cursor}&per_page=50`
+                : `https://api.salla.dev/admin/v2/products?per_page=50`;
+
+            const response = await axios.get(url, {
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Accept-Language': 'ar'
+                }
+            });
+
+            if (response.status !== 200) {
+                throw new Error(`سلة API خطأ: ${response.status}`);
+            }
+
+            const data = response.data;
+            allProducts = allProducts.concat(data.data || []);
+            cursor = data.pagination?.next_cursor || null;
+
+        } while (cursor);
+
+        // تحديث salla_quantity لكل منتج
+        let updatedCount = 0;
+        let notFoundCount = 0;
+        const unmatched = [];
+        const now = new Date().toISOString();
+        const todayDate = now.split('T')[0];
+
+        for (const product of allProducts) {
+            const sallaQty   = product.quantity ?? 0;
+            const sallaId    = String(product.id);
+            const sallaName  = product.name;
+
+            // حاول المطابقة بالمعرّف أولاً، ثم بالاسم
+            await new Promise((resolve) => {
+                db.run(`
+                    UPDATE inventory_products
+                    SET 
+                        salla_quantity          = ?,
+                        salla_product_id        = ?,
+                        last_synced_from_salla  = ?
+                    WHERE 
+                        salla_product_id = ?
+                        OR LOWER(TRIM(product_name)) = LOWER(TRIM(?))
+                `, [sallaQty, sallaId, now, sallaId, sallaName],
+                async function(err) {
+                    if (!err && this.changes > 0) {
+                        updatedCount++;
+                    } else {
+                        // منتج سلة غير موجود في inventory_products → أضفه تلقائياً
+                        await new Promise((resolveInsert) => {
+                            db.run(`
+                                INSERT OR IGNORE INTO inventory_products
+                                    (product_name, quantity, salla_quantity, salla_product_id, last_synced_from_salla, created_at)
+                                VALUES (?, 0, ?, ?, ?, ?)
+                            `, [sallaName, sallaQty, sallaId, now, todayDate], function(errInsert) {
+                                if (!errInsert && this.changes > 0) {
+                                    notFoundCount++;
+                                    unmatched.push({ name: sallaName, salla_product_id: sallaId, quantity: sallaQty });
+                                }
+                                resolveInsert();
+                            });
+                        });
+                    }
+                    resolve();
+                });
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `تم تحديث ${updatedCount} منتج بنجاح، وإضافة ${notFoundCount} منتج جديد من سلة.`,
+            stats: {
+                total_from_salla : allProducts.length,
+                updated          : updatedCount,
+                new_added        : notFoundCount
+            },
+            unmatched: unmatched // إرجاع قائمة المنتجات غير المطابقة محلياً
+        });
+
+    } catch (error) {
+        console.error('sync-from-salla error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ─── PATCH /api/inventory/update-purchase-stock ───
+router.patch('/inventory/update-purchase-stock', authenticateUser, (req, res) => {
+    const { product_name, quantity, mode = 'add' } = req.body;
+
+    if (!product_name || quantity === undefined) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'product_name و quantity مطلوبان' 
+        });
+    }
+
+    const qty = parseInt(quantity);
+    if (isNaN(qty) || qty < 0) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'الكمية يجب أن تكون رقماً موجباً' 
+        });
+    }
+
+    const sql = mode === 'add'
+        ? `UPDATE inventory_products 
+           SET quantity = quantity + ?
+           WHERE LOWER(TRIM(product_name)) = LOWER(TRIM(?))`
+        : `UPDATE inventory_products 
+           SET quantity = ?
+           WHERE LOWER(TRIM(product_name)) = LOWER(TRIM(?))`;
+
+    db.run(sql, [qty, product_name], function(err) {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        if (this.changes === 0) {
+            // المنتج غير موجود → أنشئه
+            const todayDate = new Date().toISOString().split('T')[0];
+            db.run(`
+                INSERT INTO inventory_products (product_name, quantity, salla_quantity, created_at)
+                VALUES (?, ?, 0, ?)
+            `, [product_name, qty, todayDate], (err2) => {
+                if (err2) return res.status(500).json({ success: false, error: err2.message });
+                res.json({ success: true, updated: 1, created: true });
+            });
+        } else {
+            res.json({ success: true, updated: this.changes });
+        }
+    });
+});
+
+// ─── PATCH /api/inventory/push-to-salla ───
+router.patch('/inventory/push-to-salla', authenticateUser, async (req, res) => {
+    const { salla_product_id, new_quantity } = req.body;
+
+    if (!salla_product_id || new_quantity === undefined) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'salla_product_id و new_quantity مطلوبان' 
+        });
+    }
+
+    try {
+        const token = await SallaService.getOrRefreshToken();
+        if (!token) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'انتهت صلاحية ربط سلة — أعد تفويض التطبيق' 
+            });
+        }
+
+        const url = `https://api.salla.dev/admin/v2/products/${salla_product_id}`;
+        const response = await axios.put(url, {
+            quantity: new_quantity
+        }, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.status !== 200) {
+            throw new Error(`سلة API خطأ: ${response.status}`);
+        }
+
+        // حدّث salla_quantity محلياً أيضاً
+        db.run(`
+            UPDATE inventory_products 
+            SET salla_quantity = ?, last_synced_from_salla = ?
+            WHERE salla_product_id = ?
+        `, [new_quantity, new Date().toISOString(), salla_product_id]);
+
+        res.json({ 
+            success: true, 
+            message: `تم تحديث مخزون سلة بنجاح إلى ${new_quantity} وحدة.` 
+        });
+
+    } catch (error) {
+        console.error('push-to-salla error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ─── GET /api/inventory/product-detail ───
+router.get('/inventory/product-detail', authenticateUser, (req, res) => {
+    const { name } = req.query;
+    if (!name) return res.status(400).json({ error: 'اسم المنتج مطلوب.' });
+
+    // جلب آخر 5 طلبات
+    const ordersSql = `
+        SELECT reference_id, date, status_name, amount, quantity, customer_name
+        FROM salla_imported_orders
+        WHERE LOWER(TRIM(product_name)) = LOWER(TRIM(?))
+        ORDER BY date DESC LIMIT 5
+    `;
+
+    // جلب أحدث 5 عمليات شراء
+    const purchasesSql = `
+        SELECT id, desc, amt, date, quantity, purchase_price, note
+        FROM expenses
+        WHERE cat = 'مشتريات' AND LOWER(TRIM(product_name)) = LOWER(TRIM(?))
+        ORDER BY date DESC LIMIT 5
+    `;
+
+    db.all(ordersSql, [name], (errOrders, orders) => {
+        if (errOrders) return res.status(500).json({ error: errOrders.message });
+
+        db.all(purchasesSql, [name], (errPurchases, purchases) => {
+            if (errPurchases) return res.status(500).json({ error: errPurchases.message });
+
+            // جلب عتبة إعادة الطلب الافتراضية
+            db.get("SELECT reorder_threshold FROM inventory_products WHERE LOWER(TRIM(product_name)) = LOWER(TRIM(?))", [name], (errMap, mapRow) => {
+                const threshold = mapRow ? mapRow.reorder_threshold : 3;
+                
+                res.json({
+                    success: true,
+                    product_name: name,
+                    reorder_threshold: threshold,
+                    recent_orders: orders || [],
+                    recent_purchases: purchases || []
+                });
+            });
+        });
     });
 });
 
