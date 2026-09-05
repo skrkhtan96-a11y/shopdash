@@ -301,7 +301,30 @@ window.ProductControlUI = (function() {
     }
 
     async function loadProductDetail() {
-        if (!detailState.productId) return;
+        if (!detailState.productId) {
+            const storedId = sessionStorage.getItem('detail_product_id');
+            if (storedId) {
+                detailState.productId = parseInt(storedId, 10);
+            } else {
+                try {
+                    const resList = await fetch('/api/product-control/products?page=1&limit=1');
+                    const listData = await handleApiResponse(resList);
+                    const firstProd = listData.data && listData.data[0];
+                    if (firstProd && firstProd.id) {
+                        detailState.productId = firstProd.id;
+                    } else {
+                        if (window.nav) window.nav('product-control');
+                        return;
+                    }
+                } catch (e) {
+                    if (window.nav) window.nav('product-control');
+                    return;
+                }
+            }
+        }
+        if (detailState.productId) {
+            sessionStorage.setItem('detail_product_id', detailState.productId);
+        }
         detailState.loading = true;
 
         const loadingEl = document.getElementById('pcdLoading');
@@ -319,7 +342,8 @@ window.ProductControlUI = (function() {
             const res = await fetch(url);
             const productData = await handleApiResponse(res);
 
-            detailState.product = productData;
+            detailState.productData = productData;
+            detailState.product = productData.product || productData.data?.product || productData;
             detailState.loading = false;
 
             renderProductDetailHeader();
@@ -338,8 +362,9 @@ window.ProductControlUI = (function() {
     }
 
     function renderProductDetailHeader() {
-        const p = detailState.product;
-        if (!p) return;
+        const details = detailState.productData || {};
+        const p = details.product || detailState.product || {};
+        if (!p || (!p.id && !p.product_name)) return;
 
         const titleEl = document.getElementById('pcdTitle');
         const skuEl = document.getElementById('pcdSku');
@@ -349,14 +374,15 @@ window.ProductControlUI = (function() {
         if (titleEl) titleEl.textContent = p.product_name || 'منتج';
         if (skuEl) skuEl.textContent = p.sku ? `SKU: ${p.sku}` : 'بدون SKU';
         if (sallaIdEl) sallaIdEl.textContent = p.salla_product_id ? `Salla ID: ${p.salla_product_id}` : '';
-        if (badgeEl) badgeEl.innerHTML = getStatusBadge(p.status);
+        if (badgeEl) badgeEl.innerHTML = getStatusBadge(p.current_control_status || p.status);
     }
 
     function renderProductDetailOverviewKPIs() {
-        const p = detailState.product;
-        if (!p) return;
+        const details = detailState.productData || {};
+        const p = details.product || detailState.product || {};
+        const m = details.metrics || {};
 
-        const cogsUnavailable = p.cogs_status === 'UNAVAILABLE';
+        const cogsUnavailable = details.cogs_status === 'UNAVAILABLE';
 
         // Render COGS Notice Banner
         const noticeEl = document.getElementById('pcdCogsNotice');
@@ -372,17 +398,28 @@ window.ProductControlUI = (function() {
         const elSalesSincePurchase = document.getElementById('pcdKpiSalesSincePurchase');
         const elSalesSinceInv = document.getElementById('pcdKpiSalesSinceInv');
 
-        if (elExpectedStock) elExpectedStock.textContent = `${fmtInt(p.current_stock_qty)} / ${fmtInt(p.expected_stock_qty)} قطعة`;
-        if (elLastInventory) elLastInventory.textContent = p.last_inventory_count_at ? `${fmtInt(p.last_count_qty)} (${fmtDate(p.last_inventory_count_at)})` : 'لم يتم الجرد بعد';
+        const currentQty = m.actual_stock !== undefined ? m.actual_stock : (p.quantity || 0);
+        const expectedQty = m.current_expected_stock !== undefined ? m.current_expected_stock : (p.expected_stock || 0);
+
+        if (elExpectedStock) elExpectedStock.textContent = `${fmtInt(currentQty)} / ${fmtInt(expectedQty)} قطعة`;
+
+        const lastInv = m.last_inventory;
+        if (elLastInventory) {
+            elLastInventory.textContent = lastInv ? `${fmtInt(lastInv.actual_qty)} (${fmtDate(lastInv.inventory_at)})` : 'لم يتم الجرد بعد';
+        }
         if (elVariance) {
-            const v = p.variance_qty || 0;
+            const v = lastInv ? lastInv.variance : 0;
             elVariance.innerHTML = v === 0 
                 ? '<span class="green"><i class="ti ti-check"></i> 0 (مطابق)</span>' 
                 : `<span class="red"><i class="ti ti-alert-triangle"></i> ${v} (فارق)</span>`;
         }
-        if (elLastPurchase) elLastPurchase.textContent = p.last_purchase_at ? `${fmtInt(p.last_purchase_qty)} قطعة @ ${fmtSAR(p.last_purchase_unit_cost_sar) || '—'}` : 'لا يوجد شراء سابق';
-        if (elSalesSincePurchase) elSalesSincePurchase.textContent = `${fmtInt(p.sales_qty_since_last_purchase)} قطعة`;
-        if (elSalesSinceInv) elSalesSinceInv.textContent = `${fmtInt(p.sales_qty_since_last_inventory)} قطعة`;
+
+        const lastPur = m.last_purchase;
+        if (elLastPurchase) {
+            elLastPurchase.textContent = lastPur ? `${fmtInt(lastPur.quantity)} قطعة @ ${fmtSAR(lastPur.unit_cost_sar) || '—'}` : 'لا يوجد شراء سابق';
+        }
+        if (elSalesSincePurchase) elSalesSincePurchase.textContent = `${fmtInt(m.sold_since_last_purchase || 0)} قطعة`;
+        if (elSalesSinceInv) elSalesSinceInv.textContent = `${fmtInt(m.sold_since_last_inventory || 0)} قطعة`;
 
         // Financial Cards
         const elRevenue = document.getElementById('pcdKpiRevenue');
@@ -393,27 +430,39 @@ window.ProductControlUI = (function() {
         const elOtherExpense = document.getElementById('pcdKpiOtherExpense');
         const elNetProfit = document.getElementById('pcdKpiNetProfit');
 
-        if (elRevenue) elRevenue.textContent = fmtSAR(p.total_sales_sar) || '0.00 ر.س';
-        if (elPurchases) elPurchases.textContent = fmtSAR(p.total_purchases_sar) || '0.00 ر.س';
+        const purchasesList = (details.history && details.history.purchases) || [];
+        const totalPurAmount = purchasesList.reduce((acc, item) => acc + (item.total_amount_halalas || 0), 0) / 100;
+
+        const salesMovements = (details.history && details.history.stock_movements) || [];
+        const totalSalesAmount = salesMovements
+            .filter(mov => mov.movement_type === 'SALE')
+            .reduce((acc, mov) => acc + Math.abs(mov.quantity) * (p.price_sar || 0), 0);
+
+        if (elRevenue) elRevenue.textContent = fmtSAR(totalSalesAmount) || '0.00 ر.س';
+        if (elPurchases) elPurchases.textContent = fmtSAR(totalPurAmount) || '0.00 ر.س';
 
         if (elCogs) {
             elCogs.innerHTML = cogsUnavailable 
                 ? '<span class="text-amber"><i class="ti ti-help"></i> تكلفة البضاعة المباعة غير مكتملة</span>' 
-                : fmtSAR(p.total_cogs_sar) || '0.00 ر.س';
+                : fmtSAR(details.unit_cogs_sar) || '0.00 ر.س';
         }
         if (elGrossProfit) {
             elGrossProfit.innerHTML = cogsUnavailable 
                 ? '<span class="text-amber"><i class="ti ti-help"></i> غير مكتمل محاسبيًا</span>' 
-                : fmtSAR(p.gross_profit_sar) || '0.00 ر.س';
+                : fmtSAR(details.gross_profit_sar) || '0.00 ر.س';
         }
 
-        if (elAdExpense) elAdExpense.textContent = fmtSAR(p.allocated_ad_expense_sar) || '0.00 ر.س';
-        if (elOtherExpense) elOtherExpense.textContent = fmtSAR(p.allocated_other_expense_sar) || '0.00 ر.س';
+        const expAllocations = (details.history && details.history.expense_allocations) || [];
+        const adExp = expAllocations.filter(a => a.allocation_type === 'ADVERTISING').reduce((acc, a) => acc + (a.allocated_amount_halalas || 0), 0) / 100;
+        const otherExp = expAllocations.filter(a => a.allocation_type === 'OTHER').reduce((acc, a) => acc + (a.allocated_amount_halalas || 0), 0) / 100;
+
+        if (elAdExpense) elAdExpense.textContent = fmtSAR(adExp) || '0.00 ر.س';
+        if (elOtherExpense) elOtherExpense.textContent = fmtSAR(otherExp) || '0.00 ر.س';
 
         if (elNetProfit) {
             elNetProfit.innerHTML = cogsUnavailable 
                 ? '<span class="text-amber"><i class="ti ti-help"></i> غير مكتمل محاسبيًا</span>' 
-                : fmtSAR(p.net_profit_sar) || '0.00 ر.س';
+                : fmtSAR(details.net_profit_sar) || '0.00 ر.س';
         }
     }
 
