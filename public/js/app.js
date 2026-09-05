@@ -264,8 +264,8 @@ async function init() {
             loadCarts(true)
         ]);
 
-        const hashPage = window.location.hash.replace('#', '');
-        const savedPage = (PAGES.includes(hashPage) ? hashPage : null) || sessionStorage.getItem('active_page') || 'overview';
+        const hashPage = parseHashPage();
+        const savedPage = hashPage || (PAGES.includes(sessionStorage.getItem('active_page')) ? sessionStorage.getItem('active_page') : null) || 'overview';
         nav(savedPage);
 
         // تفقد إذا كان راجعاً من مصادقة جوجل
@@ -531,7 +531,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'system-control', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'system-control', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management', 'product-control', 'product-control-detail', 'product-overview'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -558,8 +558,20 @@ const PAGE_TITLES = {
     'games-deliveries': 'تقرير تسليم الألعاب',
     'inventory-dashboard': 'داشبورد المخزون المتبقي — جميع الفئات',
     'activity-logs': 'سجل النشاطات والعمليات',
-    'db-management': 'النسخ الاحتياطي والاستعادة لقاعدة البيانات'
+    'db-management': 'النسخ الاحتياطي والاستعادة لقاعدة البيانات',
+    'product-control': 'مركز التحكم بالمنتج',
+    'product-control-detail': 'تفاصيل المنتج',
+    'product-overview': 'تحليل المنتجات الشامل'
 };
+
+function parseHashPage() {
+    let raw = (window.location.hash || '').replace('#', '').trim();
+    if (!raw) return null;
+    if (raw.startsWith('page-')) {
+        raw = raw.substring(5);
+    }
+    return PAGES.includes(raw) ? raw : null;
+}
 
 // دالة التحكم في القائمة الجانبية للشاشات الصغيرة (الجوال)
 function toggleSidebar(open) {
@@ -576,6 +588,13 @@ function toggleSidebar(open) {
 }
 
 function nav(name, updateHash = true) {
+    if (!name) name = 'overview';
+    if (typeof name === 'string' && name.startsWith('page-')) {
+        name = name.substring(5);
+    }
+    if (!PAGES.includes(name)) {
+        name = 'overview';
+    }
     const isAllowed = (page) => {
         return hasPageAccess(page);
     };
@@ -5628,10 +5647,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // الاستماع لتغييرات مسار الصفحة في المتصفح (Hash Routing)
     window.addEventListener('hashchange', () => {
-        const name = window.location.hash.replace('#', '') || 'overview';
-        if (PAGES.includes(name)) {
-            nav(name, false);
-        }
+        const targetPage = parseHashPage() || 'overview';
+        nav(targetPage, false);
     });
 
     // إغلاق النوافذ عند الضغط خارجها
