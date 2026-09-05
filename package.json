@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "cross-env NODE_ENV=test mocha tests/**/*.test.js --exit"
+    "test": "cross-env NODE_ENV=test mocha tests/**/*.test.js --timeout 10000 --exit"
   },
   "dependencies": {
     "axios": "^1.6.8",

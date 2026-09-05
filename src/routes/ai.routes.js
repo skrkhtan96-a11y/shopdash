@@ -406,11 +406,18 @@ async function handleToolCall(name, args) {
         } else if (name === 'get_campaigns_metrics') {
             db.all("SELECT * FROM ads_campaign_metrics ORDER BY date DESC", [], (err, rows) => {
                 if (err) return reject(err);
+                const enriched = rows.map(r => {
+                    const roas = r.spend > 0 ? parseFloat((r.purchase_value / r.spend).toFixed(2)) : 0.00;
+                    return {
+                        ...r,
+                        roas
+                    };
+                });
                 resolve({
                     content: [
                         {
                             type: 'text',
-                            text: JSON.stringify(rows, null, 2)
+                            text: JSON.stringify(enriched, null, 2)
                         }
                     ]
                 });

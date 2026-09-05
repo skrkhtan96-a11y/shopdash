@@ -30,26 +30,59 @@ async function getMetaConfig() {
     });
 }
 
+// Request wrapper with exponential backoff retry (3 attempts)
+async function requestWithRetry(url, options, retries = 3, delay = 1000) {
+    try {
+        return await axios.get(url, options);
+    } catch (e) {
+        if (retries > 0) {
+            console.warn(`[FacebookService] API Request failed: ${e.message}. Retrying in ${delay}ms... (${retries} retries left)`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return requestWithRetry(url, options, retries - 1, delay * 2);
+        }
+        throw e;
+    }
+}
+
+// Fetch all pages recursively to handle pagination
+async function fetchAllPages(url, options) {
+    let allData = [];
+    let currentUrl = url;
+    let currentOptions = { ...options };
+
+    while (currentUrl) {
+        const res = await requestWithRetry(currentUrl, currentOptions);
+        const data = res.data || {};
+        if (data.data && Array.isArray(data.data)) {
+            allData = allData.concat(data.data);
+        }
+        if (data.paging && data.paging.next) {
+            currentUrl = data.paging.next;
+            currentOptions = {}; // params are already in the next URL
+        } else {
+            currentUrl = null;
+        }
+    }
+    return allData;
+}
+
 const FacebookService = {
     fetchAdAccounts: async (token) => {
         try {
             console.log("[FacebookService] Fetching ad accounts...");
-            const response = await axios.get("https://graph.facebook.com/v21.0/me/adaccounts", {
+            const data = await fetchAllPages("https://graph.facebook.com/v21.0/me/adaccounts", {
                 params: {
                     fields: 'id,name,account_status,balance,currency,amount_spent',
                     access_token: token
                 }
             });
-            if (response.data && response.data.data) {
-                return response.data.data.map(acc => ({
-                    id: acc.id,
-                    name: acc.name || 'حساب فيسبوك إعلاني',
-                    balance: parseFloat(acc.balance || 0) / 100,
-                    currency: acc.currency || 'SAR',
-                    status: acc.account_status === 1 ? 'active' : 'paused'
-                }));
-            }
-            return [];
+            return data.map(acc => ({
+                id: acc.id,
+                name: acc.name || 'حساب فيسبوك إعلاني',
+                balance: parseFloat(acc.balance || 0) / 100,
+                currency: acc.currency || 'SAR',
+                status: acc.account_status === 1 ? 'active' : 'paused'
+            }));
         } catch (e) {
             console.error("[FacebookService] Failed to fetch ad accounts:", e.message);
             throw e;
@@ -81,35 +114,34 @@ const FacebookService = {
             const end = toDate || new Date().toISOString().split('T')[0];
 
             console.log(`[FacebookService] Fetching campaign metadata for: ${adAccountId}...`);
-            
-            const configRes = await axios.get(`https://graph.facebook.com/v21.0/${adAccountId}/campaigns`, {
+            const campaignsData = await fetchAllPages(`https://graph.facebook.com/v21.0/${adAccountId}/campaigns`, {
                 params: {
-                    fields: 'id,name,status,daily_budget,lifetime_budget,budget_remaining',
+                    fields: 'id,name,status,daily_budget,lifetime_budget,budget_remaining,objective,effective_status',
                     limit: 100,
                     access_token: token
                 }
             });
 
             const campaignMeta = {};
-            if (configRes.data && configRes.data.data) {
-                configRes.data.data.forEach(c => {
-                    const budget = parseFloat(c.daily_budget || c.lifetime_budget || 0) / 100;
-                    const budgetMode = c.daily_budget ? 'BUDGET_MODE_DAY' : c.lifetime_budget ? 'BUDGET_MODE_TOTAL' : 'BUDGET_MODE_INFINITE';
-                    campaignMeta[c.id] = {
-                        name: c.name,
-                        status: c.status === 'ACTIVE' ? 'active' : 'paused',
-                        budget: budget,
-                        budget_mode: budgetMode
-                    };
-                });
-            }
+            campaignsData.forEach(c => {
+                const budget = parseFloat(c.daily_budget || c.lifetime_budget || 0) / 100;
+                const budgetMode = c.daily_budget ? 'BUDGET_MODE_DAY' : c.lifetime_budget ? 'BUDGET_MODE_TOTAL' : 'BUDGET_MODE_INFINITE';
+                campaignMeta[c.id] = {
+                    name: c.name,
+                    status: c.status === 'ACTIVE' ? 'active' : 'paused',
+                    budget: budget,
+                    budget_mode: budgetMode,
+                    objective: c.objective || '',
+                    effective_status: c.effective_status || c.status
+                };
+            });
 
             console.log(`[FacebookService] Fetching insights for ${adAccountId} from ${start} to ${end}...`);
-            const insightsRes = await axios.get(`https://graph.facebook.com/v21.0/${adAccountId}/insights`, {
+            const insightsData = await fetchAllPages(`https://graph.facebook.com/v21.0/${adAccountId}/insights`, {
                 params: {
                     level: 'campaign',
                     time_increment: 1,
-                    fields: 'campaign_id,campaign_name,spend,clicks,impressions,actions',
+                    fields: 'campaign_id,campaign_name,spend,clicks,impressions,actions,action_values',
                     time_range: JSON.stringify({ since: start, until: end }),
                     limit: 150,
                     access_token: token
@@ -119,43 +151,52 @@ const FacebookService = {
             const results = [];
             const campaignsInReport = new Set();
 
-            if (insightsRes.data && insightsRes.data.data) {
-                insightsRes.data.data.forEach(r => {
-                    const campaignId = r.campaign_id;
-                    const date = r.date_start;
-                    const meta = campaignMeta[campaignId] || { name: r.campaign_name || 'حملة غير معروفة - Facebook', status: 'paused', budget: 0, budget_mode: 'BUDGET_MODE_INFINITE' };
+            insightsData.forEach(r => {
+                const campaignId = r.campaign_id;
+                const date = r.date_start;
+                const meta = campaignMeta[campaignId] || {
+                    name: r.campaign_name || 'حملة غير معروفة - Facebook',
+                    status: 'paused',
+                    budget: 0,
+                    budget_mode: 'BUDGET_MODE_INFINITE',
+                    objective: '',
+                    effective_status: 'PAUSED'
+                };
 
-                    campaignsInReport.add(campaignId);
+                campaignsInReport.add(campaignId);
 
-                    let conversions = 0;
-                    if (r.actions && Array.isArray(r.actions)) {
-                        const purchaseAction = r.actions.find(a => ['purchase', 'offsite_conversion.fb_pixel_purchase'].includes(a.action_type));
-                        if (purchaseAction) {
-                            conversions = parseInt(purchaseAction.value || 0);
-                        } else {
-                            const leadAction = r.actions.find(a => ['lead', 'onsite_conversion.messaging_first_reply'].includes(a.action_type));
-                            if (leadAction) {
-                                conversions = parseInt(leadAction.value || 0);
-                            }
-                        }
-                    }
+                // Extract purchases & purchase values (using omni_purchase or purchase)
+                const purchases = extractAction(r.actions, 'purchase');
+                const purchaseValue = extractActionValue(r.action_values, 'purchase');
 
-                    results.push({
-                        campaign_id: campaignId + '_' + date,
-                        campaign_name: meta.name,
-                        platform: 'facebook',
-                        status: meta.status,
-                        spend: parseFloat(r.spend || 0),
-                        clicks: parseInt(r.clicks || 0),
-                        impressions: parseInt(r.impressions || 0),
-                        conversions: conversions,
-                        date: date,
-                        budget: meta.budget || 0,
-                        budget_mode: meta.budget_mode || 'BUDGET_MODE_INFINITE'
-                    });
+                let conversions = purchases;
+                if (conversions === 0 && r.actions && Array.isArray(r.actions)) {
+                    // Fallback to leads
+                    const leadAction = r.actions.find(a => ['lead', 'onsite_conversion.messaging_first_reply'].includes(a.action_type));
+                    if (leadAction) conversions = parseInt(leadAction.value || 0);
+                }
+
+                results.push({
+                    campaign_id: campaignId + '_' + date,
+                    campaign_name: meta.name,
+                    platform: 'facebook',
+                    status: meta.status,
+                    spend: parseFloat(r.spend || 0),
+                    clicks: parseInt(r.clicks || 0),
+                    impressions: parseInt(r.impressions || 0),
+                    conversions: conversions,
+                    date: date,
+                    budget: meta.budget || 0,
+                    budget_mode: meta.budget_mode || 'BUDGET_MODE_INFINITE',
+                    purchase_value: purchaseValue,
+                    purchases: purchases,
+                    effective_status: meta.effective_status,
+                    objective: meta.objective,
+                    synced_at: new Date().toISOString()
                 });
-            }
+            });
 
+            // For campaigns with no spend during this period, insert zero rows for the end date to keep them visible
             Object.keys(campaignMeta).forEach(cid => {
                 if (!campaignsInReport.has(cid)) {
                     results.push({
@@ -169,7 +210,12 @@ const FacebookService = {
                         conversions: 0,
                         date: end,
                         budget: campaignMeta[cid].budget || 0,
-                        budget_mode: campaignMeta[cid].budget_mode || 'BUDGET_MODE_INFINITE'
+                        budget_mode: campaignMeta[cid].budget_mode || 'BUDGET_MODE_INFINITE',
+                        purchase_value: 0.00,
+                        purchases: 0,
+                        effective_status: campaignMeta[cid].effective_status,
+                        objective: campaignMeta[cid].objective,
+                        synced_at: new Date().toISOString()
                     });
                 }
             });
@@ -197,26 +243,23 @@ const FacebookService = {
             'impressions',
             'clicks',
             'actions',
-            'action_values',
-            'cpc',
-            'cpm',
-            'ctr'
+            'action_values'
         ].join(',');
 
-        const params = {
-            fields,
-            level: 'adset',
-            time_range: JSON.stringify({ since: dateFrom, until: dateTo }),
-            time_increment: 1,
-            limit: 500,
-            access_token: token
-        };
-
+        console.log(`[FacebookService] Fetching adset insights for ${accountId} from ${dateFrom} to ${dateTo}...`);
         const cleanAccountId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-        const response = await axios.get(`https://graph.facebook.com/v21.0/${cleanAccountId}/insights`, { params });
-        const data = response.data || {};
+        const data = await fetchAllPages(`https://graph.facebook.com/v21.0/${cleanAccountId}/insights`, {
+            params: {
+                fields,
+                level: 'adset',
+                time_range: JSON.stringify({ since: dateFrom, until: dateTo }),
+                time_increment: 1,
+                limit: 500,
+                access_token: token
+            }
+        });
 
-        return (data.data || []).map(row => ({
+        return data.map(row => ({
             platform: 'meta',
             account_id: accountId,
             campaign_id: row.campaign_id,
@@ -235,12 +278,16 @@ const FacebookService = {
 
 function extractAction(actions, actionType) {
     if (!Array.isArray(actions)) return 0;
+    const omni = actions.find(a => a.action_type === 'omni_purchase');
+    if (omni) return parseInt(omni.value || 0);
     const found = actions.find(a => a.action_type === actionType);
     return found ? parseInt(found.value || 0) : 0;
 }
 
 function extractActionValue(actionValues, actionType) {
     if (!Array.isArray(actionValues)) return 0;
+    const omni = actionValues.find(a => a.action_type === 'omni_purchase');
+    if (omni) return parseFloat(omni.value || 0);
     const found = actionValues.find(a => a.action_type === actionType);
     return found ? parseFloat(found.value || 0) : 0;
 }

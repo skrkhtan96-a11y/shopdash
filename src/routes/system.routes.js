@@ -178,11 +178,11 @@ router.get('/external-sales', authenticateUser, (req, res) => {
     const params = [];
 
     if (from) {
-        query += " AND date(created_at) >= date(?)";
+        query += " AND substr(created_at, 1, 10) >= ?";
         params.push(from);
     }
     if (to) {
-        query += " AND date(created_at) <= date(?)";
+        query += " AND substr(created_at, 1, 10) <= ?";
         params.push(to);
     }
     query += " ORDER BY created_at DESC";
@@ -510,6 +510,262 @@ router.delete('/sales/saved-comparisons/:id', authenticateUser, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         ConfigRepository.logActivity(req.user.username, 'DELETE', 'saved_comparisons', `تم حذف مقارنة محفوظة معرف: ${id}`).catch(console.error);
         res.json({ success: true, changes: this.changes });
+    });
+});
+
+// ═══ SYSTEM CONTROL PANEL ENDPOINTS ═══
+
+// 1. GET /api/system/control-status: Fetch operational status, sub-services config, and server metrics
+router.get('/system/control-status', authenticateUser, (req, res) => {
+    db.get("SELECT * FROM system_control_config WHERE key = 'main'", [], (err, row) => {
+        let config = row || {
+            key: 'main',
+            system_status: 'online',
+            stopped_message: 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة',
+            auto_sync: 1,
+            auto_delivery: 1,
+            whatsapp_bot: 1
+        };
+
+        const mainDbPath = path.join(__dirname, '..', '..', 'database.db');
+        let dbSizeBytes = 0;
+        try {
+            if (fs.existsSync(mainDbPath)) {
+                dbSizeBytes = fs.statSync(mainDbPath).size;
+            }
+        } catch (e) {}
+
+        const mem = process.memoryUsage();
+        const metrics = {
+            uptimeSeconds: Math.floor(process.uptime()),
+            heapUsedMb: (mem.heapUsed / 1024 / 1024).toFixed(2),
+            rssMb: (mem.rss / 1024 / 1024).toFixed(2),
+            dbSizeMb: (dbSizeBytes / 1024 / 1024).toFixed(2),
+            nodeVersion: process.version
+        };
+
+        res.json({ success: true, config, metrics });
+    });
+});
+
+// 2. POST /api/system/control-toggle-master: Toggle Master System Power Switch (Online vs Stopped)
+router.post('/system/control-toggle-master', authenticateUser, requireRole(['admin']), (req, res) => {
+    const { status, stopped_message } = req.body;
+    if (!['online', 'stopped'].includes(status)) {
+        return res.status(400).json({ error: 'حالة النظام يجب أن تكون online أو stopped.' });
+    }
+
+    const message = stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+    const now = new Date().toISOString();
+
+    db.run(
+        `INSERT INTO system_control_config (key, system_status, stopped_message, updated_at) 
+         VALUES ('main', ?, ?, ?) 
+         ON CONFLICT(key) DO UPDATE SET system_status = ?, stopped_message = ?, updated_at = ?`,
+        [status, message, now, status, message, now],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // Immediately invalidate the in-memory cache so the gate activates NOW
+            if (typeof global.invalidateSysStatusCache === 'function') global.invalidateSysStatusCache();
+
+            const logAction = status === 'online' ? 'START_SYSTEM' : 'STOP_SYSTEM';
+            const logMsg = status === 'online' 
+                ? 'تم تشغيل النظام وإتاحة كافة الخدمات بالكامل' 
+                : `تم إيقاف تشغيل النظام لتجديد الاستضافة: "${message}"`;
+
+            ConfigRepository.logActivity(req.user.username, logAction, 'system_control_config', logMsg).catch(console.error);
+            res.json({ success: true, system_status: status, stopped_message: message });
+        }
+    );
+});
+
+// 3. POST /api/system/control-toggle-service: Toggle sub-service (auto_sync, auto_delivery, whatsapp_bot)
+router.post('/system/control-toggle-service', authenticateUser, requireRole(['admin']), (req, res) => {
+    const { service, value } = req.body;
+    const allowedServices = ['auto_sync', 'auto_delivery', 'whatsapp_bot'];
+
+    if (!allowedServices.includes(service)) {
+        return res.status(400).json({ error: 'خدمة غير معروفة.' });
+    }
+
+    const val = value ? 1 : 0;
+    const now = new Date().toISOString();
+
+    db.run(
+        `UPDATE system_control_config SET ${service} = ?, updated_at = ? WHERE key = 'main'`,
+        [val, now],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            ConfigRepository.logActivity(req.user.username, 'TOGGLE_SERVICE', 'system_control_config', `تغيير حالة الخدمة ${service} إلى ${val === 1 ? 'مفعلة' : 'معطلة'}`).catch(console.error);
+            res.json({ success: true, service, value: val });
+        }
+    );
+});
+
+// 4. POST /api/system/control-restart: Trigger PM2 Process Restart
+router.post('/system/control-restart', authenticateUser, requireRole(['admin']), (req, res) => {
+    ConfigRepository.logActivity(req.user.username, 'RESTART', 'system', 'طلب إعاده تشغيل السيرفر والنظام من لوحة التحكم').catch(console.error);
+    res.json({ success: true, message: 'جاري إعادة تشغيل النظام خلال ثانيتين...' });
+
+    setTimeout(() => {
+        process.exit(0);
+    }, 1500);
+});
+
+// 5. POST /api/system/control-vacuum: Database Vacuum & Optimization
+router.post('/system/control-vacuum', authenticateUser, requireRole(['admin']), (req, res) => {
+    db.run("VACUUM", [], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        ConfigRepository.logActivity(req.user.username, 'VACUUM', 'database', 'تم تنفيذ عملية تنظيف وتحسين قاعدة البيانات بنجاح').catch(console.error);
+        res.json({ success: true, message: 'تم تنظيف وتحسين ضغط قاعدة البيانات بنجاح.' });
+    });
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// EXTERNAL STANDALONE SYSTEM CONTROL PANEL
+// (Separate from dashboard session auth — uses PIN + token)
+// ═══════════════════════════════════════════════════════════════
+
+// Load system control PIN from env or use default
+const SYSCTRL_PIN  = process.env.SYSCTRL_PIN  || '1234';
+const SYSCTRL_SECRET = process.env.SYSCTRL_SECRET || 'sysctrl_s3cr3t_' + require('os').hostname();
+
+// Simple token store (in-memory, resets on restart — that's fine for this use case)
+const validTokens = new Set();
+
+// Generate a simple signed token
+function generateToken() {
+    const payload = Date.now() + '_' + Math.random().toString(36).slice(2);
+    const token = Buffer.from(payload + '|' + SYSCTRL_SECRET).toString('base64');
+    validTokens.add(token);
+    return token;
+}
+
+// Middleware: validate ext token from X-Sysctrl-Token header
+function requireExtToken(req, res, next) {
+    const token = req.headers['x-sysctrl-token'] || req.query.sysctrl_token;
+    if (!token || !validTokens.has(token)) {
+        return res.status(401).json({ error: 'غير مصرح: رمز الجلسة غير صالح أو منتهي.' });
+    }
+    next();
+}
+
+// Serve system-control.html without auth (it has its own PIN screen)
+router.get('/system-control', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'system-control.html'));
+});
+
+// POST /api/system/control-pin-auth — Authenticate with PIN, get token
+router.post('/system/control-pin-auth', (req, res) => {
+    const { pin } = req.body;
+    if (!pin || String(pin) !== String(SYSCTRL_PIN)) {
+        return res.status(401).json({ error: 'رمز PIN غير صحيح. حاول مرة أخرى.' });
+    }
+    const token = generateToken();
+    res.json({ success: true, token });
+});
+
+// GET /api/system/control-status-ext — Get status (ext token auth)
+router.get('/system/control-status-ext', requireExtToken, (req, res) => {
+    db.get("SELECT * FROM system_control_config WHERE key = 'main'", [], (err, row) => {
+        const config = row || {
+            key: 'main',
+            system_status: 'online',
+            stopped_message: 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة',
+            auto_sync: 1,
+            auto_delivery: 1,
+            whatsapp_bot: 1
+        };
+
+        const mainDbPath = path.join(__dirname, '..', '..', 'database.db');
+        let dbSizeBytes = 0;
+        try {
+            if (fs.existsSync(mainDbPath)) dbSizeBytes = fs.statSync(mainDbPath).size;
+        } catch (e) {}
+
+        const mem = process.memoryUsage();
+        const metrics = {
+            uptimeSeconds: Math.floor(process.uptime()),
+            heapUsedMb: (mem.heapUsed / 1024 / 1024).toFixed(2),
+            rssMb: (mem.rss / 1024 / 1024).toFixed(2),
+            dbSizeMb: (dbSizeBytes / 1024 / 1024).toFixed(2),
+            nodeVersion: process.version
+        };
+
+        res.json({ success: true, config, metrics });
+    });
+});
+
+// POST /api/system/control-toggle-master-ext — Toggle ON/OFF (ext token auth)
+router.post('/system/control-toggle-master-ext', requireExtToken, (req, res) => {
+    const { status, stopped_message } = req.body;
+    if (!['online', 'stopped'].includes(status)) {
+        return res.status(400).json({ error: 'حالة النظام يجب أن تكون online أو stopped.' });
+    }
+
+    const message = stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+    const now = new Date().toISOString();
+
+    db.run(
+        `INSERT INTO system_control_config (key, system_status, stopped_message, updated_at)
+         VALUES ('main', ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET system_status = ?, stopped_message = ?, updated_at = ?`,
+        [status, message, now, status, message, now],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // Immediately invalidate the in-memory cache so the gate activates NOW
+            if (typeof global.invalidateSysStatusCache === 'function') global.invalidateSysStatusCache();
+
+            const logAction = status === 'online' ? 'START_SYSTEM_EXT' : 'STOP_SYSTEM_EXT';
+            const logMsg = status === 'online'
+                ? 'تم تشغيل النظام من لوحة التحكم الخارجية'
+                : `تم إيقاف النظام من لوحة التحكم الخارجية: "${message}"`;
+
+            ConfigRepository.logActivity('admin-ext', logAction, 'system_control_config', logMsg).catch(console.error);
+            res.json({ success: true, system_status: status, stopped_message: message });
+        }
+    );
+});
+
+// POST /api/system/control-toggle-service-ext — Toggle sub-service (ext token auth)
+router.post('/system/control-toggle-service-ext', requireExtToken, (req, res) => {
+    const { service, value } = req.body;
+    const allowedServices = ['auto_sync', 'auto_delivery', 'whatsapp_bot'];
+
+    if (!allowedServices.includes(service)) {
+        return res.status(400).json({ error: 'خدمة غير معروفة.' });
+    }
+
+    const val = value ? 1 : 0;
+    const now = new Date().toISOString();
+
+    db.run(
+        `UPDATE system_control_config SET ${service} = ?, updated_at = ? WHERE key = 'main'`,
+        [val, now],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            ConfigRepository.logActivity('admin-ext', 'TOGGLE_SERVICE_EXT', 'system_control_config', `تغيير حالة الخدمة ${service} إلى ${val === 1 ? 'مفعلة' : 'معطلة'} من الصفحة الخارجية`).catch(console.error);
+            res.json({ success: true, service, value: val });
+        }
+    );
+});
+
+// POST /api/system/control-restart-ext — Restart server (ext token auth)
+router.post('/system/control-restart-ext', requireExtToken, (req, res) => {
+    ConfigRepository.logActivity('admin-ext', 'RESTART_EXT', 'system', 'طلب إعادة تشغيل السيرفر من لوحة التحكم الخارجية').catch(console.error);
+    res.json({ success: true, message: 'جاري إعادة تشغيل النظام خلال ثانيتين...' });
+    setTimeout(() => { process.exit(0); }, 1500);
+});
+
+// POST /api/system/control-vacuum-ext — VACUUM (ext token auth)
+router.post('/system/control-vacuum-ext', requireExtToken, (req, res) => {
+    db.run('VACUUM', [], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        ConfigRepository.logActivity('admin-ext', 'VACUUM_EXT', 'database', 'تم تنظيف قاعدة البيانات من الصفحة الخارجية').catch(console.error);
+        res.json({ success: true, message: 'تم تنظيف وتحسين ضغط قاعدة البيانات بنجاح.' });
     });
 });
 

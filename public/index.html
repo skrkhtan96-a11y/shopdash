@@ -702,11 +702,11 @@
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom: 10px;">
             <div>
               <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">Account ID (معرّف الحساب)</label>
-              <input type="text" id="metaAccountId" placeholder="act_XXXXXXXX" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+              <input type="text" id="metaAccountId" placeholder="act_XXXXXXXX" autocomplete="off" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
             </div>
             <div>
               <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">System User Access Token</label>
-              <input type="password" id="metaToken" placeholder="EAAxxxxxx..." style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+              <input type="text" id="metaToken" placeholder="EAAxxxxxx..." autocomplete="off" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); -webkit-text-security: disc;">
             </div>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; margin-bottom:12px; gap:8px;">
@@ -728,11 +728,11 @@
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom: 10px;">
             <div>
               <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">Advertiser ID (معرّف المعلن)</label>
-              <input type="text" id="tiktokAccountId" placeholder="XXXXXXXXXXXX" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+              <input type="text" id="tiktokAccountId" placeholder="XXXXXXXXXXXX" autocomplete="off" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
             </div>
             <div>
               <label style="font-size:10px; color:var(--text2); display:block; margin-bottom:4px;">Long-lived Access Token</label>
-              <input type="password" id="tiktokToken" placeholder="LTAxxxxxx..." style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+              <input type="text" id="tiktokToken" placeholder="LTAxxxxxx..." autocomplete="off" style="width:100%; padding:6px; font-size:11px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); -webkit-text-security: disc;">
             </div>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; margin-bottom:12px; gap:8px;">
@@ -801,6 +801,7 @@
         <div class="nav-item" id="nav-games-deliveries" onclick="nav('games-deliveries')"><i class="ti ti-report"></i> تقرير تسليم الألعاب</div>
         <div class="nav-item" id="nav-inventory-dashboard" onclick="nav('inventory-dashboard')"><i class="ti ti-chart-bar"></i> داشبورد المخزون المتبقي</div>
         <div class="nav-item" id="nav-product-overview" onclick="nav('product-overview')"><i class="ti ti-packages"></i> تحليل المنتجات الشامل</div>
+        <div class="nav-item" id="nav-product-control" onclick="nav('product-control')"><i class="ti ti-box-seam"></i> مركز التحكم بالمنتج (Product Control)</div>
       </div>
 
       <div class="s-sep"></div>
@@ -824,6 +825,7 @@
       <div class="nav-item" id="nav-archive" onclick="openArchModal()"><i class="ti ti-calendar-plus"></i> بدء شهر جديد (أرشفة)</div>
       <div class="nav-item" id="nav-export" onclick="exportAll()"><i class="ti ti-download"></i> تصدير البيانات (CSV)</div>
       <div class="nav-item" id="nav-users" onclick="nav('users')" style="display:none"><i class="ti ti-users"></i> إدارة المستخدمين</div>
+      <div class="nav-item" id="nav-system-control" onclick="nav('system-control')" style="display:none"><i class="ti ti-power"></i> لوحة تشغيل/إيقاف النظام</div>
       <div class="nav-item" id="nav-db-management" onclick="nav('db-management')" style="display:none"><i class="ti ti-database"></i> النسخ الاحتياطي والاستعادة</div>
       <div class="nav-item" id="nav-activity-logs" onclick="nav('activity-logs')"><i class="ti ti-history"></i> سجل النشاطات</div>
       <div class="nav-item" id="nav-privacy" onclick="window.open('/privacy.html', '_blank')"><i class="ti ti-shield-lock"></i> سياسة الخصوصية والأمان</div>
@@ -866,6 +868,17 @@
           <button class="btn btn-sm" onclick="syncSalla()" id="syncBtn"><i class="ti ti-refresh"></i> تحديث مزامنة سلة</button>
           <button class="btn btn-sm btn-primary" onclick="openModal()" id="addBtn"><i class="ti ti-plus"></i> إضافة مصروف</button>
         </div>
+      </div>
+
+      <!-- ═══ شريط التنبيه عند إيقاف النظام (تجديد الاستضافة) ═══ -->
+      <div id="systemStoppedBanner" style="display:none; background: linear-gradient(135deg, rgba(224, 85, 85, 0.95), rgba(180, 40, 40, 0.95)); color: #fff; padding: 14px 20px; border-radius: var(--r); margin: 12px 14px 0 14px; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 15px rgba(224, 85, 85, 0.3); border: 1px solid rgba(255,255,255,0.2);">
+        <div style="display:flex; align-items:center; gap:12px; font-weight:700; font-size:14px;">
+          <i class="ti ti-alert-triangle" style="font-size:22px;"></i>
+          <span id="systemStoppedBannerText">عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة</span>
+        </div>
+        <button onclick="nav('system-control')" class="btn btn-sm" style="background:#fff; color:#b42828; font-weight:700; border:none; padding:6px 14px; border-radius:var(--r); cursor:pointer;">
+          <i class="ti ti-settings"></i> لوحة التحكم بالتشغيل
+        </button>
       </div>
 
       <!-- ═══ شريط الفلتر الزمني العالمي ═══ -->
@@ -1561,9 +1574,9 @@
             </div>
           </div>
           <div class="filter-bar">
-            <label>من:</label><input type="date" id="ordFrom" value="2026-05-01">
-            <label>إلى:</label><input type="date" id="ordTo">
-            <input type="text" id="ordQ" placeholder="بحث باسم المنتج / العميل..." style="width:180px">
+            <label>من:</label><input type="date" id="ordFrom" onchange="loadOrders(true)">
+            <label>إلى:</label><input type="date" id="ordTo" onchange="loadOrders(true)">
+            <input type="text" id="ordQ" placeholder="🔍 بحث باسم العميل / رقم الطلب / المنتج..." style="width:200px" oninput="debouncedLoadOrders()">
             <div class="custom-multiselect" style="position:relative;display:inline-block;z-index:98">
               <button class="btn btn-sm" id="ordStatusBtn" onclick="toggleOrderStatusDropdown(event)" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);display:flex;align-items:center;gap:6px;font-size:11px;min-width:150px;justify-content:space-between;padding:5px 8px;height:30px;border-radius:var(--r1);">
                 <span>الحالة (الكل)</span>
@@ -1711,8 +1724,8 @@
             </div>
           </div>
           <div class="filter-bar">
-            <label>من تاريخ:</label><input type="date" id="walFrom" value="2026-05-01">
-            <label>إلى تاريخ:</label><input type="date" id="walTo">
+            <label>من تاريخ:</label><input type="date" id="walFrom" onchange="renderWallet()">
+            <label>إلى تاريخ:</label><input type="date" id="walTo" onchange="renderWallet()">
             <select id="walStatus" onchange="renderWallet()">
               <option value="">جميع العمليات</option>
               <option value="مدفوعة">مدفوعة</option>
@@ -2116,6 +2129,320 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- PAGE: PRODUCT CONTROL CENTER (صفحة مراقبة المنتجات) -->
+      <div class="page pad" id="page-product-control">
+        <div class="import-panel" style="margin-bottom:14px; background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
+            <div>
+              <div class="import-panel-title" style="font-size:16px; font-weight:700; color:var(--text); display: flex; align-items: center; gap: 8px;">
+                <i class="ti ti-box-seam" style="color:var(--accent); font-size:22px;"></i>
+                <span>مركز التحكم بالمنتج (Product Control Center)</span>
+              </div>
+              <div class="import-panel-sub" style="font-size:11px; color:var(--text3); margin-top:4px;">
+                مراقبة الجودة، المخزون، المشتريات، والمبيعات مع تتبع حركة كل منتج لحظيًا عبر معمارية الحقيقة الموحدة.
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn btn-sm btn-primary" onclick="ProductControlUI.loadProductsList(1)"><i class="ti ti-refresh"></i> تحديث البيانات</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIs Summary Cards -->
+        <div class="kpi-grid" style="margin-bottom:14px; display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+          <div class="kpi k-accent"><i class="ti ti-boxes kpi-ico"></i><div class="kpi-label">إجمالي المنتجات</div><div class="kpi-val accent" id="pcKpiTotal">0</div></div>
+          <div class="kpi k-amber"><i class="ti ti-clipboard-check kpi-ico"></i><div class="kpi-label">منتجات بحاجة لجرد</div><div class="kpi-val amber" id="pcKpiNeedsInv">0</div></div>
+          <div class="kpi k-red"><i class="ti ti-alert-triangle kpi-ico"></i><div class="kpi-label">مخزون منخفض / نافد</div><div class="kpi-val red" id="pcKpiLowStock">0</div></div>
+          <div class="kpi k-cyan"><i class="ti ti-bell kpi-ico"></i><div class="kpi-label">تنبيهات الفروقات</div><div class="kpi-val cyan" id="pcKpiWarnings">0</div></div>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="tbl-wrap" style="margin-bottom:14px; padding:12px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+              <!-- Search Input -->
+              <div style="position:relative; width:220px;">
+                <input type="text" id="pcSearch" placeholder="بحث بالاسم، SKU أو Salla ID..." oninput="ProductControlUI.loadProductsList(1)" style="padding:6px 10px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); width:100%; outline:none">
+              </div>
+
+              <!-- Status Filter -->
+              <select id="pcStatusFilter" onchange="ProductControlUI.loadProductsList(1)" style="padding:6px 8px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); outline:none">
+                <option value="all">كافة الحالات</option>
+                <option value="normal">🟢 عادي</option>
+                <option value="needs_inventory">🟡 يحتاج جرد</option>
+                <option value="low_stock">📦 مخزون منخفض</option>
+                <option value="out_of_stock">🔴 نفذ المخزون</option>
+                <option value="reorder_needed">🔄 يلزم إعادة طلب</option>
+                <option value="purchase_stopped">⛔ موقوف للشراء</option>
+              </select>
+
+              <!-- Date Filter & Shortcuts -->
+              <div style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:var(--r); border:1px solid var(--border2);">
+                <span style="font-size:10.5px; color:var(--text3);">الفترة:</span>
+                <input type="date" id="pcFilterFrom" onchange="ProductControlUI.loadProductsList(1)" style="padding:2px 4px; font-size:10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+                <span style="font-size:10.5px; color:var(--text3);">إلى:</span>
+                <input type="date" id="pcFilterTo" onchange="ProductControlUI.loadProductsList(1)" style="padding:2px 4px; font-size:10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+
+                <div style="display:flex; gap:4px; margin-right:6px;">
+                  <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn active" data-shortcut="all" onclick="ProductControlUI.setListShortcut('all')" style="font-size:9.5px; padding:2px 6px;">الكل</button>
+                  <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn" data-shortcut="today" onclick="ProductControlUI.setListShortcut('today')" style="font-size:9.5px; padding:2px 6px;">اليوم</button>
+                  <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn" data-shortcut="7days" onclick="ProductControlUI.setListShortcut('7days')" style="font-size:9.5px; padding:2px 6px;">7 أيام</button>
+                  <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn" data-shortcut="30days" onclick="ProductControlUI.setListShortcut('30days')" style="font-size:9.5px; padding:2px 6px;">30 يوم</button>
+                  <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn" data-shortcut="this_month" onclick="ProductControlUI.setListShortcut('this_month')" style="font-size:9.5px; padding:2px 6px;">الشهر الحالي</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Products Table -->
+        <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
+          <div id="pcTableLoading" style="display:none; padding:40px; justify-content:center; align-items:center; color:var(--accent);">
+            <i class="ti ti-reload spinner" style="font-size:24px; margin-left:8px;"></i> جاري تحميل بيانات المنتجات...
+          </div>
+          <div id="pcTableError" class="alert alert-red" style="display:none; margin:12px;"></div>
+          <div id="pcTableEmpty" style="display:none; padding:40px; text-align:center; flex-direction:column; align-items:center; justify-content:center; color:var(--text3);">
+            <i class="ti ti-box-off" style="font-size:36px; margin-bottom:8px;"></i>
+            <div>لا توجد منتجات مطابقة لخيارات البحث المحددة</div>
+          </div>
+
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>اسم المنتج</th>
+                  <th>SKU</th>
+                  <th>الحالة</th>
+                  <th>الكمية الحالية/المتوقعة</th>
+                  <th>آخر جرد</th>
+                  <th>آخر شراء</th>
+                  <th>المبيعات منذ آخر شراء</th>
+                  <th>قيمة المبيعات</th>
+                  <th>المصروفات الإعلانية</th>
+                  <th>المصروفات الأخرى</th>
+                  <th>تحذير المخزون</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="pcTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Bar -->
+          <div id="pcPagination" style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-top:1px solid var(--border2);"></div>
+        </div>
+      </div>
+
+      <!-- PAGE: PRODUCT CONTROL DETAIL (صفحة تفاصيل المنتج) -->
+      <div class="page pad" id="page-product-control-detail">
+        <!-- Detail Header -->
+        <div class="import-panel" style="margin-bottom:14px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
+            <div>
+              <button class="btn btn-sm btn-outline-secondary" onclick="nav('product-control')" style="margin-bottom:8px;">
+                <i class="ti ti-arrow-right"></i> العودة لقائمة المنتجات
+              </button>
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <h3 id="pcdTitle" style="margin:0; font-size:18px; color:var(--text); font-weight:700;">—</h3>
+                <span id="pcdSku" class="mono" style="font-size:12px; color:var(--text2); background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:4px;">—</span>
+                <span id="pcdSallaId" class="mono" style="font-size:11px; color:var(--text3);">—</span>
+                <span id="pcdStatusBadge"></span>
+              </div>
+            </div>
+
+            <!-- Date Shortcut Filter Bar for Details -->
+            <div style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.2); padding:6px 10px; border-radius:var(--r); border:1px solid var(--border2);">
+              <span style="font-size:11px; color:var(--text3);">فلتر الفترة:</span>
+              <input type="date" id="pcdFilterFrom" onchange="ProductControlUI.loadProductDetail()" style="padding:2px 4px; font-size:10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+              <span style="font-size:11px; color:var(--text3);">إلى:</span>
+              <input type="date" id="pcdFilterTo" onchange="ProductControlUI.loadProductDetail()" style="padding:2px 4px; font-size:10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+
+              <div style="display:flex; gap:4px; margin-right:6px;">
+                <button class="btn btn-sm btn-outline-secondary pcd-shortcut-btn active" data-shortcut="all" onclick="ProductControlUI.setDetailShortcut('all')" style="font-size:9.5px; padding:2px 6px;">الكل</button>
+                <button class="btn btn-sm btn-outline-secondary pcd-shortcut-btn" data-shortcut="today" onclick="ProductControlUI.setDetailShortcut('today')" style="font-size:9.5px; padding:2px 6px;">اليوم</button>
+                <button class="btn btn-sm btn-outline-secondary pcd-shortcut-btn" data-shortcut="7days" onclick="ProductControlUI.setDetailShortcut('7days')" style="font-size:9.5px; padding:2px 6px;">7 أيام</button>
+                <button class="btn btn-sm btn-outline-secondary pcd-shortcut-btn" data-shortcut="30days" onclick="ProductControlUI.setDetailShortcut('30days')" style="font-size:9.5px; padding:2px 6px;">30 يوم</button>
+                <button class="btn btn-sm btn-outline-secondary pcd-shortcut-btn" data-shortcut="this_month" onclick="ProductControlUI.setDetailShortcut('this_month')" style="font-size:9.5px; padding:2px 6px;">الشهر الحالي</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="pcdLoading" style="display:none; padding:40px; justify-content:center; align-items:center; color:var(--accent);">
+          <i class="ti ti-reload spinner" style="font-size:24px; margin-left:8px;"></i> جاري تحميل تفاصيل المنتج...
+        </div>
+
+        <div id="pcdContent">
+          <!-- COGS Unavailable Notice Banner -->
+          <div id="pcdCogsNotice" class="alert alert-amber" style="display:none; margin-bottom:14px; align-items:center; gap:10px;">
+            <i class="ti ti-alert-triangle" style="font-size:22px;"></i>
+            <div>
+              <strong>تكلفة البضاعة المباعة غير مكتملة (COGS UNAVAILABLE)</strong><br>
+              <span style="font-size:11px;">لم يتم تسجيل أسعار شراء أصلية أو جرد أول للمنتج، وبالتالي لا يتم عرض أرقام مؤكدة لـ Gross Profit أو Net Profit.</span>
+            </div>
+          </div>
+
+          <!-- Summary Dashboard Cards -->
+          <div class="kpi-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:12px; margin-bottom:14px;">
+            <div class="kpi k-accent"><i class="ti ti-box kpi-ico"></i><div class="kpi-label">الرصيد المخزني الحالي/المتوقع</div><div class="kpi-val accent" id="pcdKpiExpectedStock">—</div></div>
+            <div class="kpi k-amber"><i class="ti ti-clipboard-check kpi-ico"></i><div class="kpi-label">آخر جرد ومقداره</div><div class="kpi-val amber" id="pcdKpiLastInventory">—</div></div>
+            <div class="kpi k-red"><i class="ti ti-bell kpi-ico"></i><div class="kpi-label">الفارق المخزني</div><div class="kpi-val" id="pcdKpiVariance">—</div></div>
+            <div class="kpi k-blue"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">آخر شراء</div><div class="kpi-val blue" id="pcdKpiLastPurchase">—</div></div>
+            <div class="kpi k-cyan"><i class="ti ti-chart-dots kpi-ico"></i><div class="kpi-label">المبيعات منذ آخر شراء</div><div class="kpi-val cyan" id="pcdKpiSalesSincePurchase">—</div></div>
+            <div class="kpi k-purple"><i class="ti ti-history kpi-ico"></i><div class="kpi-label">المبيعات منذ آخر جرد</div><div class="kpi-val purple" id="pcdKpiSalesSinceInv">—</div></div>
+          </div>
+
+          <!-- Financial Summary Cards -->
+          <div class="kpi-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:14px;">
+            <div class="kpi k-green"><i class="ti ti-cash kpi-ico"></i><div class="kpi-label">الإيرادات (Sales)</div><div class="kpi-val green" id="pcdKpiRevenue">0.00 ر.س</div></div>
+            <div class="kpi k-blue"><i class="ti ti-truck-delivery kpi-ico"></i><div class="kpi-label">المشتريات (Purchases)</div><div class="kpi-val blue" id="pcdKpiPurchases">0.00 ر.س</div></div>
+            <div class="kpi k-red"><i class="ti ti-receipt-tax kpi-ico"></i><div class="kpi-label">تكلفة المباع (COGS)</div><div class="kpi-val red" id="pcdKpiCogs">0.00 ر.س</div></div>
+            <div class="kpi k-accent"><i class="ti ti-calculator kpi-ico"></i><div class="kpi-label">إجمالي الربح (Gross Profit)</div><div class="kpi-val accent" id="pcdKpiGrossProfit">0.00 ر.س</div></div>
+            <div class="kpi k-cyan"><i class="ti ti-speakerphone kpi-ico"></i><div class="kpi-label">مصروفات التسويق (Ad)</div><div class="kpi-val cyan" id="pcdKpiAdExpense">0.00 ر.س</div></div>
+            <div class="kpi k-amber"><i class="ti ti-file-text kpi-ico"></i><div class="kpi-label">مصروفات أخرى (Other)</div><div class="kpi-val amber" id="pcdKpiOtherExpense">0.00 ر.س</div></div>
+            <div class="kpi k-green"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">صافي الربح (Net Profit)</div><div class="kpi-val green" id="pcdKpiNetProfit">0.00 ر.س</div></div>
+          </div>
+
+          <!-- Tabs Navigation Header -->
+          <div class="pcd-tabs-header" style="display:flex; gap:8px; border-bottom:1px solid var(--border); margin-bottom:14px; overflow-x:auto; padding-bottom:4px;">
+            <button class="btn btn-sm btn-outline-secondary pcd-tab-btn active" data-tab="overview" onclick="ProductControlUI.switchTab('overview')"><i class="ti ti-layout-dashboard"></i> نظرة عامة</button>
+            <button class="btn btn-sm btn-outline-secondary pcd-tab-btn" data-tab="sales" onclick="ProductControlUI.switchTab('sales')"><i class="ti ti-shopping-cart"></i> المبيعات</button>
+            <button class="btn btn-sm btn-outline-secondary pcd-tab-btn" data-tab="purchases" onclick="ProductControlUI.switchTab('purchases')"><i class="ti ti-truck-delivery"></i> المشتريات</button>
+            <button class="btn btn-sm btn-outline-secondary pcd-tab-btn" data-tab="inventory" onclick="ProductControlUI.switchTab('inventory')"><i class="ti ti-clipboard-check"></i> الجرد</button>
+            <button class="btn btn-sm btn-outline-secondary pcd-tab-btn" data-tab="expenses" onclick="ProductControlUI.switchTab('expenses')"><i class="ti ti-speakerphone"></i> الإعلانات والمصروفات</button>
+            <button class="btn btn-sm btn-outline-secondary pcd-tab-btn" data-tab="profitability" onclick="ProductControlUI.switchTab('profitability')"><i class="ti ti-calculator"></i> الربحية</button>
+            <button class="btn btn-sm btn-outline-secondary pcd-tab-btn" data-tab="timeline" onclick="ProductControlUI.switchTab('timeline')"><i class="ti ti-history"></i> السجل الزمني</button>
+          </div>
+
+          <!-- TAB 1: OVERVIEW -->
+          <div id="pcdTab_overview" class="pcd-tab-content" style="display:block;">
+            <div class="tbl-wrap" style="padding:16px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+              <h4 style="margin-bottom:12px; color:var(--text); font-size:14px;"><i class="ti ti-info-circle" style="color:var(--accent)"></i> ملخص الجاهزية والبطاقات التحليلية للمنتج</h4>
+              <p style="font-size:12px; color:var(--text2); line-height:1.6;">
+                تعرض هذه اللوحة كافة مؤشرات الأداء الخاصة بالمنتج المحدد من واقع قاعدة البيانات الفعلية مع إثبات القيود والتراخيص المالية دون أي حسابات جانبية على الواجهة.
+              </p>
+            </div>
+          </div>
+
+          <!-- TAB 2: SALES -->
+          <div id="pcdTab_sales" class="pcd-tab-content" style="display:none;">
+            <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+              <div id="pcdSalesLoading" style="display:none; padding:30px; justify-content:center; color:var(--accent);"><i class="ti ti-reload spinner"></i> جاري جلب المبيعات...</div>
+              <div class="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>رقم المرجع / الطلب</th>
+                      <th>تاريخ البيع</th>
+                      <th>الكمية المباعة</th>
+                      <th>إجمالي المبلغ</th>
+                      <th>حالة الطلب</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pcdSalesBody"></tbody>
+                </table>
+              </div>
+              <div id="pcdSalesPagination" style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-top:1px solid var(--border2);"></div>
+            </div>
+          </div>
+
+          <!-- TAB 3: PURCHASES -->
+          <div id="pcdTab_purchases" class="pcd-tab-content" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="margin:0; font-size:13px; color:var(--text);"><i class="ti ti-truck-delivery" style="color:var(--accent);"></i> سجل فواتير المشتريات</h4>
+              <button class="btn btn-sm btn-primary" onclick="ProductControlUI.openAddPurchaseModal()"><i class="ti ti-plus"></i> إضافة فاتورة شراء جديدة</button>
+            </div>
+            <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+              <div id="pcdPurchasesLoading" style="display:none; padding:30px; justify-content:center; color:var(--accent);"><i class="ti ti-reload spinner"></i> جاري جلب المشتريات...</div>
+              <div class="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>رقم الفاتورة</th>
+                      <th>المورد</th>
+                      <th>تاريخ الشراء</th>
+                      <th>الكمية المشترات</th>
+                      <th>سعر الوحدة</th>
+                      <th>الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pcdPurchasesBody"></tbody>
+                </table>
+              </div>
+              <div id="pcdPurchasesPagination" style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-top:1px solid var(--border2);"></div>
+            </div>
+          </div>
+
+          <!-- TAB 4: INVENTORY COUNTS -->
+          <div id="pcdTab_inventory" class="pcd-tab-content" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="margin:0; font-size:13px; color:var(--text);"><i class="ti ti-clipboard-check" style="color:var(--accent);"></i> سجل الجرد الفعلي للمخزون</h4>
+              <button class="btn btn-sm btn-primary" onclick="ProductControlUI.openAddInventoryModal()"><i class="ti ti-plus"></i> إضافة عملية جرد</button>
+            </div>
+            <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+              <div id="pcdInventoryLoading" style="display:none; padding:30px; justify-content:center; color:var(--accent);"><i class="ti ti-reload spinner"></i> جاري جلب عمليات الجرد...</div>
+              <div class="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>تاريخ ووقت الجرد</th>
+                      <th>الكمية الفعلية</th>
+                      <th>الكمية المتوقعة وقت الجرد</th>
+                      <th>الفارق (Variance)</th>
+                      <th>ملاحظات الجرد</th>
+                      <th>المستخدم المسؤول</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pcdInventoryBody"></tbody>
+                </table>
+              </div>
+              <div id="pcdInventoryPagination" style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-top:1px solid var(--border2);"></div>
+            </div>
+          </div>
+
+          <!-- TAB 5: EXPENSES ALLOCATION -->
+          <div id="pcdTab_expenses" class="pcd-tab-content" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="margin:0; font-size:13px; color:var(--text);"><i class="ti ti-speakerphone" style="color:var(--accent);"></i> المصروفات والتكاليف الإعلانية الموزعة على المنتج</h4>
+              <button class="btn btn-sm btn-primary" onclick="ProductControlUI.openAllocateExpenseModal()"><i class="ti ti-plus"></i> تخصيص مصروف للمنتج</button>
+            </div>
+            <div class="tbl-wrap" style="background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+              <div id="pcdExpensesLoading" style="display:none; padding:30px; justify-content:center; color:var(--accent);"><i class="ti ti-reload spinner"></i> جاري جلب المصروفات الموزعة...</div>
+              <div class="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>نوع التخصيص</th>
+                      <th>بيان / اسم المصروف الأصلي</th>
+                      <th>المبلغ الأصلي للمصروف</th>
+                      <th>المبلغ الموزع على المنتج</th>
+                      <th>المتبقي من المصروف</th>
+                      <th>الفترة / المنصة</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pcdExpensesBody"></tbody>
+                </table>
+              </div>
+              <div id="pcdExpensesPagination" style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-top:1px solid var(--border2);"></div>
+            </div>
+          </div>
+
+          <!-- TAB 6: PROFITABILITY BREAKDOWN -->
+          <div id="pcdTab_profitability" class="pcd-tab-content" style="display:none;">
+            <div id="pcdProfitabilityContainer"></div>
+          </div>
+
+          <!-- TAB 7: TIMELINE FEED -->
+          <div id="pcdTab_timeline" class="pcd-tab-content" style="display:none;">
+            <div class="tbl-wrap" style="padding:16px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+              <div id="pcdTimelineLoading" style="display:none; padding:30px; justify-content:center; color:var(--accent);"><i class="ti ti-reload spinner"></i> جاري جلب السجل الزمني...</div>
+              <div id="pcdTimelineContainer"></div>
+              <div id="pcdTimelinePagination" style="display:flex; justify-content:space-between; align-items:center; padding:10px 0 0 0; border-top:1px solid var(--border2); margin-top:12px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- PAGE: PRODUCT OVERVIEW -->
@@ -2578,6 +2905,157 @@
         </div>
       </div> <!-- /page-users -->
 
+      <!-- PAGE: SYSTEM OPERATION & CONTROL PANEL -->
+      <div class="page pad" id="page-system-control">
+        
+        <!-- Header & Refresh Button -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div>
+            <h2 style="font-size:18px; font-weight:700; color:var(--text); margin:0 0 4px 0; display:flex; align-items:center; gap:8px;">
+              <i class="ti ti-power" style="color:var(--accent);"></i> لوحة تشغيل وإيقاف النظام (System Operation & Control)
+            </h2>
+            <div style="font-size:12px; color:var(--text3);">إدارة حالة تشغيل النظام الفعالة، إيقاف وتشغيل الخدمات الحية، وتجديد الاستضافة</div>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadSystemControl()">
+            <i class="ti ti-refresh"></i> تحديث الحالة
+          </button>
+        </div>
+
+        <!-- Master Power Card (مفتاح التشغيل والإيقاف الرئيسي) -->
+        <div id="sysMasterCard" style="background:var(--bg3); border-radius:var(--r1); border:1px solid var(--border1); padding:20px; margin-bottom:16px; transition:all 0.3s ease;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div style="display:flex; align-items:center; gap:16px;">
+              <div id="sysMasterStatusIcon" style="width:54px; height:54px; border-radius:50%; background:rgba(61,186,126,0.15); color:var(--green); display:flex; align-items:center; justify-content:center; font-size:26px; border:2px solid var(--green);">
+                <i class="ti ti-power"></i>
+              </div>
+              <div>
+                <div style="font-size:16px; font-weight:700; color:var(--text);" id="sysMasterStatusTitle">النظام يعمل بشكل طبيعي (ON)</div>
+                <div style="font-size:12px; color:var(--text2); margin-top:3px;" id="sysMasterStatusDesc">كافة الخدمات الحية، المزامنة، والتسليم التلقائي قيد التشغيل</div>
+              </div>
+            </div>
+
+            <!-- Master Toggle Button -->
+            <div style="display:flex; align-items:center; gap:12px;">
+              <button id="sysMasterToggleBtn" class="btn btn-red" onclick="toggleSystemMaster()" style="padding:10px 20px; font-weight:700; font-size:13px; border-radius:var(--r); display:flex; align-items:center; gap:8px;">
+                <i class="ti ti-player-pause"></i> إيقاف تشغيل النظام (Stop System)
+              </button>
+            </div>
+          </div>
+
+          <!-- Custom Renewal Notice Configuration -->
+          <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border1);">
+            <label style="font-size:12px; font-weight:600; color:var(--text2); display:block; margin-bottom:6px;">
+              <i class="ti ti-message-alert" style="color:var(--amber);"></i> رسالة الإيقاف والتنبيه (تجديد الاستضافة):
+            </label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="sysStoppedMessageInput" value="عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة" placeholder="أدخل النص المراد إظهاره عند إيقاف النظام..." style="flex:1; padding:8px 12px; font-size:12px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); outline:none;">
+              <button class="btn btn-sm btn-outline-light" onclick="saveSystemStoppedMessage()">
+                <i class="ti ti-check"></i> حفظ النص
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-Services Control Cards (إدارة خدمات النظام التفصيلية) -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:16px;">
+          
+          <!-- Salla Sync Toggle -->
+          <div style="background:var(--bg3); padding:16px; border-radius:var(--r1); border:1px solid var(--border1); display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:40px; height:40px; border-radius:var(--r); background:rgba(24,178,176,0.12); color:#18B2B0; display:flex; align-items:center; justify-content:center; font-size:20px;">
+                <i class="ti ti-refresh"></i>
+              </div>
+              <div>
+                <div style="font-size:13px; font-weight:700; color:var(--text);">مزامنة سلة التلقائية</div>
+                <div style="font-size:11px; color:var(--text3);">مزامنة الطلبات والمحفظة بالسيرفر</div>
+              </div>
+            </div>
+            <label class="switch" style="position:relative; display:inline-block; width:44px; height:24px;">
+              <input type="checkbox" id="sysToggleAutoSync" onchange="toggleSystemService('auto_sync', this.checked)">
+              <span class="slider" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#4a5568; transition:.4s; border-radius:24px;"></span>
+            </label>
+          </div>
+
+          <!-- Auto Delivery Toggle -->
+          <div style="background:var(--bg3); padding:16px; border-radius:var(--r1); border:1px solid var(--border1); display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:40px; height:40px; border-radius:var(--r); background:rgba(61,186,126,0.12); color:var(--green); display:flex; align-items:center; justify-content:center; font-size:20px;">
+                <i class="ti ti-brand-playstation"></i>
+              </div>
+              <div>
+                <div style="font-size:13px; font-weight:700; color:var(--text);">التسليم التلقائي للطلبات</div>
+                <div style="font-size:11px; color:var(--text3);">تسليم الحسابات تلقائياً عند الطلب</div>
+              </div>
+            </div>
+            <label class="switch" style="position:relative; display:inline-block; width:44px; height:24px;">
+              <input type="checkbox" id="sysToggleAutoDelivery" onchange="toggleSystemService('auto_delivery', this.checked)">
+              <span class="slider" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#4a5568; transition:.4s; border-radius:24px;"></span>
+            </label>
+          </div>
+
+          <!-- WhatsApp Bot Toggle -->
+          <div style="background:var(--bg3); padding:16px; border-radius:var(--r1); border:1px solid var(--border1); display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:40px; height:40px; border-radius:var(--r); background:rgba(37,211,102,0.12); color:#25D366; display:flex; align-items:center; justify-content:center; font-size:20px;">
+                <i class="ti ti-brand-whatsapp"></i>
+              </div>
+              <div>
+                <div style="font-size:13px; font-weight:700; color:var(--text);">إشعارات الواتساب</div>
+                <div style="font-size:11px; color:var(--text3);">إرسال رسائل التسليم فورياً للعميل</div>
+              </div>
+            </div>
+            <label class="switch" style="position:relative; display:inline-block; width:44px; height:24px;">
+              <input type="checkbox" id="sysToggleWhatsappBot" onchange="toggleSystemService('whatsapp_bot', this.checked)">
+              <span class="slider" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#4a5568; transition:.4s; border-radius:24px;"></span>
+            </label>
+          </div>
+
+        </div>
+
+        <!-- Server Health & Live Process KPIs -->
+        <div class="kpi-grid" style="margin-bottom:16px;">
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="ti ti-clock"></i></div>
+            <div class="kpi-val" id="sysMetricUptime" style="font-weight:700;">-</div>
+            <div class="kpi-label">مدة تشغيل النظام (Uptime)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon purple"><i class="ti ti-cpu"></i></div>
+            <div class="kpi-val" id="sysMetricMemory" style="font-weight:700;">-</div>
+            <div class="kpi-label">استهلاك الذاكرة (Node Heap)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="ti ti-database"></i></div>
+            <div class="kpi-val" id="sysMetricDbSize" style="font-weight:700;">-</div>
+            <div class="kpi-label">حجم قاعدة البيانات (SQLite)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber"><i class="ti ti-server"></i></div>
+            <div class="kpi-val" id="sysMetricNodeVer" style="font-weight:700;">-</div>
+            <div class="kpi-label">إصدار بيئة التشغيل</div>
+          </div>
+        </div>
+
+        <!-- System Maintenance Actions (أدوات التحكم والصيانة السريعة) -->
+        <div style="background:var(--bg3); padding:20px; border-radius:var(--r1); border:1px solid var(--border1);">
+          <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:14px; display:flex; align-items:center; gap:6px;">
+            <i class="ti ti-tool" style="color:var(--amber);"></i> إجراءات الصيانة والتحكم المباشر
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:12px;">
+            <button class="btn btn-warning" onclick="restartSystemServer()" style="font-weight:600; padding:10px 18px;">
+              <i class="ti ti-rotate"></i> إعادة تشغيل السيرفر (PM2 Restart)
+            </button>
+            <button class="btn btn-outline-light" onclick="vacuumSystemDatabase()" style="font-weight:600; padding:10px 18px;">
+              <i class="ti ti-vacuum-cleaner"></i> تنظيف وتحسين ضغط قاعدة البيانات (VACUUM)
+            </button>
+            <a class="btn btn-outline-secondary" href="/api/database/backup" style="font-weight:600; padding:10px 18px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+              <i class="ti ti-download"></i> تحميل نسخة احتياطية من البيانات
+            </a>
+          </div>
+        </div>
+
+      </div> <!-- /page-system-control -->
+
 
       <!-- PAGE: EXT COUNTRY ANALYTICS -->
       <div class="page pad" id="page-ext-country-analytics">
@@ -2591,6 +3069,10 @@
             <div style="font-size:11px; color:var(--text3); margin-top:3px;">تفصيل ومراقبة العمليات والمبالغ مقسمة جغرافياً بشكل مبسط ومرتب</div>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <label style="font-size:11px; color:var(--text3)">من:</label>
+            <input type="date" id="extCountryAnFrom" onchange="loadExtCountryAnalytics()" style="font-size:11px; padding:4px 6px; width:125px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); border-radius:4px; outline:none;">
+            <label style="font-size:11px; color:var(--text3)">إلى:</label>
+            <input type="date" id="extCountryAnTo" onchange="loadExtCountryAnalytics()" style="font-size:11px; padding:4px 6px; width:125px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); border-radius:4px; outline:none;">
             <select id="extCountryAnFilterPeriod" onchange="renderExtCountryAnalytics()" style="padding:5px 10px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
               <option value="">كل الفترات</option>
               <option value="today">اليوم</option>
@@ -2761,6 +3243,10 @@
           <div class="tbl-header">
             <div class="tbl-title">سجل العمليات الخارجية المسجلة</div>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <label style="font-size:11px; color:var(--text3)">من:</label>
+              <input type="date" id="extSalesFrom" onchange="loadExternalSales()" style="font-size:11px; padding:4px 6px; width:125px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); border-radius:4px; outline:none;">
+              <label style="font-size:11px; color:var(--text3)">إلى:</label>
+              <input type="date" id="extSalesTo" onchange="loadExternalSales()" style="font-size:11px; padding:4px 6px; width:125px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); border-radius:4px; outline:none;">
               <select id="extFilterBank" onchange="renderExternalSales()" style="width:140px; font-size:11px; padding:4px 6px;">
                 <option value="">كل الحسابات</option>
                 <option value="حساب الوثيقة">حساب الوثيقة</option>
@@ -3166,9 +3652,9 @@
               <option value="فاخر">فاخر (Deluxe)</option>
             </select>
 
-            <label style="margin-right:8px">الفترة:</label>
+            <label style="margin-right:8px">مدة الاشتراك:</label>
             <select id="psFilterDuration" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
-              <option value="">الكل (الفترة)</option>
+              <option value="">الكل (المدة)</option>
               <option value="يومي">يومي</option>
               <option value="اسبوعي">اسبوعي</option>
               <option value="شهري">شهري</option>
@@ -3179,6 +3665,11 @@
               <option value="9 أشهر">9 أشهر</option>
               <option value="سنة">سنة</option>
             </select>
+
+            <label style="margin-right:8px">تاريخ الإضافة من:</label>
+            <input type="date" id="psFilterDateFrom" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
+            <label style="margin-right:4px">إلى:</label>
+            <input type="date" id="psFilterDateTo" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
 
             <label style="margin-right:8px">المخزون المتبقي:</label>
             <select id="psFilterStock" onchange="renderPsPlusAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
@@ -3300,6 +3791,11 @@
               <option value="اضافي">اضافي (Extra)</option>
               <option value="فاخر">فاخر (Deluxe)</option>
             </select>
+
+            <label style="margin-right:8px">تاريخ التسليم من:</label>
+            <input type="date" id="psdFilterDateFrom" onchange="renderPsPlusDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
+            <label style="margin-right:4px">إلى:</label>
+            <input type="date" id="psdFilterDateTo" onchange="renderPsPlusDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
             
             <label style="margin-right:auto">بحث:</label>
             <input type="text" id="psdFilterSearch" oninput="renderPsPlusDeliveries()" placeholder="رقم الطلب أو إيميل..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 200px;">
@@ -3392,6 +3888,11 @@
               <option value="has_ps4">به نسخ PS4 متاحة</option>
               <option value="empty">مكتمل التسليم (نفذت الكمية)</option>
             </select>
+
+            <label style="margin-right:8px">تاريخ الإضافة من:</label>
+            <input type="date" id="gamesFilterDateFrom" onchange="renderGamesAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
+            <label style="margin-right:4px">إلى:</label>
+            <input type="date" id="gamesFilterDateTo" onchange="renderGamesAccounts()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
             
             <label style="margin-right:auto">بحث:</label>
             <input type="text" id="gamesFilterSearch" oninput="renderGamesAccounts()" placeholder="ابحث بالإيميل، اسم اللعبة أو رقم الطلب..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 220px;">
@@ -3484,6 +3985,11 @@
             <select id="gamesdFilterUser" onchange="renderGamesDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text);">
               <option value="">الكل</option>
             </select>
+
+            <label style="margin-right:8px">تاريخ التسليم من:</label>
+            <input type="date" id="gamesdFilterDateFrom" onchange="renderGamesDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
+            <label style="margin-right:4px">إلى:</label>
+            <input type="date" id="gamesdFilterDateTo" onchange="renderGamesDeliveries()" style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); outline:none;">
             
             <label style="margin-right:auto">بحث:</label>
             <input type="text" id="gamesdFilterSearch" oninput="renderGamesDeliveries()" placeholder="رقم الطلب، اسم اللعبة، أو إيميل..." style="padding: 4px 8px; font-size: 11.5px; border-radius: var(--r); background: var(--bg4); border: 1px solid var(--border2); color: var(--text); width: 220px;">
@@ -3758,19 +4264,34 @@
           <div class="modal-title" id="gameAccountModalTitle"><i class="ti ti-device-gamepad-2" style="color:var(--accent)"></i> إضافة حساب لعبة جديد</div>
           
           <div class="form-grid">
-            <div class="form-group full">
-              <label class="form-label">اسم اللعبة (يدوي)</label>
-              <input type="text" id="gameName" placeholder="مثال: Resident Evil 4 Remake">
-            </div>
-
             <div class="form-group">
-              <label class="form-label">البريد الإلكتروني (الإيميل)</label>
-              <input type="email" id="gameEmail" placeholder="مثال: gamestore+01@gmail.com">
+              <label class="form-label">البريد الإلكتروني الأساسي (الأساسي)</label>
+              <input type="email" id="gameBasicEmail" placeholder="مثال: basic+01@gmail.com">
             </div>
             
             <div class="form-group">
-              <label class="form-label">كلمة المرور (الباسورد)</label>
-              <input type="text" id="gamePassword" placeholder="مثال: game_1020">
+              <label class="form-label">كلمة المرور للبريد الأساسي (الأساسي)</label>
+              <input type="text" id="gameBasicPassword" placeholder="مثال: basic_pass_123">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">البريد الإلكتروني (السوني)</label>
+              <input type="email" id="gameEmail" placeholder="مثال: sony+01@gmail.com">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">كلمة المرور (السوني)</label>
+              <input type="text" id="gamePassword" placeholder="مثال: sony_pass_123">
+            </div>
+
+            <div class="form-group full">
+              <label class="form-label">تاريخ الميلاد لحساب السوني</label>
+              <input type="text" id="gameDob" placeholder="مثال: 2002/05/15">
+            </div>
+
+            <div class="form-group full">
+              <label class="form-label">اسم اللعبة (يدوي)</label>
+              <input type="text" id="gameName" placeholder="مثال: Resident Evil 4 Remake">
             </div>
 
             <!-- منشئ النسخ التفاعلي -->
@@ -3837,8 +4358,11 @@
           <div style="background:var(--bg3); padding:10px; border-radius:var(--r); border:1px solid var(--border1); margin-bottom:12px;">
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px;">
               <div><strong>اسم اللعبة:</strong> <span id="gdetShowName" style="color:var(--text2)"></span></div>
-              <div><strong>البريد الإلكتروني:</strong> <span id="gdetShowEmail" class="mono text-glow" style="color:var(--accent)"></span></div>
-              <div><strong>كلمة المرور:</strong> <span id="gdetShowPassword" class="mono" style="color:var(--text2)"></span></div>
+              <div><strong>البريد الأساسي:</strong> <span id="gdetShowBasicEmail" class="mono text-glow" style="color:var(--accent)"></span></div>
+              <div><strong>رمز البريد الأساسي:</strong> <span id="gdetShowBasicPassword" class="mono" style="color:var(--text2)"></span></div>
+              <div><strong>إيميل السوني:</strong> <span id="gdetShowEmail" class="mono text-glow" style="color:var(--accent)"></span></div>
+              <div><strong>رمز السوني:</strong> <span id="gdetShowPassword" class="mono" style="color:var(--text2)"></span></div>
+              <div><strong>تاريخ الميلاد:</strong> <span id="gdetShowDob" style="color:var(--text2)"></span></div>
             </div>
           </div>
 
@@ -4229,8 +4753,103 @@
     </div>
   </div>
 
+  <!-- MODAL: إضافة جرد جديد للمنتج -->
+  <div class="modal-bg" id="pcAddInventoryModal">
+    <div class="modal" style="max-width: 480px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;">
+      <div class="modal-title" style="border-bottom: 1px solid var(--border2); padding-bottom: 10px; margin-bottom: 12px;">
+        <i class="ti ti-clipboard-check" style="color:var(--accent)"></i> إضافة جرد فعلي للمنتج
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">الكمية الفعلية بالمخزون (Actual Qty) *</label>
+          <input type="number" id="pcInvActualQty" min="0" placeholder="مثال: 50" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">تاريخ ووقت الجرد *</label>
+          <input type="datetime-local" id="pcInvCountedAt" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">ملاحظات الجرد</label>
+          <textarea id="pcInvNotes" placeholder="ملاحظات تفصيلية عن حالة المخزون..." style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text); height:60px;"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot" style="border-top:1px solid var(--border2); margin-top:16px; padding-top:10px; display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-outline-secondary" onclick="ProductControlUI.closeAddInventoryModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="ProductControlUI.submitAddInventory()"><i class="ti ti-check"></i> حفظ الجرد</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: إضافة فاتورة شراء جديدة (مع Pre-purchase Check) -->
+  <div class="modal-bg" id="pcAddPurchaseModal">
+    <div class="modal" style="max-width: 580px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;">
+      <div class="modal-title" style="border-bottom: 1px solid var(--border2); padding-bottom: 10px; margin-bottom: 12px;">
+        <i class="ti ti-truck-delivery" style="color:var(--accent)"></i> إضافة فاتورة شراء جديدة وتحديث WAC
+      </div>
+      
+      <!-- Pre-purchase check status -->
+      <div id="pcPrePurchaseCheckResult"></div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">اسم المورد</label>
+            <input type="text" id="pcPurchSupplier" placeholder="مثال: مورد دبي التكنولوجي" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">تاريخ الشراء ووقت الفاتورة *</label>
+            <input type="datetime-local" id="pcPurchDate" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">بنود الفاتورة والمنتجات *</label>
+          <div id="pcPurchItemsContainer"></div>
+        </div>
+      </div>
+
+      <div class="modal-foot" style="border-top:1px solid var(--border2); margin-top:16px; padding-top:10px; display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-outline-secondary" onclick="ProductControlUI.closeAddPurchaseModal()">إلغاء</button>
+        <button class="btn btn-primary" id="pcSubmitPurchaseBtn" onclick="ProductControlUI.submitAddPurchase()"><i class="ti ti-check"></i> تأكيد وحفظ الفاتورة</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: تخصيص مصروف للمنتج -->
+  <div class="modal-bg" id="pcAllocateExpenseModal">
+    <div class="modal" style="max-width: 500px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;">
+      <div class="modal-title" style="border-bottom: 1px solid var(--border2); padding-bottom: 10px; margin-bottom: 12px;">
+        <i class="ti ti-speakerphone" style="color:var(--accent)"></i> تخصيص مصروف من الحسابات العامة إلى المنتج
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">اختر المصروف الأصلي *</label>
+          <select id="pcAllocExpenseSel" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);"></select>
+        </div>
+
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">نوع التخصيص *</label>
+          <select id="pcAllocTypeSel" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+            <option value="ADVERTISING">تسويق وحملات إعلانية (ADVERTISING)</option>
+            <option value="OTHER">مصروفات وتكاليف تشغيلية أخرى (OTHER)</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">المبلغ المخصص للمنتج (ر.س) *</label>
+          <input type="number" step="0.01" id="pcAllocAmount" min="0.01" placeholder="مثال: 150.00" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+        </div>
+      </div>
+      <div class="modal-foot" style="border-top:1px solid var(--border2); margin-top:16px; padding-top:10px; display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-outline-secondary" onclick="ProductControlUI.closeAllocateExpenseModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="ProductControlUI.submitAllocateExpense()"><i class="ti ti-check"></i> تأكيد التخصيص</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Load script files -->
-  <script src="js/app_v2.js?v=2.0.2"></script>
+  <script src="js/product_control_ui.js"></script>
+  <script src="js/app_v2.js?v=2.0.5"></script>
 
   <!-- FLOATING SCROLL NAVIGATION WIDGET -->
   <div class="scroll-navigation-widget" id="scrollNavWidget">

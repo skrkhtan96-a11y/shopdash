@@ -37,10 +37,27 @@ router.post('/connections/connect', authenticateUser, async (req, res) => {
     let accId = account_id;
     let token = access_token || null;
 
-    if (platform === 'facebook' && token) {
+    if (!token) {
+        try {
+            const existing = await new Promise((resolve, reject) => {
+                db.get("SELECT access_token, account_id FROM ads_connections WHERE platform = ?", [platform], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+            if (existing) {
+                token = existing.access_token;
+                if (!accId) accId = existing.account_id;
+            }
+        } catch (e) {
+            console.error("Error fetching existing connection info:", e);
+        }
+    }
+
+    if (platform === 'facebook' && access_token) {
         try {
             const FacebookService = require('../services/facebook.service');
-            const accounts = await FacebookService.fetchAdAccounts(token);
+            const accounts = await FacebookService.fetchAdAccounts(access_token);
             if (accounts.length > 0) {
                 accId = accounts.map(a => a.id).join(',');
             } else {
@@ -521,11 +538,12 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
             try {
                 const sallaPromise = new Promise((resolve) => {
                     db.all(
-                        `SELECT date, SUM(amount) as sales, 
-                                COUNT(DISTINCT CASE WHEN instr(reference_id, '_') > 0 THEN substr(reference_id, 1, instr(reference_id, '_') - 1) ELSE reference_id END) as orders_count, 
-                                SUM(quantity) as items_sold 
-                         FROM salla_imported_orders 
-                         WHERE date >= ? AND date <= ? 
+                        `SELECT date,
+                                SUM(amount) as sales,
+                                COUNT(DISTINCT CASE WHEN instr(reference_id, '_') > 0 THEN substr(reference_id, 1, instr(reference_id, '_') - 1) ELSE reference_id END) as orders_count,
+                                SUM(quantity) as items_sold
+                         FROM salla_imported_orders
+                         WHERE date >= ? AND date <= ?
                          GROUP BY date`,
                         [since, until],
                         (errSalla, rows) => {
@@ -534,6 +552,30 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                                 resolve([]);
                             } else {
                                 resolve(rows || []);
+                            }
+                        }
+                    );
+                });
+
+                const campaignSallaPromise = new Promise((resolve) => {
+                    db.get(
+                        `SELECT
+                            COUNT(DISTINCT oa.order_id) as orders_count,
+                            SUM(o.amount) as sales_amount
+                         FROM order_attribution oa
+                         JOIN salla_imported_orders o
+                           ON o.reference_id = oa.order_id
+                           OR o.reference_id LIKE oa.order_id || '_%'
+                         WHERE (oa.campaign_id = ? OR oa.campaign_id LIKE '%' || ? || '%')
+                           AND date(o.date) >= date(?) AND date(o.date) <= date(?)
+                           AND o.status_slug NOT IN ('canceled', 'refunded', 'returned')`,
+                        [campaignId, campaignId, since, until],
+                        (err, row) => {
+                            if (err) {
+                                console.error("[Campaign Salla DB Err]", err);
+                                resolve({ orders_count: 0, sales_amount: 0 });
+                            } else {
+                                resolve(row || { orders_count: 0, sales_amount: 0 });
                             }
                         }
                     );
@@ -558,7 +600,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                     adInsightsRes,
                     ageGenderRes,
                     deviceRes,
-                    sallaDailyData
+                    sallaDailyData,
+                    campaignSallaData
                 ] = await Promise.all([
                     safeGet("https://business-api.tiktok.com/open_api/v1.3/campaign/get/", {
                         advertiser_id: advertiserId,
@@ -569,8 +612,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         advertiser_id: advertiserId,
                         report_type: 'BASIC',
                         data_level: 'AUCTION_CAMPAIGN',
-                        dimensions: JSON.stringify(["stat_time_day"]),
-                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
+                        dimensions: JSON.stringify(["campaign_id", "stat_time_day"]),
+                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion", "total_purchase_value"]),
                         start_date: since,
                         end_date: until,
                         filtering: JSON.stringify(filtering),
@@ -586,7 +629,7 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         report_type: 'BASIC',
                         data_level: 'AUCTION_ADGROUP',
                         dimensions: JSON.stringify(["adgroup_id"]),
-                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
+                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion", "total_purchase_value"]),
                         start_date: since,
                         end_date: until,
                         filtering: JSON.stringify(filtering),
@@ -602,7 +645,7 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         report_type: 'BASIC',
                         data_level: 'AUCTION_AD',
                         dimensions: JSON.stringify(["ad_id"]),
-                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion"]),
+                        metrics: JSON.stringify(["spend", "clicks", "impressions", "conversion", "total_purchase_value"]),
                         start_date: since,
                         end_date: until,
                         filtering: JSON.stringify(filtering),
@@ -630,7 +673,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         filtering: JSON.stringify(filtering),
                         page_size: 1000
                     }),
-                    sallaPromise
+                    sallaPromise,
+                    campaignSallaPromise
                 ]);
 
                 // Calculate Salla Totals
@@ -658,39 +702,40 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                         stop_time: null
                     } : null,
                     daily_insights: (dailyInsightsRes?.data?.list || []).map(r => {
-                        const date = r.dimensions.stat_time_day.split(' ')[0];
-                        const spend = parseFloat(r.metrics.spend || 0);
+                        const date = (r.dimensions.stat_time_day || '').split(' ')[0];
                         const conversions = parseInt(r.metrics.conversion || 0);
+                        const purchaseValue = parseFloat(r.metrics.total_purchase_value || 0);
                         return {
                             date_start: date,
-                            spend: spend,
+                            spend: parseFloat(r.metrics.spend || 0),
                             impressions: parseInt(r.metrics.impressions || 0),
                             reach: parseInt(r.metrics.impressions || 0),
                             clicks: parseInt(r.metrics.clicks || 0),
                             actions: [ { action_type: 'purchase', value: conversions } ],
-                            action_values: [ { action_type: 'purchase', value: conversions * 195 } ]
+                            action_values: [ { action_type: 'purchase', value: purchaseValue } ]
                         };
                     }),
                     adsets: (adgroupsRes?.data?.list || []).map(ag => {
                         const insights = (adgroupInsightsRes?.data?.list || []).find(i => i.dimensions.adgroup_id === ag.adgroup_id) || { metrics: {} };
-                        const spend = parseFloat(insights.metrics.spend || 0);
                         const conversions = parseInt(insights.metrics.conversion || 0);
+                        const purchaseValue = parseFloat(insights.metrics.total_purchase_value || 0);
                         return {
                             id: ag.adgroup_id,
                             name: ag.adgroup_name,
                             status: ag.operation_status === 'ENABLE' ? 'ACTIVE' : 'PAUSED',
                             daily_budget: ag.budget || 0,
                             lifetime_budget: 0,
-                            spend: spend,
+                            spend: parseFloat(insights.metrics.spend || 0),
                             impressions: parseInt(insights.metrics.impressions || 0),
                             clicks: parseInt(insights.metrics.clicks || 0),
                             actions: [ { action_type: 'purchase', value: conversions } ],
-                            action_values: [ { action_type: 'purchase', value: conversions * 195 } ]
+                            action_values: [ { action_type: 'purchase', value: purchaseValue } ]
                         };
                     }),
                     ads: (adsRes?.data?.list || []).map(ad => {
                         const insights = (adInsightsRes?.data?.list || []).find(i => i.dimensions.ad_id === ad.ad_id) || { metrics: {} };
                         const conversions = parseInt(insights.metrics.conversion || 0);
+                        const purchaseValue = parseFloat(insights.metrics.total_purchase_value || 0);
                         return {
                             id: ad.ad_id,
                             name: ad.ad_name,
@@ -702,7 +747,7 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                             impressions: parseInt(insights.metrics.impressions || 0),
                             clicks: parseInt(insights.metrics.clicks || 0),
                             actions: [ { action_type: 'purchase', value: conversions } ],
-                            action_values: [ { action_type: 'purchase', value: conversions * 195 } ]
+                            action_values: [ { action_type: 'purchase', value: purchaseValue } ]
                         };
                     }),
                     breakdowns: {
@@ -729,7 +774,9 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                     salla_summary: {
                         total_sales: totalSallaSales,
                         total_orders: totalSallaOrders,
-                        total_items: totalSallaItems
+                        total_items: totalSallaItems,
+                        campaign_sales: campaignSallaData ? (campaignSallaData.sales_amount || 0) : 0,
+                        campaign_orders: campaignSallaData ? (campaignSallaData.orders_count || 0) : 0
                     }
                 };
 
@@ -784,6 +831,30 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                 );
             });
 
+            const campaignSallaPromise = new Promise((resolve) => {
+                db.get(
+                    `SELECT
+                        COUNT(DISTINCT oa.order_id) as orders_count,
+                        SUM(o.amount) as sales_amount
+                     FROM order_attribution oa
+                     JOIN salla_imported_orders o
+                       ON o.reference_id = oa.order_id
+                       OR o.reference_id LIKE oa.order_id || '_%'
+                     WHERE (oa.campaign_id = ? OR oa.campaign_id LIKE '%' || ? || '%')
+                       AND date(o.date) >= date(?) AND date(o.date) <= date(?)
+                       AND o.status_slug NOT IN ('canceled', 'refunded', 'returned')`,
+                    [campaignId, campaignId, since, until],
+                    (err, row) => {
+                        if (err) {
+                            console.error("[Campaign Salla DB Err]", err);
+                            resolve({ orders_count: 0, sales_amount: 0 });
+                        } else {
+                            resolve(row || { orders_count: 0, sales_amount: 0 });
+                        }
+                    }
+                );
+            });
+
             // Run requests in parallel
             const [
                 campaignData,
@@ -794,7 +865,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                 adInsights,
                 ageGenderBreakdown,
                 deviceBreakdown,
-                sallaDailyData
+                sallaDailyData,
+                campaignSallaData
             ] = await Promise.all([
                 // 1. Campaign general metadata
                 safeGet(`https://graph.facebook.com/v21.0/${campaignId}`, {
@@ -842,7 +914,8 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                     breakdowns: 'device_platform',
                     time_range: timeRange
                 }),
-                sallaPromise
+                sallaPromise,
+                campaignSallaPromise
             ]);
 
             // Calculate Salla Totals
@@ -906,7 +979,9 @@ router.get('/campaign-detail', authenticateUser, async (req, res, next) => {
                 salla_summary: {
                     total_sales: totalSallaSales,
                     total_orders: totalSallaOrders,
-                    total_items: totalSallaItems
+                    total_items: totalSallaItems,
+                    campaign_sales: campaignSallaData ? (campaignSallaData.sales_amount || 0) : 0,
+                    campaign_orders: campaignSallaData ? (campaignSallaData.orders_count || 0) : 0
                 }
             };
 

@@ -13,9 +13,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
         console.error('خطأ أثناء فتح قاعدة البيانات:', err.message);
     } else {
         console.log(isTest ? '🧪 Test SQLite DB connected in-memory (:memory:)' : 'قاعدة البيانات متصلة بنجاح (SQLite)');
-        // تفعيل وضع WAL وزيادة مهلة الانتظار عند التعارض (busy_timeout) لمنع أخطاء قفل البيانات
+        // تفعيل وضع WAL وزيادة مهلة الانتظار عند التعارض (busy_timeout) وتفعيل المفاتيح الأجنبية (foreign_keys)
         db.run("PRAGMA journal_mode=WAL;");
         db.run("PRAGMA busy_timeout=5000;");
+        db.run("PRAGMA foreign_keys = ON;");
     }
 });
 
@@ -366,6 +367,11 @@ db.serialize(() => {
         )
     `);
 
+    // ترقية جدول حسابات الألعاب لإضافة الحقول الجديدة للأساسي وتاريخ الميلاد
+    db.run("ALTER TABLE game_accounts ADD COLUMN basic_email TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE game_accounts ADD COLUMN basic_password TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE game_accounts ADD COLUMN dob TEXT", (err) => { /* تجاهل الخطأ */ });
+
     // 14.6 جدول نسخ/سلوتات الألعاب
     db.run(`
         CREATE TABLE IF NOT EXISTS game_slots (
@@ -561,6 +567,25 @@ db.serialize(() => {
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN budget_mode TEXT DEFAULT 'BUDGET_MODE_INFINITE'", (err) => { /* تجاهل الخطأ */ });
     
+    // إضافة حقول إضافية لجدول إحصائيات الإعلانات لإثراء البيانات والمزامنة
+    db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN purchase_value REAL DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN purchases INTEGER DEFAULT 0", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN effective_status TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN objective TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ads_campaign_metrics ADD COLUMN synced_at TEXT", (err) => { /* تجاهل الخطأ */ });
+
+    // إنشاء جدول سجلات المزامنة (sync_logs)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS sync_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            run_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            status TEXT NOT NULL,
+            error_message TEXT,
+            rows_synced INTEGER DEFAULT 0
+        )
+    `);
+
     // ترقية جدول المصروفات والمبيعات الخارجية لإضافة رابط إيصال الرفع (اختياري)
     db.run("ALTER TABLE expenses ADD COLUMN receipt_url TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE external_sales ADD COLUMN receipt_url TEXT", (err) => { /* تجاهل الخطأ */ });
@@ -677,6 +702,24 @@ db.serialize(() => {
             data_snapshot   TEXT,
             created_at      TEXT DEFAULT CURRENT_TIMESTAMP
         )
+    `);
+
+    // إنشاء جدول system_control_config لإدارة تشغيل/إيقاف النظام والتنبيهات
+    db.run(`
+        CREATE TABLE IF NOT EXISTS system_control_config (
+            key             TEXT PRIMARY KEY,
+            system_status   TEXT DEFAULT 'online',
+            stopped_message TEXT DEFAULT 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة',
+            auto_sync       INTEGER DEFAULT 1,
+            auto_delivery   INTEGER DEFAULT 1,
+            whatsapp_bot    INTEGER DEFAULT 1,
+            updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    db.run(`
+        INSERT OR IGNORE INTO system_control_config (key, system_status, stopped_message, auto_sync, auto_delivery, whatsapp_bot)
+        VALUES ('main', 'online', 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة', 1, 1, 1)
     `);
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً

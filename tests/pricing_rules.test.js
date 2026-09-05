@@ -1,7 +1,24 @@
 process.env.NODE_ENV = 'test';
 
 const request = require('supertest');
-const { expect } = require('chai');
+const assert = require('assert');
+const expect = (val) => ({
+    to: {
+        be: {
+            an: (type) => assert.ok(type === 'array' ? Array.isArray(val) : typeof val === type),
+            a: (type) => assert.ok(type === 'array' ? Array.isArray(val) : typeof val === type)
+        },
+        get exist() { assert.ok(val); return this; },
+        get not() { return { get exist() { assert.ok(!val); return this; } }; },
+        equal: (expected) => assert.strictEqual(val, expected),
+        have: {
+            property: (prop, expected) => {
+                assert.ok(val && val.hasOwnProperty(prop));
+                if (expected !== undefined) assert.strictEqual(val[prop], expected);
+            }
+        }
+    }
+});
 const app = require('../server');
 const { db, hashPassword } = require('../database');
 

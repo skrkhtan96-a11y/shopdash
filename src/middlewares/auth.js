@@ -20,9 +20,9 @@ const loginLimiter = rateLimit({
 
 // Middleware to protect API endpoints
 const authenticateUser = (req, res, next) => {
-    const token = req.cookies.session_token;
+    const token = req.cookies.session_token || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
     if (!token) {
-        return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.' });
+        return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.', code: 'UNAUTHORIZED' });
     }
     db.get(
         `SELECT u.* FROM sessions s 
@@ -32,7 +32,7 @@ const authenticateUser = (req, res, next) => {
         (err, row) => {
             if (err || !row) {
                 res.clearCookie('session_token');
-                return res.status(401).json({ error: 'انتهت الجلسة. يرجى تسجيل الدخول مجدداً.' });
+                return res.status(401).json({ error: 'انتهت الجلسة. يرجى تسجيل الدخول مجدداً.', code: 'UNAUTHORIZED' });
             }
             req.user = row;
             next();
@@ -44,7 +44,7 @@ const authenticateUser = (req, res, next) => {
 const requireRole = (roles) => {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {
-            return res.status(403).json({ error: 'غير مصرح لك بالوصول لهذه الصلاحية.' });
+            return res.status(403).json({ error: 'غير مصرح لك بالوصول لهذه الصلاحية.', code: 'FORBIDDEN' });
         }
         next();
     };
@@ -64,8 +64,8 @@ const authenticateMcp = (req, res, next) => {
 };
 
 const sessionStaticCheckMiddleware = (req, res, next) => {
-    const publicPages = ['/login.html', '/privacy.html'];
-    const isHtmlOrRoot = req.path === '/' || req.path.endsWith('.html');
+    const publicPages = ['/login.html', '/privacy.html', '/system-control', '/system-control.html'];
+    const isHtmlOrRoot = req.path === '/' || req.path.endsWith('.html') || req.path === '/system-control';
     
     if (isHtmlOrRoot && !publicPages.includes(req.path)) {
         const token = req.cookies.session_token;
@@ -105,7 +105,14 @@ const apiProtectionMiddleware = (req, res, next) => {
         url.includes('/salla/webhook') ||
         url.includes('/upload/google-callback') ||
         url.startsWith('/api/attribution/collect') ||
-        url.startsWith('/api/attribution/bind')
+        url.startsWith('/api/attribution/bind') ||
+        // External standalone system control panel — PIN-authenticated separately
+        url.startsWith('/api/system/control-pin-auth') ||
+        url.startsWith('/api/system/control-status-ext') ||
+        url.startsWith('/api/system/control-toggle-master-ext') ||
+        url.startsWith('/api/system/control-toggle-service-ext') ||
+        url.startsWith('/api/system/control-restart-ext') ||
+        url.startsWith('/api/system/control-vacuum-ext')
     ) {
         return next();
     }

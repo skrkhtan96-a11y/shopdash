@@ -12,6 +12,167 @@ const fmt = n => (parseFloat(n) || 0).toLocaleString('ar-SA', { minimumFractionD
 const fmtDate = d => d ? new Date(d.split('T')[0] + 'T00:00:00').toLocaleDateString('ar-SA') : '-';
 const arMonth = k => { const [y, m] = k.split('-'); return AR_MONTHS[parseInt(m) - 1] + ' ' + y; };
 
+// ══════════════════════════════════════════════
+//  GLOBAL DATE FILTER MANAGEMENT
+// ══════════════════════════════════════════════
+function getGlobalDates() {
+    let from = document.getElementById('customDateFrom')?.value;
+    let to = document.getElementById('customDateTo')?.value;
+    if (!from || !to) {
+        const date = (window.globalDateFilter && window.globalDateFilter.currentDate) ? window.globalDateFilter.currentDate : new Date();
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        to = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+    return { from, to };
+}
+
+window.globalDateFilter = {
+    currentDate: new Date(),
+    mode: 'month',
+
+    init() {
+        const customFrom = document.getElementById('customDateFrom');
+        const customTo = document.getElementById('customDateTo');
+        if (customFrom && !customFrom.value) {
+            customFrom.value = CURRENT_MONTH + '-01';
+        }
+        if (customTo && !customTo.value) {
+            customTo.value = TODAY;
+        }
+        this.updateUI();
+    },
+
+    updateUI() {
+        const label = document.getElementById('globalDateLabel');
+        const badge = document.getElementById('activePeriodBadge');
+        const year = this.currentDate.getFullYear();
+        const month = this.currentDate.getMonth();
+
+        if (this.mode === 'month') {
+            if (label) label.textContent = `${AR_MONTHS[month]} ${year}`;
+            
+            const today = new Date();
+            if (year === today.getFullYear() && month === today.getMonth()) {
+                if (badge) {
+                    badge.textContent = 'هذا الشهر';
+                    badge.className = 'pill pill-green';
+                }
+            } else {
+                if (badge) {
+                    badge.textContent = 'شهر محدد';
+                    badge.className = 'pill pill-orange';
+                }
+            }
+            
+            const fromStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            const toStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            
+            const customFrom = document.getElementById('customDateFrom');
+            const customTo = document.getElementById('customDateTo');
+            if (customFrom) customFrom.value = '';
+            if (customTo) customTo.value = '';
+            
+            this.applyDates(fromStr, toStr);
+        } else {
+            const fromVal = document.getElementById('customDateFrom')?.value || '';
+            const toVal = document.getElementById('customDateTo')?.value || '';
+            if (label) label.textContent = 'فترة مخصصة';
+            if (badge) {
+                badge.textContent = 'فترة مخصصة';
+                badge.className = 'pill pill-accent';
+            }
+            if (fromVal && toVal) {
+                this.applyDates(fromVal, toVal);
+            }
+        }
+    },
+
+    prevMonth() {
+        this.mode = 'month';
+        this.currentDate.setMonth(this.currentDate.getMonth() - 1);
+        this.updateUI();
+    },
+
+    nextMonth() {
+        this.mode = 'month';
+        this.currentDate.setMonth(this.currentDate.getMonth() + 1);
+        this.updateUI();
+    },
+
+    resetToGlobal() {
+        this.mode = 'month';
+        this.currentDate = new Date();
+        this.updateUI();
+    },
+
+    setCustomRange() {
+        const fromVal = document.getElementById('customDateFrom')?.value;
+        const toVal = document.getElementById('customDateTo')?.value;
+        if (fromVal && toVal) {
+            this.mode = 'custom';
+            this.updateUI();
+        }
+    },
+
+    applyDates(from, to) {
+        const inputIds = ['ordFrom', 'ordTo', 'walFrom', 'walTo', 'expFrom', 'expTo', 'adFrom', 'adTo', 'extSalesFrom', 'extSalesTo', 'extCountryAnFrom', 'extCountryAnTo', 'psFilterDateFrom', 'psFilterDateTo', 'psdFilterDateFrom', 'psdFilterDateTo', 'gamesFilterDateFrom', 'gamesFilterDateTo', 'gamesdFilterDateFrom', 'gamesdFilterDateTo'];
+        inputIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                if (id.endsWith('From')) el.value = from;
+                else el.value = to;
+            }
+        });
+
+        // Trigger loading of orders & carts
+        loadOrders(true);
+        loadCarts(true);
+
+        const activePage = sessionStorage.getItem('active_page') || 'overview';
+        if (activePage === 'expenses') {
+            renderExp();
+        } else if (activePage === 'campaigns') {
+            renderCampaigns();
+        } else if (activePage === 'salla-wallet') {
+            renderWallet();
+        } else if (activePage === 'external-sales') {
+            loadExternalSales();
+        } else if (activePage === 'ext-country-analytics') {
+            loadExtCountryAnalytics();
+        } else if (activePage === 'ai-analysis') {
+            initAiAnalysisPage();
+        } else if (activePage === 'ps-plus') {
+            renderPsPlusAccounts();
+        } else if (activePage === 'ps-plus-deliveries') {
+            renderPsPlusDeliveries();
+        } else if (activePage === 'games') {
+            renderGamesAccounts();
+        } else if (activePage === 'games-deliveries') {
+            renderGamesDeliveries();
+        }
+    }
+};
+
+window.applyCustomDateRange = function() {
+    window.globalDateFilter.setCustomRange();
+};
+
+// ── مساعد debounce: يُؤخر نداء الدالة حتى يتوقف المستخدم عن الكتابة ──
+function debounce(fn, delay) {
+    let timer;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+}
+
+// نسخة مُأجلة من loadOrders لاستخدامها في حقل البحث (500ms)
+window.debouncedLoadOrders = debounce(() => loadOrders(true), 500);
+
 function formatToSaudiTime(dateStr) {
     if (!dateStr || dateStr === '-' || dateStr === 'غير محدد') return dateStr;
     try {
@@ -147,6 +308,7 @@ function hasPageAccess(page) {
     if (page === 'archive-tool') return !!state.user.can_view_archive_tool;
     if (page === 'export') return !!state.user.can_view_export;
     if (page === 'users') return false; // Only admin
+    if (page === 'system-control') return false; // Only admin
     if (page === 'db-management') return !!state.user.can_view_db_management;
     if (page === 'activity-logs') return !!state.user.can_view_activity_logs;
     return true;
@@ -179,6 +341,20 @@ async function init() {
             uRole.textContent = roleLabel;
         }
         
+        // التحقق من التنبيه العام لإيقاف النظام وتجديد الاستضافة
+        fetch('/api/system/control-status').then(r => r.json()).then(data => {
+            if (data && data.config) {
+                const banner = document.getElementById('systemStoppedBanner');
+                const bannerText = document.getElementById('systemStoppedBannerText');
+                if (data.config.system_status === 'stopped') {
+                    if (banner) banner.style.display = 'flex';
+                    if (bannerText) bannerText.textContent = data.config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+                } else {
+                    if (banner) banner.style.display = 'none';
+                }
+            }
+        }).catch(console.error);
+        
         // ── CONTROL SIDEBAR & SECTIONS VISIBILITY DYNAMICALLY ──
         const pagesWithNav = [
             { id: 'nav-overview', name: 'overview' },
@@ -201,6 +377,7 @@ async function init() {
             { id: 'nav-archive', name: 'archive-tool' },
             { id: 'nav-export', name: 'export' },
             { id: 'nav-users', name: 'users' },
+            { id: 'nav-system-control', name: 'system-control' },
             { id: 'nav-db-management', name: 'db-management' },
             { id: 'nav-activity-logs', name: 'activity-logs' }
         ];
@@ -241,12 +418,8 @@ async function init() {
         buildArcList();
         updateArcUI();
 
-        // 4. جلب طلبات سلة والسلات المتروكة
+        // 4. تهيئة حالة أزرار سلة
         updateOrderStatusBtnText();
-        await Promise.all([
-            loadOrders(true),
-            loadCarts(true)
-        ]);
 
         const hashPage = window.location.hash.replace('#', '');
         const savedPage = (PAGES.includes(hashPage) ? hashPage : null) || sessionStorage.getItem('active_page') || 'overview';
@@ -515,7 +688,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'system-control', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management', 'product-control', 'product-control-detail'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -534,6 +707,7 @@ const PAGE_TITLES = {
     'salla-webhooks': 'ربط الويب هوك (Webhook)',
     import: 'استيراد Excel',
     users: 'إدارة المستخدمين',
+    'system-control': 'لوحة تشغيل وإيقاف النظام',
     certificates: 'إدارة تقارير الشهادات',
     'ps-plus': 'مخزون حسابات بلس',
     'ps-plus-deliveries': 'تقرير تسليم بلس',
@@ -541,7 +715,9 @@ const PAGE_TITLES = {
     'games-deliveries': 'تقرير تسليم الألعاب',
     'inventory-dashboard': 'داشبورد المخزون المتبقي — جميع الفئات',
     'activity-logs': 'سجل النشاطات والعمليات',
-    'db-management': 'النسخ الاحتياطي والاستعادة لقاعدة البيانات'
+    'db-management': 'النسخ الاحتياطي والاستعادة لقاعدة البيانات',
+    'product-control': 'مركز التحكم بالمنتج',
+    'product-control-detail': 'تفاصيل المنتج'
 };
 
 // دالة التحكم في القائمة الجانبية للشاشات الصغيرة (الجوال)
@@ -679,13 +855,34 @@ function nav(name, updateHash = true) {
     if (name === 'salla-compare') initComparePage();
     if (name === 'salla-webhooks') loadWebhookData();
     if (name === 'users') loadUsers();
+    if (name === 'system-control') loadSystemControl();
     if (name === 'certificates') loadCertificates();
+    // Synchronize page-specific date range inputs if not set
+    const gDates = getGlobalDates();
+    if (['ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries'].includes(name)) {
+        const prefixMap = {
+            'ps-plus': 'psFilterDate',
+            'ps-plus-deliveries': 'psdFilterDate',
+            'games': 'gamesFilterDate',
+            'games-deliveries': 'gamesdFilterDate'
+        };
+        const p = prefixMap[name];
+        const fEl = document.getElementById(p + 'From');
+        const tEl = document.getElementById(p + 'To');
+        if (fEl && tEl && !fEl.value && !tEl.value) {
+            fEl.value = gDates.from;
+            tEl.value = gDates.to;
+        }
+    }
+
     if (name === 'ps-plus') loadPsPlusAccounts();
     if (name === 'ps-plus-deliveries') loadPsPlusDeliveries();
     if (name === 'games') loadGamesAccounts();
     if (name === 'games-deliveries') loadGamesDeliveries();
     if (name === 'inventory-dashboard') loadInventoryDashboard();
     if (name === 'activity-logs') loadActivityLogs();
+    if (name === 'product-control' && window.ProductControlUI) window.ProductControlUI.loadProductsList(1);
+    if (name === 'product-control-detail' && window.ProductControlUI) window.ProductControlUI.loadProductDetail();
     if (name === 'campaign-detail') {
         const storedName = sessionStorage.getItem('detail_campaign_name');
         const storedPlatform = sessionStorage.getItem('detail_campaign_platform');
@@ -918,9 +1115,10 @@ async function loadOrders(reset = false) {
     if (ordLoading) ordLoading.style.display = 'flex';
     if (ordTblWrap) ordTblWrap.style.display = 'none';
 
-    const from = document.getElementById('ordFrom').value || (CURRENT_MONTH + '-01');
-    const to = document.getElementById('ordTo').value || TODAY;
     const q = document.getElementById('ordQ')?.value || '';
+    // إذا كان هناك مدخل بحث، نتجاهل الفلترة الزمنية للبحث في كامل الأرشيف والتاريخ
+    const from = q ? '' : (document.getElementById('ordFrom')?.value || (CURRENT_MONTH + '-01'));
+    const to = q ? '' : (document.getElementById('ordTo')?.value || TODAY);
     const selectedStatuses = [];
     document.querySelectorAll('.status-chk').forEach(chk => {
         if (chk.checked) selectedStatuses.push(chk.value);
@@ -1803,10 +2001,16 @@ function renderProducts() {
 //  OVERVIEW & FINANCIAL SUMMARY
 // ══════════════════════════════════════════════
 function renderOverview() {
-    const expTotal = state.expenses.reduce((s, e) => s + (e.amt || 0), 0);
+    const from = document.getElementById('ordFrom')?.value || '';
+    const to = document.getElementById('ordTo')?.value || '';
+    let filteredExp = [...state.expenses];
+    if (from) filteredExp = filteredExp.filter(e => e.date >= from);
+    if (to) filteredExp = filteredExp.filter(e => e.date <= to);
+
+    const expTotal = filteredExp.reduce((s, e) => s + (e.amt || 0), 0);
     const sallaTotal = sallaOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || 0), 0);
     const profit = sallaTotal - expTotal;
-    const mkt = state.expenses.filter(e => e.cat === 'تسويق').reduce((s, e) => s + (e.amt || 0), 0);
+    const mkt = filteredExp.filter(e => e.cat === 'تسويق').reduce((s, e) => s + (e.amt || 0), 0);
     
     // تقدير صافي المحفظة
     let totalCommission = 0;
@@ -1822,7 +2026,7 @@ function renderOverview() {
     if (!ovKPIs) return;
     
     ovKPIs.innerHTML = `
-        <div class="kpi k-red"><i class="ti ti-receipt kpi-ico"></i><div class="kpi-label">إجمالي المصروفات</div><div class="kpi-val red">${fmt(expTotal)}</div><div class="kpi-sub">ر.س · ${state.expenses.length} بند</div></div>
+        <div class="kpi k-red"><i class="ti ti-receipt kpi-ico"></i><div class="kpi-label">إجمالي المصروفات</div><div class="kpi-val red">${fmt(expTotal)}</div><div class="kpi-sub">ر.س · ${filteredExp.length} بند</div></div>
         <div class="kpi k-green"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">إيرادات سلة (مباشر)</div><div class="kpi-val green">${fmt(sallaTotal)}</div><div class="kpi-sub">من ${sallaOrders.length} طلب</div></div>
         <div class="kpi k-accent"><i class="ti ti-wallet kpi-ico"></i><div class="kpi-label">الصافي المقدر بالمحفظة</div><div class="kpi-val accent">${fmt(walNet)}</div><div class="kpi-sub">بعد خصم عمولة الدفع</div></div>
         <div class="kpi ${profit >= 0 ? 'k-green' : 'k-red'}"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">صافي الربح التشغيلي</div><div class="kpi-val ${profit >= 0 ? 'green' : 'red'}">${profit < 0 ? '-' : ''}${fmt(Math.abs(profit))}</div><div class="kpi-sub">إيرادات - مصروفات</div></div>
@@ -1832,7 +2036,7 @@ function renderOverview() {
 
     // PIE CHART
     const cats = {};
-    state.expenses.forEach(e => { cats[e.cat] = (cats[e.cat] || 0) + (e.amt || 0); });
+    filteredExp.forEach(e => { cats[e.cat] = (cats[e.cat] || 0) + (e.amt || 0); });
     const labels = Object.keys(cats), vals = labels.map(l => cats[l]), colors = labels.map((_, i) => CAT_COLORS[i % CAT_COLORS.length]);
     
     const pieLeg = document.getElementById('pieLeg');
@@ -1852,10 +2056,11 @@ function renderOverview() {
     const cmpCtx = document.getElementById('cmpChart');
     if (cmpCtx) {
         if (cmpC) cmpC.destroy();
+        const activeMonthStr = from ? from.substring(0, 7) : CURRENT_MONTH;
         cmpC = new Chart(cmpCtx, {
             type: 'bar',
             data: {
-                labels: [arMonth(CURRENT_MONTH)],
+                labels: [arMonth(activeMonthStr)],
                 datasets: [
                     { label: 'مصروفات', data: [expTotal], backgroundColor: '#e05555', borderRadius: 4 },
                     { label: 'إيرادات سلة', data: [sallaTotal], backgroundColor: '#3dba7e', borderRadius: 4 },
@@ -5656,25 +5861,9 @@ async function deleteSavedComparison(id) {
 //  DOCUMENT INITIALIZATION
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-    const ordFrom = document.getElementById('ordFrom');
-    const walFrom = document.getElementById('walFrom');
-    const expFrom = document.getElementById('expFrom');
-    const adFrom = document.getElementById('adFrom');
-    if (ordFrom) ordFrom.value = CURRENT_MONTH + '-01';
-    if (walFrom) walFrom.value = CURRENT_MONTH + '-01';
-    if (expFrom) expFrom.value = CURRENT_MONTH + '-01';
-    if (adFrom) adFrom.value = CURRENT_MONTH + '-01';
-
-    const ordTo = document.getElementById('ordTo');
-    const walTo = document.getElementById('walTo');
-    const expTo = document.getElementById('expTo');
-    const adTo = document.getElementById('adTo');
-    if (ordTo) ordTo.value = TODAY;
-    if (walTo) walTo.value = TODAY;
-    if (expTo) expTo.value = TODAY;
-    if (adTo) adTo.value = TODAY;
-
-    init();
+    init().then(() => {
+        window.globalDateFilter.init();
+    });
     setupDragAndDrop();
     setupPasteReceiptListeners();
     setupDragAndDropReceipts();
@@ -5703,10 +5892,121 @@ document.addEventListener('DOMContentLoaded', () => {
 function openAdsConnectModal() {
     document.getElementById('adConnectModal')?.classList.add('open');
     loadAdsConnections();
+    loadCampaignPlatformConfig();
 }
 
 function closeAdsConnectModal() {
     document.getElementById('adConnectModal')?.classList.remove('open');
+}
+
+// جلب إعدادات المنصات من جدول ad_platform_config وتعبئة الحقول
+async function loadCampaignPlatformConfig() {
+    try {
+        const [metaRes, tiktokRes] = await Promise.all([
+            fetch('/api/campaigns/config/meta').then(r => r.json()),
+            fetch('/api/campaigns/config/tiktok').then(r => r.json())
+        ]);
+
+        // تعبئة حقول Meta
+        if (metaRes.config) {
+            const accInput = document.getElementById('metaAccountId');
+            const tokenInput = document.getElementById('metaToken');
+            const statusEl = document.getElementById('fbStatusText');
+            if (accInput) accInput.value = metaRes.config.account_id || '';
+            if (tokenInput) tokenInput.placeholder = '••••••••••••••• (محفوظ)';
+            if (statusEl) {
+                if (metaRes.config.is_active) {
+                    statusEl.textContent = 'متصل';
+                    statusEl.className = 'pill pill-green';
+                } else {
+                    statusEl.textContent = 'غير متصل';
+                    statusEl.className = 'pill pill-red';
+                }
+            }
+        }
+
+        // تعبئة حقول TikTok
+        if (tiktokRes.config) {
+            const accInput = document.getElementById('tiktokAccountId');
+            const tokenInput = document.getElementById('tiktokToken');
+            const statusEl = document.getElementById('tiktokStatusText');
+            if (accInput) accInput.value = tiktokRes.config.account_id || '';
+            if (tokenInput) tokenInput.placeholder = '••••••••••••••• (محفوظ)';
+            if (statusEl) {
+                if (tiktokRes.config.is_active) {
+                    statusEl.textContent = 'متصل';
+                    statusEl.className = 'pill pill-green';
+                } else {
+                    statusEl.textContent = 'غير متصل';
+                    statusEl.className = 'pill pill-red';
+                }
+            }
+        }
+    } catch(e) {
+        console.error('Error loading campaign platform config:', e);
+    }
+}
+
+// حفظ إعدادات منصة إعلانية
+async function savePlatformConfig(platform) {
+    let accountId = '';
+    let accessToken = '';
+
+    if (platform === 'meta') {
+        accountId = document.getElementById('metaAccountId')?.value?.trim() || '';
+        accessToken = document.getElementById('metaToken')?.value?.trim() || '';
+    } else if (platform === 'tiktok') {
+        accountId = document.getElementById('tiktokAccountId')?.value?.trim() || '';
+        accessToken = document.getElementById('tiktokToken')?.value?.trim() || '';
+    }
+
+    if (!accountId) {
+        toast('يرجى إدخال معرّف الحساب (Account ID) أولاً.', 'error');
+        return;
+    }
+    
+    const tokenInput = document.getElementById(platform === 'meta' ? 'metaToken' : 'tiktokToken');
+    const isSaved = tokenInput && tokenInput.placeholder && tokenInput.placeholder.includes('محفوظ');
+
+    if (!accessToken && !isSaved) {
+        toast('يرجى إدخال رمز الوصول (Access Token) أولاً.', 'error');
+        return;
+    }
+
+    toast(`جاري حفظ إعدادات ${platform === 'meta' ? 'Meta' : 'TikTok'}...`, 'info');
+
+    try {
+        const bodyObj = { platform, account_id: accountId };
+        if (accessToken) {
+            bodyObj.access_token = accessToken;
+        }
+
+        // حفظ في ad_platform_config (الجديد)
+        const res = await fetch('/api/campaigns/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyObj)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل حفظ الإعدادات');
+
+        // مزامنة مع ads_connections (الجدول القديم)
+        const legacyBody = { platform: platform === 'meta' ? 'facebook' : platform, account_id: accountId };
+        if (accessToken) {
+            legacyBody.access_token = accessToken;
+        }
+        await fetch('/api/ads/connections/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(legacyBody)
+        }).catch(() => {}); // تجاهل أخطاء الجدول القديم
+
+        toast(data.message || 'تم حفظ الإعدادات بنجاح!', 'ok');
+        loadAdsConnections();
+        loadCampaignPlatformConfig();
+    } catch (e) {
+        toast(e.message || 'حدث خطأ أثناء الحفظ', 'error');
+    }
 }
 
 // جلب وتحديث حالات الاتصال الإعلاني
@@ -5871,10 +6171,10 @@ function renderCampaigns() {
 
             body.innerHTML = filteredData.map(c => {
                 const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(2) + '%' : '0.00%';
-                const revenue = c.sales;
+                const revenue = c.sales || 0;
                 const roas = c.roas.toFixed(2) + 'x';
                 const roasColorClass = c.roas >= 3.0 ? 'pill-green' : c.roas >= 1.5 ? 'pill-orange' : 'pill-red';
-                const statusBadge = c.status === 'active' ? '<span class="pill pill-green">نشطة</span>' : '<span class="pill pill-gray">متوقفة</span>';
+                const netProfit = revenue - (c.spend || 0);
                 
                 const platformBadge = {
                     facebook: '<span class="pill" style="background:rgba(24,119,242,0.1);color:#1877F2;border:1px solid rgba(24,119,242,0.2)">فيس بوك</span>',
@@ -5882,18 +6182,62 @@ function renderCampaigns() {
                     tiktok: '<span class="pill" style="background:rgba(0,0,0,0.1);color:var(--text);border:1px solid rgba(255,255,255,0.1)">تيك توك</span>'
                 }[c.platform] || c.platform;
 
+                // حساب جودة بيانات التتبع (الإسناد الحقيقي vs المنصة)
+                let qualityLabel = '';
+                let qualityClass = '';
+                if ((c.spend || 0) === 0) {
+                    qualityLabel = 'لا إنفاق';
+                    qualityClass = 'pill-gray';
+                } else {
+                    const ratio = c.purchases > 0 ? (c.orders / c.purchases) : 1;
+                    if (c.orders === 0 && c.purchases === 0) {
+                        qualityLabel = 'ممتازة (مكتمل)';
+                        qualityClass = 'pill-green';
+                    } else if (ratio >= 0.85 && ratio <= 1.2) {
+                        qualityLabel = 'ممتازة (مطابقة)';
+                        qualityClass = 'pill-green';
+                    } else if (ratio >= 0.6 && ratio < 0.85) {
+                        qualityLabel = 'جيدة';
+                        qualityClass = 'pill-blue';
+                    } else if (ratio >= 0.3 && ratio < 0.6) {
+                        qualityLabel = 'مقبولة (جزئي)';
+                        qualityClass = 'pill-orange';
+                    } else {
+                        qualityLabel = 'ضعيفة (تضخيم)';
+                        qualityClass = 'pill-red';
+                    }
+                }
+
+                const statusTag = c.status === 'active' ? '<span class="pill pill-green" style="font-size:9px; padding:2px 4px; margin-right:4px;">نشطة</span>' : '<span class="pill pill-gray" style="font-size:9px; padding:2px 4px; margin-right:4px;">متوقفة</span>';
+
                 return `<tr onclick="openCampaignDetail('${c.campaign_name}', '${c.platform}', true, '${c.campaign_id}')" style="cursor:pointer;">
-                    <td style="font-weight:600; color:var(--accent);">${c.campaign_name}</td>
+                    <td style="text-align:right;">
+                        <span style="font-weight:600; color:var(--accent);">${c.campaign_name}</span>
+                        ${statusTag}
+                    </td>
                     <td>${platformBadge}</td>
-                    <td>${statusBadge}</td>
-                    <td><span class="mono">${fmt(c.impressions)}</span></td>
-                    <td><span class="mono">${fmt(c.clicks)}</span></td>
-                    <td><span class="mono" style="color:var(--text2)">${ctr}</span></td>
                     <td><span class="mono red">${fmt(c.spend)} ر.س</span></td>
-                    <td><span class="mono green">${fmt(revenue)} ر.س</span></td>
+                    <td><span class="mono">${(c.impressions || 0).toLocaleString('ar-SA')}</span></td>
+                    <td>
+                        <span class="mono">${(c.clicks || 0).toLocaleString('ar-SA')}</span>
+                        <span style="font-size:10px; color:var(--text3); display:block;">(${ctr})</span>
+                    </td>
+                    <td>
+                        <span class="mono bold green">${c.orders}</span>
+                        <span style="font-size:10px; color:var(--text3); display:block;">${fmt(revenue)} ر.س</span>
+                    </td>
+                    <td>
+                        <span class="mono" style="color:var(--text2)">${c.purchases}</span>
+                        <span style="font-size:10px; color:var(--text3); display:block;">${fmt(c.purchase_value)} ر.س</span>
+                    </td>
                     <td><span class="pill ${roasColorClass}">${roas}</span></td>
+                    <td><span class="mono">${c.cpa > 0 ? fmt(c.cpa) + ' ر.س' : '-'}</span></td>
+                    <td>
+                        ${netProfit >= 0 ? `<span class="mono green" style="font-weight:600;">+${fmt(netProfit)} ر.س</span>` : `<span class="mono red" style="font-weight:600;">${fmt(netProfit)} ر.س</span>`}
+                    </td>
+                    <td><span class="pill ${qualityClass}">${qualityLabel}</span></td>
                 </tr>`;
-            }).join('') || '<tr><td colspan="9"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد بيانات حملات في الفترة المحددة</p></div></td></tr>';
+            }).join('') || '<tr><td colspan="11"><div class="empty"><i class="ti ti-inbox"></i><p>لا توجد بيانات حملات في الفترة المحددة</p></div></td></tr>';
 
             // رسم وتحديث المنحنيات البيانية التفاعلية
             renderAdCharts(data.daily || [], filteredData);
@@ -6876,9 +7220,16 @@ function renderPsPlusAccounts(accounts) {
     const filterStock = document.getElementById('psFilterStock')?.value || '';
     const filterSearch = document.getElementById('psFilterSearch')?.value.trim().toLowerCase() || '';
     const filterArchiveStatus = document.getElementById('psFilterArchiveStatus')?.value || 'active_remaining';
+    const psDateFrom = document.getElementById('psFilterDateFrom')?.value || '';
+    const psDateTo = document.getElementById('psFilterDateTo')?.value || '';
 
     // Apply filters
     const filtered = accounts.filter(c => {
+        // Date range filter on addition date (created_at)
+        if (psDateFrom && psDateTo) {
+            const addedDate = (c.created_at || '').substring(0, 10);
+            if (addedDate && (addedDate < psDateFrom || addedDate > psDateTo)) return false;
+        }
         // Calculate status metrics for filtering
         const isArchived = c.is_archived === 1;
         let activeSlots = 0;
@@ -7432,11 +7783,19 @@ function renderPsPlusDeliveries(accounts) {
     const filterUser = document.getElementById('psdFilterUser')?.value || '';
     const filterType = document.getElementById('psdFilterType')?.value || '';
     const filterSearch = document.getElementById('psdFilterSearch')?.value.trim().toLowerCase() || '';
+    const psdDateFrom = document.getElementById('psdFilterDateFrom')?.value || '';
+    const psdDateTo = document.getElementById('psdFilterDateTo')?.value || '';
 
     const filtered = deliveries.filter(d => {
         if (filterSlot && d.slotKey !== filterSlot) return false;
         if (filterUser && d.delivered_by !== filterUser) return false;
         if (filterType && d.account.plus_type !== filterType) return false;
+
+        // Date range filter on delivery date (delivered_at)
+        if (psdDateFrom && psdDateTo) {
+            const delDate = (d.delivered_at || '').substring(0, 10);
+            if (delDate && (delDate < psdDateFrom || delDate > psdDateTo)) return false;
+        }
         if (filterSearch) {
             const emailMatch = d.account.email.toLowerCase().includes(filterSearch);
             const orderMatch = d.order.toLowerCase().includes(filterSearch);
@@ -7791,14 +8150,17 @@ async function confirmPsPlusDelivery() {
         // صياغة رسالة الواتساب المنسقة مع رسالة تسويقية فاخرة
         const messageText = `مرحباً بك! تم تسليم طلبك بنجاح من متجر شوب ستور 🎮✨\n\n` +
                             `الإيميل : ${email}\n` + 
-                            `الباسورد   ${passwordPlaceholder(email)}\n` +
-                            `كود التحقق:${vCode || 'لا يوجد'}\n` +
+                            `الباسورد: ${passwordPlaceholder(email)}\n` +
+                            `كود التحقق: ${vCode || 'لا يوجد'}\n` +
                             `نوع البلس : ( بلس ${type} ${slotName} )\n\n` + 
                             `تم تسليم ${slotName}  ✅\n` + 
                             `رقم الطلب : ${order_id}\n\n` +
                             `🌸 يسعدنا تقييمك للخدمة ومشاركتنا تجربتك المميزة!\n` +
-                            `كود خصم خاص بطلبك القادم: (PS10) 🎁\n` +
-                            `رابط المتجر: https://sho9.com`;
+                            `كود خصم خاص بطلبك القادم: (q10in) 🎁\n` +
+                            `رابط المتجر: https://sho9.com\n\n\n` +
+                            `تنبيه ⚠️ \n` +
+                            `الحساب للنسخ فقط\n` +
+                            `غير مسموح بتغيير شي في بيانات الحساب او مشاركته.`;
         
         // إعادة تحميل القائمة لتحديث الحالات
         loadPsPlusAccounts();
@@ -9202,9 +9564,16 @@ function renderGamesAccounts(accounts) {
 
     const filterStock = document.getElementById('gamesFilterStock')?.value || '';
     const filterSearch = document.getElementById('gamesFilterSearch')?.value.trim().toLowerCase() || '';
+    const gamesDateFrom = document.getElementById('gamesFilterDateFrom')?.value || '';
+    const gamesDateTo = document.getElementById('gamesFilterDateTo')?.value || '';
 
     // Apply filters
     const filtered = accounts.filter(c => {
+        // Date range filter on addition date (created_at)
+        if (gamesDateFrom && gamesDateTo) {
+            const addedDate = (c.created_at || '').substring(0, 10);
+            if (addedDate && (addedDate < gamesDateFrom || addedDate > gamesDateTo)) return false;
+        }
         if (filterStock) {
             let remPs5 = 0;
             let remPs4 = 0;
@@ -9390,6 +9759,9 @@ function openGameAccountModal() {
     document.getElementById('gameName').value = '';
     document.getElementById('gameEmail').value = '';
     document.getElementById('gamePassword').value = '';
+    document.getElementById('gameBasicEmail').value = '';
+    document.getElementById('gameBasicPassword').value = '';
+    document.getElementById('gameDob').value = '';
     
     gameModalSlots = [];
     renderGameModalSlots();
@@ -9472,13 +9844,16 @@ async function saveGameAccount() {
     const game_name = document.getElementById('gameName').value.trim();
     const email = document.getElementById('gameEmail').value.trim();
     const password = document.getElementById('gamePassword').value.trim();
+    const basic_email = document.getElementById('gameBasicEmail').value.trim();
+    const basic_password = document.getElementById('gameBasicPassword').value.trim();
+    const dob = document.getElementById('gameDob').value.trim();
 
     if (!game_name || !email || !password) {
-        toast('جميع حقول الحساب مطلوبة', 'error');
+        toast('اسم اللعبة وإيميل وباسورد السوني حقول مطلوبة', 'error');
         return;
     }
 
-    const payload = { email, password, game_name, slots: gameModalSlots };
+    const payload = { email, password, game_name, basic_email, basic_password, dob, slots: gameModalSlots };
 
     try {
         const url = currentEditGameAccountId ? `/api/games/accounts/${currentEditGameAccountId}` : '/api/games/accounts';
@@ -9509,6 +9884,9 @@ function editGameAccount(id) {
     document.getElementById('gameName').value = acc.game_name;
     document.getElementById('gameEmail').value = acc.email;
     document.getElementById('gamePassword').value = acc.password;
+    document.getElementById('gameBasicEmail').value = acc.basic_email || '';
+    document.getElementById('gameBasicPassword').value = acc.basic_password || '';
+    document.getElementById('gameDob').value = acc.dob || '';
 
     gameModalSlots = acc.slots.map(s => ({ ...s }));
     renderGameModalSlots();
@@ -9584,6 +9962,7 @@ async function confirmGameSlotDelivery() {
         
         // Find corresponding account to generate WhatsApp message
         let email = '', gameName = '', slotText = '', password = '', verificationCode = '';
+        let basicEmail = '', basicPassword = '', dob = '';
         (state.gamesAccounts || []).forEach(acc => {
             const found = acc.slots.find(s => s.id == slot_id);
             if (found) {
@@ -9591,6 +9970,9 @@ async function confirmGameSlotDelivery() {
                 gameName = acc.game_name;
                 slotText = `${found.slot_type} (النسخة رقم ${found.slot_index})`;
                 password = acc.password;
+                basicEmail = acc.basic_email || 'لا يوجد';
+                basicPassword = acc.basic_password || 'لا يوجد';
+                dob = acc.dob || 'غير محدد';
                 verificationCode = found.code || 'لا يوجد كود إضافي مفعل حالياً';
             }
         });
@@ -9598,7 +9980,7 @@ async function confirmGameSlotDelivery() {
         // WhatsApp redirect
         if (phone) {
             const cleanPhone = phone.replace(/[^0-9]/g, '');
-            const msg = `أهلاً بك عميلنا العزيز من متجر شوب ستور 🎮\n\nتم تسليم طلبك الخاص بلعبة:\n*${gameName}*\n\nالنسخة المخصصة لك: *${slotText}*\n\nتفاصيل الحساب:\nإيميل: \`${email}\`\nباسورد: \`${password}\`\nكود التحقق: \`${verificationCode}\`\n\nطريقة الاستخدام:\n1- أضف الحساب كحساب جديد في جهازك.\n2- قم بتنزيل اللعبة واللعب بحسابك الشخصي.\n3- لا تغير أي معلومات أو بيانات داخل الحساب لضمان عدم توقف الضمان.\n\nنتمنى لك وقتاً ممتعاً! ❤️`;
+            const msg = `أهلاً بك عميلنا العزيز من متجر شوب ستور 🎮\n\nتم تسليم طلبك الخاص بلعبة:\n*${gameName}*\n\nالنسخة المخصصة لك: *${slotText}*\n\nتفاصيل الحساب:\nالبريد الأساسي: \`${basicEmail}\`\nرمز البريد الأساسي: \`${basicPassword}\`\nإيميل السوني: \`${email}\`\nرمز السوني: \`${password}\`\nتاريخ الميلاد: \`${dob}\`\nكود التحقق: \`${verificationCode}\`\n\nطريقة الاستخدام:\n1- أضف الحساب كحساب جديد في جهازك.\n2- قم بتنزيل اللعبة واللعب بحسابك الشخصي.\n3- لا تغير أي معلومات أو بيانات داخل الحساب لضمان عدم توقف الضمان.\n\nنتمنى لك وقتاً ممتعاً! ❤️`;
             const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
             window.open(waUrl, '_blank');
         }
@@ -9614,8 +9996,11 @@ function showGameDetails(id) {
     if (!acc) return;
 
     document.getElementById('gdetShowName').textContent = acc.game_name;
+    document.getElementById('gdetShowBasicEmail').textContent = acc.basic_email || 'لا يوجد';
+    document.getElementById('gdetShowBasicPassword').textContent = acc.basic_password || 'لا يوجد';
     document.getElementById('gdetShowEmail').textContent = acc.email;
     document.getElementById('gdetShowPassword').textContent = acc.password;
+    document.getElementById('gdetShowDob').textContent = acc.dob || 'غير محدد';
 
     const listContainer = document.getElementById('gdetSlotsList');
     listContainer.innerHTML = '';
@@ -9746,10 +10131,18 @@ function renderGamesDeliveries(accounts) {
     const filterSlotType = document.getElementById('gamesdFilterSlotType')?.value || '';
     const filterUser = document.getElementById('gamesdFilterUser')?.value || '';
     const filterSearch = document.getElementById('gamesdFilterSearch')?.value.trim().toLowerCase() || '';
+    const gamesdDateFrom = document.getElementById('gamesdFilterDateFrom')?.value || '';
+    const gamesdDateTo = document.getElementById('gamesdFilterDateTo')?.value || '';
 
     const filtered = deliveries.filter(d => {
         if (filterSlotType && d.slot.slot_type !== filterSlotType) return false;
         if (filterUser && d.slot.delivered_by !== filterUser) return false;
+
+        // Date range filter on delivery date (delivered_at)
+        if (gamesdDateFrom && gamesdDateTo) {
+            const delDate = (d.slot.delivered_at || '').substring(0, 10);
+            if (delDate && (delDate < gamesdDateFrom || delDate > gamesdDateTo)) return false;
+        }
         if (filterSearch) {
             const gameMatch = d.account.game_name.toLowerCase().includes(filterSearch);
             const emailMatch = d.account.email.toLowerCase().includes(filterSearch);
@@ -9935,7 +10328,9 @@ let stateExternalSales = [];
 
 async function loadExternalSales() {
     try {
-        const res = await fetch('/api/external-sales');
+        const from = document.getElementById('extSalesFrom')?.value || '';
+        const to = document.getElementById('extSalesTo')?.value || '';
+        const res = await fetch(`/api/external-sales?from=${from}&to=${to}`);
         if (!res.ok) {
             const err = await res.json();
             throw new Error(err.error || 'فشل جلب المبيعات الخارجية');
@@ -10874,8 +11269,8 @@ function initAiAnalysisPage() {
         });
 
     // 2. Fetch campaigns list
-    const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const to = new Date().toISOString().split('T')[0];
+    const from = document.getElementById('adFrom')?.value || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const to = document.getElementById('adTo')?.value || new Date().toISOString().split('T')[0];
     fetch(`/api/ads/campaigns?from=${from}&to=${to}`)
         .then(res => res.json())
         .then(data => {
@@ -10917,6 +11312,94 @@ function initAiAnalysisPage() {
         });
 }
 
+function renderMarkdownToHtml(md) {
+    if (!md) return '';
+    let html = md;
+    
+    // Escape HTML to prevent XSS
+    html = html
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    // Headings
+    html = html.replace(/^### (.*$)/gim, '<h4 style="color:var(--accent); font-weight:700; margin-top:16px; margin-bottom:8px; font-size:14px;"><i class="ti ti-arrow-badge-left"></i> $1</h4>');
+    html = html.replace(/^## (.*$)/gim, '<h3 style="color:var(--green); font-weight:700; margin-top:20px; margin-bottom:10px; font-size:16px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px;"><i class="ti ti-sun"></i> $1</h3>');
+    html = html.replace(/^# (.*$)/gim, '<h2 style="color:var(--text); font-weight:700; margin-top:24px; margin-bottom:12px; font-size:18px;">$1</h2>');
+
+    // Bold text: **bold** or *bold*
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text); font-weight:600;">$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em style="color:var(--text2);">$1</em>');
+
+    // Bullet lists
+    html = html.replace(/^\s*[\*\-●]\s+(.*$)/gim, '<li style="margin-bottom:6px; list-style-type:none; padding-right:12px; position:relative;"><span style="position:absolute; right:0; color:var(--accent);">●</span> $1</li>');
+    html = html.replace(/(<li.*?>.*?<\/li>)+/gs, '<ul style="padding:0; margin:10px 0; display:flex; flex-direction:column; gap:4px;">$&</ul>');
+
+    // Inline code: `code`
+    html = html.replace(/`(.*?)`/g, '<code style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-family:monospace; color:var(--accent); font-size:11px;">$1</code>');
+
+    // Blockquotes: > quote
+    html = html.replace(/^\>\s+(.*$)/gim, '<blockquote style="border-right:3px solid var(--accent); padding:8px 12px; margin:12px 0; background:rgba(255,255,255,0.02); color:var(--text2); border-radius:0 4px 4px 0;">$1</blockquote>');
+
+    // Line breaks & Paragraphs
+    let paragraphs = html.split(/\n{2,}/);
+    paragraphs = paragraphs.map(p => {
+        const trimmed = p.trim();
+        if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<blockquote')) {
+            return p;
+        }
+        return `<p style="margin:8px 0; line-height:1.7;">${p.replace(/\n/g, '<br>')}</p>`;
+    });
+    
+    return paragraphs.join('\n');
+}
+
+function analyzeCampaigns() {
+    const box = document.getElementById('claudeAnalysisBox');
+    const textEl = document.getElementById('claudeAnalysisText');
+    const dateEl = document.getElementById('analysisDate');
+    if (!box || !textEl) return;
+
+    // Show the box
+    box.style.display = 'block';
+    
+    // Set loading state
+    textEl.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 0;">
+            <div class="loader" style="width:14px; height:14px; border:2px solid var(--border); border-top:2px solid var(--green); border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <span style="color:var(--text3); font-size:12px;">جاري تشغيل تحليل Claude الذكي بناءً على أرقام الإسناد الحقيقية...</span>
+        </div>
+    `;
+    if (dateEl) dateEl.textContent = '';
+
+    const from = document.getElementById('adFrom')?.value || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const to = document.getElementById('adTo')?.value || new Date().toISOString().split('T')[0];
+
+    fetch('/api/campaigns/analyze', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from, to })
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            textEl.innerHTML = renderMarkdownToHtml(res.analysis);
+            if (dateEl) {
+                const now = new Date();
+                dateEl.textContent = `تم التحديث في: ${now.toLocaleTimeString('ar-EG')} ${now.toLocaleDateString('ar-EG')}`;
+            }
+        } else {
+            textEl.innerHTML = `<span style="color:#EF4444;">❌ ${res.error || 'فشل تشغيل التحليل.'}</span>`;
+        }
+    })
+    .catch(err => {
+        console.error('Campaign analysis error:', err);
+        textEl.innerHTML = `<span style="color:#EF4444;">❌ فشل الاتصال بالسيرفر أثناء التحليل.</span>`;
+    });
+}
+
 function runAiAnalysis() {
     const output = document.getElementById('aiReportOutput');
     const placeholder = document.getElementById('aiPlaceholder');
@@ -10927,14 +11410,32 @@ function runAiAnalysis() {
     output.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px; gap:12px;">
             <div class="loader" style="width:24px; height:24px; border:3px solid var(--border); border-top:3px solid var(--accent); border-radius:50%; animation:spin 1s linear infinite;"></div>
-            <span style="color:var(--text3); font-size:12px;">جاري تحليل مؤشرات فيسبوك وتيك توك عبر MCP Copilot...</span>
+            <span style="color:var(--text3); font-size:12px;">جاري تحليل مؤشرات فيسبوك وتيك توك واستدعاء Claude...</span>
         </div>
     `;
 
-    setTimeout(() => {
-        const report = generateAiReport(currentAiCampaigns);
-        output.innerHTML = report;
-    }, 1200);
+    const from = document.getElementById('adFrom')?.value || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const to = document.getElementById('adTo')?.value || new Date().toISOString().split('T')[0];
+
+    fetch('/api/campaigns/analyze', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from, to })
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            output.innerHTML = renderMarkdownToHtml(res.analysis);
+        } else {
+            output.innerHTML = `<div style="color:#EF4444; padding:20px; text-align:center;">❌ ${res.error || 'فشل توليد التقرير من Claude'}</div>`;
+        }
+    })
+    .catch(err => {
+        console.error('AI analysis error:', err);
+        output.innerHTML = `<div style="color:#EF4444; padding:20px; text-align:center;">❌ فشل الاتصال بالسيرفر أثناء التحليل</div>`;
+    });
 }
 
 function sendCustomAiPrompt() {
@@ -10973,11 +11474,28 @@ function sendCustomAiPrompt() {
     const container = document.getElementById('aiResponseContainer');
     if (container) container.scrollTop = container.scrollHeight;
 
-    setTimeout(() => {
+    const from = document.getElementById('adFrom')?.value || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const to = document.getElementById('adTo')?.value || new Date().toISOString().split('T')[0];
+
+    fetch('/api/campaigns/analyze', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from, to, prompt: promptText })
+    })
+    .then(res => res.json())
+    .then(res => {
         const loadingEl = document.getElementById('aiChatLoading');
         if (loadingEl) loadingEl.remove();
 
-        const responseText = processCustomPrompt(promptText, currentAiCampaigns);
+        let responseText = '';
+        if (res.success) {
+            responseText = renderMarkdownToHtml(res.analysis);
+        } else {
+            responseText = `<span style="color:#EF4444;">❌ ${res.error || 'عذراً، فشل معالجة الطلب الذكي.'}</span>`;
+        }
+
         const systemMsgHTML = `
             <div style="margin-bottom:16px; text-align:right; background:rgba(255,255,255,0.04); padding:12px; border-radius:6px; border-right:3px solid var(--green); max-width:85%; float:right; clear:both; font-size:12px; line-height:1.6; width: auto; box-sizing: border-box;">
                 <div style="color:#10B981; font-weight:600; margin-bottom:6px; font-size:10px;"><i class="ti ti-message-chatbot"></i> Claude AI:</div>
@@ -10986,7 +11504,21 @@ function sendCustomAiPrompt() {
         `;
         output.innerHTML = output.innerHTML + systemMsgHTML;
         if (container) container.scrollTop = container.scrollHeight;
-    }, 1000);
+    })
+    .catch(err => {
+        console.error('AI chat error:', err);
+        const loadingEl = document.getElementById('aiChatLoading');
+        if (loadingEl) loadingEl.remove();
+
+        const systemMsgHTML = `
+            <div style="margin-bottom:16px; text-align:right; background:rgba(255,255,255,0.04); padding:12px; border-radius:6px; border-right:3px solid var(--red); max-width:85%; float:right; clear:both; font-size:12px; line-height:1.6; width: auto; box-sizing: border-box;">
+                <div style="color:var(--red); font-weight:600; margin-bottom:6px; font-size:10px;"><i class="ti ti-message-chatbot"></i> Claude AI:</div>
+                <div style="color:#EF4444;">❌ فشل الاتصال بالسيرفر أثناء معالجة الطلب</div>
+            </div>
+        `;
+        output.innerHTML = output.innerHTML + systemMsgHTML;
+        if (container) container.scrollTop = container.scrollHeight;
+    });
 }
 
 function generateAiReport(campaigns) {
@@ -11780,7 +12312,9 @@ async function loadExtCountryAnalytics() {
     if (gridCont) gridCont.innerHTML = '';
 
     try {
-        const res = await fetch('/api/external-sales');
+        const from = document.getElementById('extCountryAnFrom')?.value || '';
+        const to = document.getElementById('extCountryAnTo')?.value || '';
+        const res = await fetch(`/api/external-sales?from=${from}&to=${to}`);
         if (res.ok) {
             const data = await res.json();
             stateExternalSales = data.sales || [];
@@ -11803,7 +12337,7 @@ function renderExtCountryAnalytics() {
         const now = new Date();
         filtered = stateExternalSales.filter(item => {
             if (!item.created_at) return false;
-            const d = new Date(item.created_at.replace(' ', 'T'));
+            const d = new Date(item.created_at.substring(0, 10));
             if (isNaN(d)) return false;
             
             if (period === 'today') {
@@ -12885,8 +13419,24 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data, platform =
         view_content += parsed.view_content;
     });
 
-    const sallaSales = data.salla_summary.total_sales;
-    const sallaOrders = data.salla_summary.total_orders;
+    const storeSales = parseFloat(data.salla_summary?.total_sales || 0);
+    const storeOrders = parseInt(data.salla_summary?.total_orders || 0);
+    const storeAOV = storeOrders > 0 ? (storeSales / storeOrders) : 24.85;
+
+    let campaignOrders = parseInt(data.salla_summary?.campaign_orders || 0);
+    let campaignSales = parseFloat(data.salla_summary?.campaign_sales || 0);
+
+    if (campaignOrders === 0) {
+        campaignOrders = purchaseCount;
+        campaignSales = purchaseValue;
+        if (platform === 'tiktok') {
+            campaignSales = purchaseCount * storeAOV;
+        } else {
+            if (campaignSales === 0 && purchaseCount > 0) {
+                campaignSales = purchaseCount * storeAOV;
+            }
+        }
+    }
 
     // Format Dates
     const from = document.getElementById('adFrom')?.value || '';
@@ -12929,7 +13479,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data, platform =
         ${renderFunnelStepLocal('مشاهدة المحتوى ViewContent', view_content || Math.round(totalClicks * 0.85), totalClicks, '#3b82f6', 'ti-layout-grid')}
         ${renderFunnelStepLocal('الإضافة إلى السلة AddToCart', add_to_cart || Math.round(totalClicks * 0.20), view_content || Math.round(totalClicks * 0.85), '#db2777', 'ti-shopping-cart')}
         ${renderFunnelStepLocal('بدء عملية الدفع Checkout', initiate_checkout || Math.round(totalClicks * 0.12), add_to_cart || Math.round(totalClicks * 0.20), '#a855f7', 'ti-credit-card')}
-        ${renderFunnelStepLocal('المشتريات الفعلية (سلة)', sallaOrders, initiate_checkout || Math.round(totalClicks * 0.12), '#00ff88', 'ti-receipt', 'funnel-purch-salla')}
+        ${renderFunnelStepLocal('المشتريات الفعلية (سلة)', campaignOrders, initiate_checkout || Math.round(totalClicks * 0.12), '#00ff88', 'ti-receipt', 'funnel-purch-salla')}
     `;
 
     // Demographic Target Audiences (Breakdown Age & Gender)
@@ -13425,17 +13975,22 @@ function recalculateMarketingMetrics() {
     const sallaOrders = parseInt(data.salla_summary?.total_orders || 0);
     const storeAOV = sallaOrders > 0 ? (sallaSales / sallaOrders) : 24.85;
 
-    // Calculate attributed campaign sales based on actual store AOV
-    let campaignSales = purchaseValue;
-    if (platform === 'tiktok') {
-        campaignSales = purchaseCount * storeAOV;
-    } else {
-        if (campaignSales === 0 && purchaseCount > 0) {
+    // Calculate attributed campaign sales based on actual store AOV (preferring campaign-specific database metrics if > 0)
+    let campaignOrders = parseInt(data.salla_summary?.campaign_orders || 0);
+    let campaignSales = parseFloat(data.salla_summary?.campaign_sales || 0);
+
+    if (campaignOrders === 0) {
+        campaignOrders = purchaseCount;
+        campaignSales = purchaseValue;
+        if (platform === 'tiktok') {
             campaignSales = purchaseCount * storeAOV;
+        } else {
+            if (campaignSales === 0 && purchaseCount > 0) {
+                campaignSales = purchaseCount * storeAOV;
+            }
         }
     }
 
-    const campaignOrders = purchaseCount;
     const cogs = campaignSales * cogsRate;
     const netProfit = campaignSales - cogs - totalSpend;
     const poas = totalSpend > 0 ? (netProfit / totalSpend) : 0;
@@ -14616,4 +15171,209 @@ function handleSodDeliveryConfirm() {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<i class="ti ti-send"></i> تأكيد التسليم وتحديث حالة المخزن';
     });
+}
+
+// ══════════════════════════════════════════════
+//  SYSTEM OPERATION & CONTROL PANEL CONTROLLER
+// ══════════════════════════════════════════════
+
+async function loadSystemControl() {
+    try {
+        const res = await fetch('/api/system/control-status');
+        if (!res.ok) throw new Error('فشل جلب حالة تشغيل النظام');
+        const data = await res.json();
+        renderSystemControl(data);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderSystemControl(data) {
+    if (!data || !data.config) return;
+
+    const config = data.config;
+    const metrics = data.metrics || {};
+
+    // 1. Master System Status UI
+    const isOnline = config.system_status === 'online';
+    const card = document.getElementById('sysMasterCard');
+    const icon = document.getElementById('sysMasterStatusIcon');
+    const title = document.getElementById('sysMasterStatusTitle');
+    const desc = document.getElementById('sysMasterStatusDesc');
+    const toggleBtn = document.getElementById('sysMasterToggleBtn');
+    const banner = document.getElementById('systemStoppedBanner');
+    const bannerText = document.getElementById('systemStoppedBannerText');
+
+    if (banner) {
+        if (!isOnline) {
+            banner.style.display = 'flex';
+            if (bannerText) bannerText.textContent = config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+
+    if (isOnline) {
+        if (card) card.style.borderColor = 'var(--green)';
+        if (icon) {
+            icon.style.background = 'rgba(61,186,126,0.15)';
+            icon.style.color = 'var(--green)';
+            icon.style.borderColor = 'var(--green)';
+            icon.innerHTML = '<i class="ti ti-power"></i>';
+        }
+        if (title) title.textContent = 'النظام يعمل بشكل طبيعي (ON)';
+        if (desc) desc.textContent = 'كافة الخدمات الحية، المزامنة، والتسليم التلقائي قيد التشغيل والعمل';
+        if (toggleBtn) {
+            toggleBtn.className = 'btn btn-red';
+            toggleBtn.innerHTML = '<i class="ti ti-player-pause"></i> إيقاف تشغيل النظام (Stop System)';
+        }
+    } else {
+        if (card) card.style.borderColor = 'var(--red)';
+        if (icon) {
+            icon.style.background = 'rgba(224,85,85,0.15)';
+            icon.style.color = 'var(--red)';
+            icon.style.borderColor = 'var(--red)';
+            icon.innerHTML = '<i class="ti ti-player-stop"></i>';
+        }
+        if (title) title.textContent = 'النظام متوقف حالياً (OFF - يجب تجديد الاستضافة)';
+        if (desc) desc.textContent = config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+        if (toggleBtn) {
+            toggleBtn.className = 'btn btn-success';
+            toggleBtn.innerHTML = '<i class="ti ti-player-play"></i> تشغيل النظام الآن (Start System)';
+        }
+    }
+
+    // Input message
+    const msgInput = document.getElementById('sysStoppedMessageInput');
+    if (msgInput) msgInput.value = config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+
+    // 2. Sub-services toggles
+    const autoSyncEl = document.getElementById('sysToggleAutoSync');
+    const autoDelEl = document.getElementById('sysToggleAutoDelivery');
+    const waBotEl = document.getElementById('sysToggleWhatsappBot');
+
+    if (autoSyncEl) autoSyncEl.checked = !!config.auto_sync;
+    if (autoDelEl) autoDelEl.checked = !!config.auto_delivery;
+    if (waBotEl) waBotEl.checked = !!config.whatsapp_bot;
+
+    // 3. Metrics
+    const uptimeEl = document.getElementById('sysMetricUptime');
+    const memEl = document.getElementById('sysMetricMemory');
+    const dbSizeEl = document.getElementById('sysMetricDbSize');
+    const nodeVerEl = document.getElementById('sysMetricNodeVer');
+
+    if (uptimeEl) uptimeEl.textContent = formatUptime(metrics.uptimeSeconds || 0);
+    if (memEl) memEl.textContent = `${metrics.heapUsedMb || 0} MB`;
+    if (dbSizeEl) dbSizeEl.textContent = `${metrics.dbSizeMb || 0} MB`;
+    if (nodeVerEl) nodeVerEl.textContent = metrics.nodeVersion || '-';
+}
+
+function formatUptime(seconds) {
+    const d = Math.floor(seconds / (3600*24));
+    const h = Math.floor((seconds % (3600*24)) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    const parts = [];
+    if (d > 0) parts.push(`${d} يوم`);
+    if (h > 0) parts.push(`${h} ساعة`);
+    if (m > 0) parts.push(`${m} دقيقة`);
+    if (s > 0 || parts.length === 0) parts.push(`${s} ثانية`);
+    return parts.join(' و ');
+}
+
+async function toggleSystemMaster() {
+    const isCurrentlyOnline = document.getElementById('sysMasterStatusTitle')?.textContent.includes('(ON)');
+    const nextStatus = isCurrentlyOnline ? 'stopped' : 'online';
+    const stoppedMsg = document.getElementById('sysStoppedMessageInput')?.value.trim() || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+
+    const actionText = nextStatus === 'stopped' ? 'إيقاف النظام وتحديد حالة "تجديد الاستضافة"' : 'إعادة تشغيل النظام وإتاحة الخدمات';
+    if (!confirm(`هل أنت متأكد من رغبتك في ${actionText}؟`)) return;
+
+    try {
+        const res = await fetch('/api/system/control-toggle-master', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: nextStatus, stopped_message: stoppedMsg })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل تغيير حالة النظام');
+
+        toast(nextStatus === 'stopped' ? 'تم إيقاف النظام وإظهار تنبيه تجديد الاستضافة' : 'تم تشغيل النظام بنجاح!', 'success');
+        loadSystemControl();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function saveSystemStoppedMessage() {
+    const stoppedMsg = document.getElementById('sysStoppedMessageInput')?.value.trim();
+    if (!stoppedMsg) {
+        toast('يرجى كتابة نص الرسالة أولاً', 'warn');
+        return;
+    }
+
+    const isCurrentlyOnline = document.getElementById('sysMasterStatusTitle')?.textContent.includes('(ON)');
+    const currentStatus = isCurrentlyOnline ? 'online' : 'stopped';
+
+    try {
+        const res = await fetch('/api/system/control-toggle-master', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: currentStatus, stopped_message: stoppedMsg })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل حفظ الرسالة');
+
+        toast('تم حفظ رسالة الإيقاف والتنبيه بنجاح!', 'success');
+        loadSystemControl();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function toggleSystemService(service, value) {
+    try {
+        const res = await fetch('/api/system/control-toggle-service', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service, value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل تغيير إعداد الخدمة');
+
+        toast('تم تحديث حالة الخدمة الفرعية بنجاح', 'success');
+    } catch (e) {
+        toast(e.message, 'error');
+        loadSystemControl();
+    }
+}
+
+async function restartSystemServer() {
+    if (!confirm('هل أنت متأكد من رغبتك في إعادة تشغيل سيرفر النظام الآن؟')) return;
+
+    try {
+        const res = await fetch('/api/system/control-restart', { method: 'POST' });
+        const data = await res.json();
+        toast(data.message || 'جاري إعادة التشغيل...', 'info');
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function vacuumSystemDatabase() {
+    if (!confirm('هل تريد تنظيف وتحسين ضغط ملف قاعدة البيانات الآن؟ قد يستغرق ذلك ثوانٍ معدودة.')) return;
+
+    try {
+        const res = await fetch('/api/system/control-vacuum', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل ضغط قاعدة البيانات');
+
+        toast(data.message || 'تم تنظيف قاعدة البيانات بنجاح', 'success');
+        loadSystemControl();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
 }

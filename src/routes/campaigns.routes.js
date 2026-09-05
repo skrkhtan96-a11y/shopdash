@@ -97,17 +97,36 @@ function getCampaignDashboardData(from, to, campaignIds = null) {
 
 // ─── POST /api/campaigns/config ───
 // حفظ إعدادات الربط الإعلاني (مع التشفير المسبق)
-router.post('/config', authenticateUser, (req, res) => {
+router.post('/config', authenticateUser, async (req, res) => {
     if (req.user.role !== 'admin') {
         return res.status(403).json({ error: 'غير مصرح للقيام بهذه العملية.' });
     }
     const { platform, account_id, access_token, extra_config } = req.body;
-    if (!platform || !account_id || !access_token) {
-        return res.status(400).json({ error: 'الرجاء تزويد المنصة، معرّف الحساب، والتوكن.' });
+    if (!platform || !account_id) {
+        return res.status(400).json({ error: 'الرجاء تزويد المنصة ومعرّف الحساب.' });
     }
 
     try {
-        const encryptedToken = encryptToken(access_token);
+        let encryptedToken;
+        if (access_token) {
+            encryptedToken = encryptToken(access_token);
+        } else {
+            // Get existing token from database
+            const existing = await new Promise((resolve, reject) => {
+                db.get("SELECT access_token FROM ad_platform_config WHERE platform = ?", [platform], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+            if (existing && existing.access_token) {
+                encryptedToken = existing.access_token;
+            }
+        }
+
+        if (!encryptedToken) {
+            return res.status(400).json({ error: 'الرجاء تزويد رمز الوصول (Access Token).' });
+        }
+
         const extraJson = extra_config ? JSON.stringify(extra_config) : null;
 
         db.run(`
@@ -237,7 +256,7 @@ router.post('/analyze', authenticateUser, async (req, res) => {
         return res.status(403).json({ error: 'ليس لديك صلاحية تحليل الحملات.' });
     }
 
-    const { from, to, campaign_ids } = req.body;
+    const { from, to, campaign_ids, prompt } = req.body;
     if (!from || !to) {
         return res.status(400).json({ error: 'الرجاء إدخال تاريخ البداية والنهاية.' });
     }
@@ -259,26 +278,57 @@ router.post('/analyze', authenticateUser, async (req, res) => {
             });
         }
 
-        const context = buildAnalysisContext(campaigns, from, to);
+        let context = buildAnalysisContext(campaigns, from, to);
+        if (prompt) {
+            context += `\n\nالسؤال/الطلب المخصص للعميل:\n"${prompt}"\nيرجى الإجابة عليه بدقة واحترافية باللغة العربية استناداً إلى البيانات والملخص الإجمالي أعلاه.`;
+        }
 
-        const response = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 2000,
-            system: `أنت محلل إعلانات رقمية متخصص في متاجر سلة السعودية.
-تحلل بيانات حملات Meta وTikTok الحقيقية من نظام إسناد first-party.
-الأرقام التي تراها هي الطلبات الفعلية المؤكدة — ليست أرقام المنصة المضخّمة.
-قدّم تحليلاً مباشراً وقابلاً للتنفيذ باللغة العربية مع إعطاء توصيات واضحة ومحددة.`,
-            messages: [{
-                role: 'user',
-                content: context
-            }]
-        }, {
-            headers: {
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'Content-Type': 'application/json'
+        const models = [
+            'claude-3-5-sonnet-20241022',
+            'claude-3-5-sonnet-latest',
+            'claude-3-5-sonnet-20240620',
+            'claude-3-5-haiku-20241022',
+            'claude-3-opus-20240229',
+            'claude-3-haiku-20240307'
+        ];
+
+        let response;
+        let lastError;
+        for (const model of models) {
+            try {
+                console.log(`[AI Analysis] Attempting with model: ${model}`);
+                response = await axios.post('https://api.anthropic.com/v1/messages', {
+                    model: model,
+                    max_tokens: 2000,
+                    system: `أنت خبير إعلانات تسويقية رقمية ومشتري إعلانات محترف (Senior Media Buyer & CMO) متخصص في التجارة الإلكترونية ومتاجر سلة السعودية.
+مهمتك هي تحليل بيانات أداء حملات Meta وTikTok الإعلانية المدمجة والمستندة إلى نظام إسناد first-party (الطلبات الحقيقية المؤكدة) مقارنة بأرقام المنصات المضللة.
+قدّم تحليلاً استراتيجياً عميقاً واحترافياً باللغة العربية. ركّز على:
+1. تقييم أداء كل حملة بشكل نقدي ومقارنة تكلفة الاكتساب الحقيقية (Real CPA) والعائد على الإنفاق الإعلاني الحقيقي (Real ROAS) مع أهداف المتجر.
+2. تقديم توصيات صارمة ومحددة للغاية (مثال: إيقاف حملة X فوراً لأنها تستنزف الميزانية بـ CPA مرتفع، زيادة ميزانية Y بنسبة 30% تدريجياً لثبات عائدها المرتفع، أو تعديل الاستهداف/المحتوى الإبداعي لـ Z بسبب انخفاض CTR).
+3. تقديم نصائح إرشادية حول تهيئة المتجر للتحويل (CRO) وتوزيع الميزانيات التسويقية لتعظيم صافي الأرباح.
+تحدث بنبرة خبير واثق ومستشار مبيعات خبير يعطي توجيهات حاسمة وقابلة للتنفيذ فوراً.`,
+                    messages: [{
+                        role: 'user',
+                        content: context
+                    }]
+                }, {
+                    headers: {
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                console.log(`[AI Analysis] Success with model: ${model}`);
+                break;
+            } catch (err) {
+                console.error(`[AI Analysis] Failed with model ${model}:`, err.response?.data?.error?.message || err.message);
+                lastError = err;
             }
-        });
+        }
+
+        if (!response) {
+            throw lastError || new Error('جميع محاولات نماذج Claude فشلت.');
+        }
 
         const claude = response.data || {};
         const analysis = claude.content?.[0]?.text || 'تعذّر استرجاع التحليل.';

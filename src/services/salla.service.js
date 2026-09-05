@@ -139,51 +139,42 @@ const SallaService = {
                 const amount = parseFloat(o.total?.amount || o.payment_actions?.refund_action?.paid_amount?.amount || 0);
                 const customerName = o.customer ? `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim() : 'عميل خارجي';
                 const customerPhone = o.customer ? (o.customer.mobile || o.customer.phone || '') : '';
-                
+
+                // دمج كل المنتجات في صف واحد لكل طلب (لا suffix)
                 const items = o.items || [];
+                let productName = 'منتج مستورد';
+                let thumbnail = '';
+                let totalQty = 1;
+
                 if (items.length > 0) {
-                    items.forEach(item => {
-                        let prodName = item.name || 'منتج مستورد';
+                    const productNames = items.map(item => {
+                        let name = item.name || 'منتج';
                         if (item.options && Array.isArray(item.options) && item.options.length > 0) {
                             const opts = item.options.map(opt => opt.value || opt.name).filter(v => v).join(' - ');
-                            if (opts) {
-                                prodName += ' - ' + opts;
-                            }
+                            if (opts) name += ' - ' + opts;
                         }
-                        const thumbnail = item.thumbnail || '';
-                        const qty = parseInt(item.quantity) || 1;
-                        
-                        stmt.run([
-                            refId + '_' + (item.id || item.product_id || Math.floor(Math.random() * 100000)),
-                            dateStr,
-                            statusSlug,
-                            statusName,
-                            paymentMethod,
-                            amount / items.length,
-                            customerName,
-                            prodName,
-                            thumbnail,
-                            qty,
-                            customerPhone
-                        ]);
-                        newCount++;
+                        return name;
                     });
-                } else {
-                    stmt.run([
-                        refId,
-                        dateStr,
-                        statusSlug,
-                        statusName,
-                        paymentMethod,
-                        amount,
-                        customerName,
-                        'طلب بدون عناصر',
-                        '',
-                        1,
-                        customerPhone
-                    ]);
-                    newCount++;
+                    productName = productNames.join(' + ');
+                    thumbnail = items[0].thumbnail || '';
+                    totalQty = items.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0);
                 }
+
+                // صف واحد فقط لكل طلب بـ reference_id نظيف بلا suffix
+                stmt.run([
+                    refId,
+                    dateStr,
+                    statusSlug,
+                    statusName,
+                    paymentMethod,
+                    amount,
+                    customerName,
+                    productName,
+                    thumbnail,
+                    totalQty,
+                    customerPhone
+                ]);
+                newCount++;
             });
             
             await new Promise((resolve, reject) => {

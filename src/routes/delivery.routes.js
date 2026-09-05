@@ -326,6 +326,9 @@ router.get('/games/accounts', authenticateUser, (req, res) => {
                     email: row.email,
                     password: row.password,
                     game_name: row.game_name,
+                    basic_email: row.basic_email,
+                    basic_password: row.basic_password,
+                    dob: row.dob,
                     created_by: row.created_by,
                     created_at: row.created_at,
                     slots: []
@@ -354,7 +357,7 @@ router.post('/games/accounts', authenticateUser, (req, res) => {
     if (req.user.role !== 'admin' && !req.user.can_add_games) {
         return res.status(403).json({ error: 'ليس لديك صلاحية إضافة حسابات ألعاب.' });
     }
-    const { email, password, game_name, slots } = req.body;
+    const { email, password, game_name, slots, basic_email, basic_password, dob } = req.body;
     if (!email || !password || !game_name || !Array.isArray(slots)) {
         return res.status(400).json({ error: 'جميع الحقول مطلوبة.' });
     }
@@ -363,8 +366,17 @@ router.post('/games/accounts', authenticateUser, (req, res) => {
     db.serialize(() => {
         db.run("BEGIN TRANSACTION");
         db.run(
-            "INSERT INTO game_accounts (email, password, game_name, created_by, created_at) VALUES (?, ?, ?, ?, ?)",
-            [email.trim(), password.trim(), game_name.trim(), req.user.username, createdAt],
+            "INSERT INTO game_accounts (email, password, game_name, basic_email, basic_password, dob, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                email.trim(), 
+                password.trim(), 
+                game_name.trim(), 
+                basic_email ? basic_email.trim() : '', 
+                basic_password ? basic_password.trim() : '', 
+                dob ? dob.trim() : '', 
+                req.user.username, 
+                createdAt
+            ],
             function(err) {
                 if (err) {
                     db.run("ROLLBACK");
@@ -403,7 +415,7 @@ router.put('/games/accounts/:id', authenticateUser, (req, res) => {
         return res.status(403).json({ error: 'ليس لديك صلاحية تعديل حسابات ألعاب.' });
     }
     const { id } = req.params;
-    const { email, password, game_name, slots } = req.body;
+    const { email, password, game_name, slots, basic_email, basic_password, dob } = req.body;
     if (!email || !password || !game_name || !Array.isArray(slots)) {
         return res.status(400).json({ error: 'جميع الحقول مطلوبة لتحديث البيانات.' });
     }
@@ -411,8 +423,16 @@ router.put('/games/accounts/:id', authenticateUser, (req, res) => {
     db.serialize(() => {
         db.run("BEGIN TRANSACTION");
         db.run(
-            "UPDATE game_accounts SET email = ?, password = ?, game_name = ? WHERE id = ?",
-            [email.trim(), password.trim(), game_name.trim(), id],
+            "UPDATE game_accounts SET email = ?, password = ?, game_name = ?, basic_email = ?, basic_password = ?, dob = ? WHERE id = ?",
+            [
+                email.trim(), 
+                password.trim(), 
+                game_name.trim(), 
+                basic_email ? basic_email.trim() : '', 
+                basic_password ? basic_password.trim() : '', 
+                dob ? dob.trim() : '', 
+                id
+            ],
             function(err) {
                 if (err) {
                     db.run("ROLLBACK");

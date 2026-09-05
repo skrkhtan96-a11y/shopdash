@@ -147,6 +147,7 @@ function hasPageAccess(page) {
     if (page === 'archive-tool') return !!state.user.can_view_archive_tool;
     if (page === 'export') return !!state.user.can_view_export;
     if (page === 'users') return false; // Only admin
+    if (page === 'system-control') return false; // Only admin
     if (page === 'db-management') return !!state.user.can_view_db_management;
     if (page === 'activity-logs') return !!state.user.can_view_activity_logs;
     return true;
@@ -179,6 +180,20 @@ async function init() {
             uRole.textContent = roleLabel;
         }
         
+        // التحقق من التنبيه العام لإيقاف النظام وتجديد الاستضافة
+        fetch('/api/system/control-status').then(r => r.json()).then(data => {
+            if (data && data.config) {
+                const banner = document.getElementById('systemStoppedBanner');
+                const bannerText = document.getElementById('systemStoppedBannerText');
+                if (data.config.system_status === 'stopped') {
+                    if (banner) banner.style.display = 'flex';
+                    if (bannerText) bannerText.textContent = data.config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+                } else {
+                    if (banner) banner.style.display = 'none';
+                }
+            }
+        }).catch(console.error);
+        
         // ── CONTROL SIDEBAR & SECTIONS VISIBILITY DYNAMICALLY ──
         const pagesWithNav = [
             { id: 'nav-overview', name: 'overview' },
@@ -201,6 +216,7 @@ async function init() {
             { id: 'nav-archive', name: 'archive-tool' },
             { id: 'nav-export', name: 'export' },
             { id: 'nav-users', name: 'users' },
+            { id: 'nav-system-control', name: 'system-control' },
             { id: 'nav-db-management', name: 'db-management' },
             { id: 'nav-activity-logs', name: 'activity-logs' }
         ];
@@ -515,7 +531,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'system-control', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -534,6 +550,7 @@ const PAGE_TITLES = {
     'salla-webhooks': 'ربط الويب هوك (Webhook)',
     import: 'استيراد Excel',
     users: 'إدارة المستخدمين',
+    'system-control': 'لوحة تشغيل وإيقاف النظام',
     certificates: 'إدارة تقارير الشهادات',
     'ps-plus': 'مخزون حسابات بلس',
     'ps-plus-deliveries': 'تقرير تسليم بلس',
@@ -628,7 +645,26 @@ function nav(name, updateHash = true) {
     if (name === 'salla-compare') initComparePage();
     if (name === 'salla-webhooks') loadWebhookData();
     if (name === 'users') loadUsers();
+    if (name === 'system-control') loadSystemControl();
     if (name === 'certificates') loadCertificates();
+    // Synchronize page-specific date range inputs if not set
+    const gDates = getGlobalDates();
+    if (['ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries'].includes(name)) {
+        const prefixMap = {
+            'ps-plus': 'psFilterDate',
+            'ps-plus-deliveries': 'psdFilterDate',
+            'games': 'gamesFilterDate',
+            'games-deliveries': 'gamesdFilterDate'
+        };
+        const p = prefixMap[name];
+        const fEl = document.getElementById(p + 'From');
+        const tEl = document.getElementById(p + 'To');
+        if (fEl && tEl && !fEl.value && !tEl.value) {
+            fEl.value = gDates.from;
+            tEl.value = gDates.to;
+        }
+    }
+
     if (name === 'ps-plus') loadPsPlusAccounts();
     if (name === 'ps-plus-deliveries') loadPsPlusDeliveries();
     if (name === 'games') loadGamesAccounts();
@@ -6821,9 +6857,16 @@ function renderPsPlusAccounts(accounts) {
     const filterStock = document.getElementById('psFilterStock')?.value || '';
     const filterSearch = document.getElementById('psFilterSearch')?.value.trim().toLowerCase() || '';
     const filterArchiveStatus = document.getElementById('psFilterArchiveStatus')?.value || 'active_remaining';
+    const psDateFrom = document.getElementById('psFilterDateFrom')?.value || '';
+    const psDateTo = document.getElementById('psFilterDateTo')?.value || '';
 
     // Apply filters
     const filtered = accounts.filter(c => {
+        // Date range filter on addition date (created_at)
+        if (psDateFrom && psDateTo) {
+            const addedDate = (c.created_at || '').substring(0, 10);
+            if (addedDate && (addedDate < psDateFrom || addedDate > psDateTo)) return false;
+        }
         // Calculate status metrics for filtering
         const isArchived = c.is_archived === 1;
         let activeSlots = 0;
@@ -7377,11 +7420,19 @@ function renderPsPlusDeliveries(accounts) {
     const filterUser = document.getElementById('psdFilterUser')?.value || '';
     const filterType = document.getElementById('psdFilterType')?.value || '';
     const filterSearch = document.getElementById('psdFilterSearch')?.value.trim().toLowerCase() || '';
+    const psdDateFrom = document.getElementById('psdFilterDateFrom')?.value || '';
+    const psdDateTo = document.getElementById('psdFilterDateTo')?.value || '';
 
     const filtered = deliveries.filter(d => {
         if (filterSlot && d.slotKey !== filterSlot) return false;
         if (filterUser && d.delivered_by !== filterUser) return false;
         if (filterType && d.account.plus_type !== filterType) return false;
+
+        // Date range filter on delivery date (delivered_at)
+        if (psdDateFrom && psdDateTo) {
+            const delDate = (d.delivered_at || '').substring(0, 10);
+            if (delDate && (delDate < psdDateFrom || delDate > psdDateTo)) return false;
+        }
         if (filterSearch) {
             const emailMatch = d.account.email.toLowerCase().includes(filterSearch);
             const orderMatch = d.order.toLowerCase().includes(filterSearch);
@@ -7736,14 +7787,17 @@ async function confirmPsPlusDelivery() {
         // صياغة رسالة الواتساب المنسقة مع رسالة تسويقية فاخرة
         const messageText = `مرحباً بك! تم تسليم طلبك بنجاح من متجر شوب ستور 🎮✨\n\n` +
                             `الإيميل : ${email}\n` + 
-                            `الباسورد   ${passwordPlaceholder(email)}\n` +
-                            `كود التحقق:${vCode || 'لا يوجد'}\n` +
+                            `الباسورد: ${passwordPlaceholder(email)}\n` +
+                            `كود التحقق: ${vCode || 'لا يوجد'}\n` +
                             `نوع البلس : ( بلس ${type} ${slotName} )\n\n` + 
                             `تم تسليم ${slotName}  ✅\n` + 
                             `رقم الطلب : ${order_id}\n\n` +
                             `🌸 يسعدنا تقييمك للخدمة ومشاركتنا تجربتك المميزة!\n` +
-                            `كود خصم خاص بطلبك القادم: (PS10) 🎁\n` +
-                            `رابط المتجر: https://sho9.com`;
+                            `كود خصم خاص بطلبك القادم: (q10in) 🎁\n` +
+                            `رابط المتجر: https://sho9.com\n\n\n` +
+                            `تنبيه ⚠️ \n` +
+                            `الحساب للنسخ فقط\n` +
+                            `غير مسموح بتغيير شي في بيانات الحساب او مشاركته.`;
         
         // إعادة تحميل القائمة لتحديث الحالات
         loadPsPlusAccounts();
@@ -9147,9 +9201,16 @@ function renderGamesAccounts(accounts) {
 
     const filterStock = document.getElementById('gamesFilterStock')?.value || '';
     const filterSearch = document.getElementById('gamesFilterSearch')?.value.trim().toLowerCase() || '';
+    const gamesDateFrom = document.getElementById('gamesFilterDateFrom')?.value || '';
+    const gamesDateTo = document.getElementById('gamesFilterDateTo')?.value || '';
 
     // Apply filters
     const filtered = accounts.filter(c => {
+        // Date range filter on addition date (created_at)
+        if (gamesDateFrom && gamesDateTo) {
+            const addedDate = (c.created_at || '').substring(0, 10);
+            if (addedDate && (addedDate < gamesDateFrom || addedDate > gamesDateTo)) return false;
+        }
         if (filterStock) {
             let remPs5 = 0;
             let remPs4 = 0;
@@ -9335,6 +9396,9 @@ function openGameAccountModal() {
     document.getElementById('gameName').value = '';
     document.getElementById('gameEmail').value = '';
     document.getElementById('gamePassword').value = '';
+    document.getElementById('gameBasicEmail').value = '';
+    document.getElementById('gameBasicPassword').value = '';
+    document.getElementById('gameDob').value = '';
     
     gameModalSlots = [];
     renderGameModalSlots();
@@ -9417,13 +9481,16 @@ async function saveGameAccount() {
     const game_name = document.getElementById('gameName').value.trim();
     const email = document.getElementById('gameEmail').value.trim();
     const password = document.getElementById('gamePassword').value.trim();
+    const basic_email = document.getElementById('gameBasicEmail').value.trim();
+    const basic_password = document.getElementById('gameBasicPassword').value.trim();
+    const dob = document.getElementById('gameDob').value.trim();
 
     if (!game_name || !email || !password) {
-        toast('جميع حقول الحساب مطلوبة', 'error');
+        toast('اسم اللعبة وإيميل وباسورد السوني حقول مطلوبة', 'error');
         return;
     }
 
-    const payload = { email, password, game_name, slots: gameModalSlots };
+    const payload = { email, password, game_name, basic_email, basic_password, dob, slots: gameModalSlots };
 
     try {
         const url = currentEditGameAccountId ? `/api/games/accounts/${currentEditGameAccountId}` : '/api/games/accounts';
@@ -9454,6 +9521,9 @@ function editGameAccount(id) {
     document.getElementById('gameName').value = acc.game_name;
     document.getElementById('gameEmail').value = acc.email;
     document.getElementById('gamePassword').value = acc.password;
+    document.getElementById('gameBasicEmail').value = acc.basic_email || '';
+    document.getElementById('gameBasicPassword').value = acc.basic_password || '';
+    document.getElementById('gameDob').value = acc.dob || '';
 
     gameModalSlots = acc.slots.map(s => ({ ...s }));
     renderGameModalSlots();
@@ -9529,6 +9599,7 @@ async function confirmGameSlotDelivery() {
         
         // Find corresponding account to generate WhatsApp message
         let email = '', gameName = '', slotText = '', password = '', verificationCode = '';
+        let basicEmail = '', basicPassword = '', dob = '';
         (state.gamesAccounts || []).forEach(acc => {
             const found = acc.slots.find(s => s.id == slot_id);
             if (found) {
@@ -9536,6 +9607,9 @@ async function confirmGameSlotDelivery() {
                 gameName = acc.game_name;
                 slotText = `${found.slot_type} (النسخة رقم ${found.slot_index})`;
                 password = acc.password;
+                basicEmail = acc.basic_email || 'لا يوجد';
+                basicPassword = acc.basic_password || 'لا يوجد';
+                dob = acc.dob || 'غير محدد';
                 verificationCode = found.code || 'لا يوجد كود إضافي مفعل حالياً';
             }
         });
@@ -9543,7 +9617,7 @@ async function confirmGameSlotDelivery() {
         // WhatsApp redirect
         if (phone) {
             const cleanPhone = phone.replace(/[^0-9]/g, '');
-            const msg = `أهلاً بك عميلنا العزيز من متجر شوب ستور 🎮\n\nتم تسليم طلبك الخاص بلعبة:\n*${gameName}*\n\nالنسخة المخصصة لك: *${slotText}*\n\nتفاصيل الحساب:\nإيميل: \`${email}\`\nباسورد: \`${password}\`\nكود التحقق: \`${verificationCode}\`\n\nطريقة الاستخدام:\n1- أضف الحساب كحساب جديد في جهازك.\n2- قم بتنزيل اللعبة واللعب بحسابك الشخصي.\n3- لا تغير أي معلومات أو بيانات داخل الحساب لضمان عدم توقف الضمان.\n\nنتمنى لك وقتاً ممتعاً! ❤️`;
+            const msg = `أهلاً بك عميلنا العزيز من متجر شوب ستور 🎮\n\nتم تسليم طلبك الخاص بلعبة:\n*${gameName}*\n\nالنسخة المخصصة لك: *${slotText}*\n\nتفاصيل الحساب:\nالبريد الأساسي: \`${basicEmail}\`\nرمز البريد الأساسي: \`${basicPassword}\`\nإيميل السوني: \`${email}\`\nرمز السوني: \`${password}\`\nتاريخ الميلاد: \`${dob}\`\nكود التحقق: \`${verificationCode}\`\n\nطريقة الاستخدام:\n1- أضف الحساب كحساب جديد في جهازك.\n2- قم بتنزيل اللعبة واللعب بحسابك الشخصي.\n3- لا تغير أي معلومات أو بيانات داخل الحساب لضمان عدم توقف الضمان.\n\nنتمنى لك وقتاً ممتعاً! ❤️`;
             const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
             window.open(waUrl, '_blank');
         }
@@ -9559,8 +9633,11 @@ function showGameDetails(id) {
     if (!acc) return;
 
     document.getElementById('gdetShowName').textContent = acc.game_name;
+    document.getElementById('gdetShowBasicEmail').textContent = acc.basic_email || 'لا يوجد';
+    document.getElementById('gdetShowBasicPassword').textContent = acc.basic_password || 'لا يوجد';
     document.getElementById('gdetShowEmail').textContent = acc.email;
     document.getElementById('gdetShowPassword').textContent = acc.password;
+    document.getElementById('gdetShowDob').textContent = acc.dob || 'غير محدد';
 
     const listContainer = document.getElementById('gdetSlotsList');
     listContainer.innerHTML = '';
@@ -9691,10 +9768,18 @@ function renderGamesDeliveries(accounts) {
     const filterSlotType = document.getElementById('gamesdFilterSlotType')?.value || '';
     const filterUser = document.getElementById('gamesdFilterUser')?.value || '';
     const filterSearch = document.getElementById('gamesdFilterSearch')?.value.trim().toLowerCase() || '';
+    const gamesdDateFrom = document.getElementById('gamesdFilterDateFrom')?.value || '';
+    const gamesdDateTo = document.getElementById('gamesdFilterDateTo')?.value || '';
 
     const filtered = deliveries.filter(d => {
         if (filterSlotType && d.slot.slot_type !== filterSlotType) return false;
         if (filterUser && d.slot.delivered_by !== filterUser) return false;
+
+        // Date range filter on delivery date (delivered_at)
+        if (gamesdDateFrom && gamesdDateTo) {
+            const delDate = (d.slot.delivered_at || '').substring(0, 10);
+            if (delDate && (delDate < gamesdDateFrom || delDate > gamesdDateTo)) return false;
+        }
         if (filterSearch) {
             const gameMatch = d.account.game_name.toLowerCase().includes(filterSearch);
             const emailMatch = d.account.email.toLowerCase().includes(filterSearch);
@@ -12830,8 +12915,24 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data, platform =
         view_content += parsed.view_content;
     });
 
-    const sallaSales = data.salla_summary.total_sales;
-    const sallaOrders = data.salla_summary.total_orders;
+    const storeSales = parseFloat(data.salla_summary?.total_sales || 0);
+    const storeOrders = parseInt(data.salla_summary?.total_orders || 0);
+    const storeAOV = storeOrders > 0 ? (storeSales / storeOrders) : 24.85;
+
+    let campaignOrders = parseInt(data.salla_summary?.campaign_orders || 0);
+    let campaignSales = parseFloat(data.salla_summary?.campaign_sales || 0);
+
+    if (campaignOrders === 0) {
+        campaignOrders = purchaseCount;
+        campaignSales = purchaseValue;
+        if (platform === 'tiktok') {
+            campaignSales = purchaseCount * storeAOV;
+        } else {
+            if (campaignSales === 0 && purchaseCount > 0) {
+                campaignSales = purchaseCount * storeAOV;
+            }
+        }
+    }
 
     // Format Dates
     const from = document.getElementById('adFrom')?.value || '';
@@ -12874,7 +12975,7 @@ function renderFacebookCampaignDetail(campaignName, campaignId, data, platform =
         ${renderFunnelStepLocal('مشاهدة المحتوى ViewContent', view_content || Math.round(totalClicks * 0.85), totalClicks, '#3b82f6', 'ti-layout-grid')}
         ${renderFunnelStepLocal('الإضافة إلى السلة AddToCart', add_to_cart || Math.round(totalClicks * 0.20), view_content || Math.round(totalClicks * 0.85), '#db2777', 'ti-shopping-cart')}
         ${renderFunnelStepLocal('بدء عملية الدفع Checkout', initiate_checkout || Math.round(totalClicks * 0.12), add_to_cart || Math.round(totalClicks * 0.20), '#a855f7', 'ti-credit-card')}
-        ${renderFunnelStepLocal('المشتريات الفعلية (سلة)', sallaOrders, initiate_checkout || Math.round(totalClicks * 0.12), '#00ff88', 'ti-receipt', 'funnel-purch-salla')}
+        ${renderFunnelStepLocal('المشتريات الفعلية (سلة)', campaignOrders, initiate_checkout || Math.round(totalClicks * 0.12), '#00ff88', 'ti-receipt', 'funnel-purch-salla')}
     `;
 
     // Demographic Target Audiences (Breakdown Age & Gender)
@@ -13370,17 +13471,22 @@ function recalculateMarketingMetrics() {
     const sallaOrders = parseInt(data.salla_summary?.total_orders || 0);
     const storeAOV = sallaOrders > 0 ? (sallaSales / sallaOrders) : 24.85;
 
-    // Calculate attributed campaign sales based on actual store AOV
-    let campaignSales = purchaseValue;
-    if (platform === 'tiktok') {
-        campaignSales = purchaseCount * storeAOV;
-    } else {
-        if (campaignSales === 0 && purchaseCount > 0) {
+    // Calculate attributed campaign sales based on actual store AOV (preferring campaign-specific database metrics if > 0)
+    let campaignOrders = parseInt(data.salla_summary?.campaign_orders || 0);
+    let campaignSales = parseFloat(data.salla_summary?.campaign_sales || 0);
+
+    if (campaignOrders === 0) {
+        campaignOrders = purchaseCount;
+        campaignSales = purchaseValue;
+        if (platform === 'tiktok') {
             campaignSales = purchaseCount * storeAOV;
+        } else {
+            if (campaignSales === 0 && purchaseCount > 0) {
+                campaignSales = purchaseCount * storeAOV;
+            }
         }
     }
 
-    const campaignOrders = purchaseCount;
     const cogs = campaignSales * cogsRate;
     const netProfit = campaignSales - cogs - totalSpend;
     const poas = totalSpend > 0 ? (netProfit / totalSpend) : 0;
@@ -14561,4 +14667,209 @@ function handleSodDeliveryConfirm() {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<i class="ti ti-send"></i> تأكيد التسليم وتحديث حالة المخزن';
     });
+}
+
+// ══════════════════════════════════════════════
+//  SYSTEM OPERATION & CONTROL PANEL CONTROLLER
+// ══════════════════════════════════════════════
+
+async function loadSystemControl() {
+    try {
+        const res = await fetch('/api/system/control-status');
+        if (!res.ok) throw new Error('فشل جلب حالة تشغيل النظام');
+        const data = await res.json();
+        renderSystemControl(data);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+function renderSystemControl(data) {
+    if (!data || !data.config) return;
+
+    const config = data.config;
+    const metrics = data.metrics || {};
+
+    // 1. Master System Status UI
+    const isOnline = config.system_status === 'online';
+    const card = document.getElementById('sysMasterCard');
+    const icon = document.getElementById('sysMasterStatusIcon');
+    const title = document.getElementById('sysMasterStatusTitle');
+    const desc = document.getElementById('sysMasterStatusDesc');
+    const toggleBtn = document.getElementById('sysMasterToggleBtn');
+    const banner = document.getElementById('systemStoppedBanner');
+    const bannerText = document.getElementById('systemStoppedBannerText');
+
+    if (banner) {
+        if (!isOnline) {
+            banner.style.display = 'flex';
+            if (bannerText) bannerText.textContent = config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+
+    if (isOnline) {
+        if (card) card.style.borderColor = 'var(--green)';
+        if (icon) {
+            icon.style.background = 'rgba(61,186,126,0.15)';
+            icon.style.color = 'var(--green)';
+            icon.style.borderColor = 'var(--green)';
+            icon.innerHTML = '<i class="ti ti-power"></i>';
+        }
+        if (title) title.textContent = 'النظام يعمل بشكل طبيعي (ON)';
+        if (desc) desc.textContent = 'كافة الخدمات الحية، المزامنة، والتسليم التلقائي قيد التشغيل والعمل';
+        if (toggleBtn) {
+            toggleBtn.className = 'btn btn-red';
+            toggleBtn.innerHTML = '<i class="ti ti-player-pause"></i> إيقاف تشغيل النظام (Stop System)';
+        }
+    } else {
+        if (card) card.style.borderColor = 'var(--red)';
+        if (icon) {
+            icon.style.background = 'rgba(224,85,85,0.15)';
+            icon.style.color = 'var(--red)';
+            icon.style.borderColor = 'var(--red)';
+            icon.innerHTML = '<i class="ti ti-player-stop"></i>';
+        }
+        if (title) title.textContent = 'النظام متوقف حالياً (OFF - يجب تجديد الاستضافة)';
+        if (desc) desc.textContent = config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+        if (toggleBtn) {
+            toggleBtn.className = 'btn btn-success';
+            toggleBtn.innerHTML = '<i class="ti ti-player-play"></i> تشغيل النظام الآن (Start System)';
+        }
+    }
+
+    // Input message
+    const msgInput = document.getElementById('sysStoppedMessageInput');
+    if (msgInput) msgInput.value = config.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+
+    // 2. Sub-services toggles
+    const autoSyncEl = document.getElementById('sysToggleAutoSync');
+    const autoDelEl = document.getElementById('sysToggleAutoDelivery');
+    const waBotEl = document.getElementById('sysToggleWhatsappBot');
+
+    if (autoSyncEl) autoSyncEl.checked = !!config.auto_sync;
+    if (autoDelEl) autoDelEl.checked = !!config.auto_delivery;
+    if (waBotEl) waBotEl.checked = !!config.whatsapp_bot;
+
+    // 3. Metrics
+    const uptimeEl = document.getElementById('sysMetricUptime');
+    const memEl = document.getElementById('sysMetricMemory');
+    const dbSizeEl = document.getElementById('sysMetricDbSize');
+    const nodeVerEl = document.getElementById('sysMetricNodeVer');
+
+    if (uptimeEl) uptimeEl.textContent = formatUptime(metrics.uptimeSeconds || 0);
+    if (memEl) memEl.textContent = `${metrics.heapUsedMb || 0} MB`;
+    if (dbSizeEl) dbSizeEl.textContent = `${metrics.dbSizeMb || 0} MB`;
+    if (nodeVerEl) nodeVerEl.textContent = metrics.nodeVersion || '-';
+}
+
+function formatUptime(seconds) {
+    const d = Math.floor(seconds / (3600*24));
+    const h = Math.floor((seconds % (3600*24)) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    const parts = [];
+    if (d > 0) parts.push(`${d} يوم`);
+    if (h > 0) parts.push(`${h} ساعة`);
+    if (m > 0) parts.push(`${m} دقيقة`);
+    if (s > 0 || parts.length === 0) parts.push(`${s} ثانية`);
+    return parts.join(' و ');
+}
+
+async function toggleSystemMaster() {
+    const isCurrentlyOnline = document.getElementById('sysMasterStatusTitle')?.textContent.includes('(ON)');
+    const nextStatus = isCurrentlyOnline ? 'stopped' : 'online';
+    const stoppedMsg = document.getElementById('sysStoppedMessageInput')?.value.trim() || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+
+    const actionText = nextStatus === 'stopped' ? 'إيقاف النظام وتحديد حالة "تجديد الاستضافة"' : 'إعادة تشغيل النظام وإتاحة الخدمات';
+    if (!confirm(`هل أنت متأكد من رغبتك في ${actionText}؟`)) return;
+
+    try {
+        const res = await fetch('/api/system/control-toggle-master', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: nextStatus, stopped_message: stoppedMsg })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل تغيير حالة النظام');
+
+        toast(nextStatus === 'stopped' ? 'تم إيقاف النظام وإظهار تنبيه تجديد الاستضافة' : 'تم تشغيل النظام بنجاح!', 'success');
+        loadSystemControl();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function saveSystemStoppedMessage() {
+    const stoppedMsg = document.getElementById('sysStoppedMessageInput')?.value.trim();
+    if (!stoppedMsg) {
+        toast('يرجى كتابة نص الرسالة أولاً', 'warn');
+        return;
+    }
+
+    const isCurrentlyOnline = document.getElementById('sysMasterStatusTitle')?.textContent.includes('(ON)');
+    const currentStatus = isCurrentlyOnline ? 'online' : 'stopped';
+
+    try {
+        const res = await fetch('/api/system/control-toggle-master', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: currentStatus, stopped_message: stoppedMsg })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل حفظ الرسالة');
+
+        toast('تم حفظ رسالة الإيقاف والتنبيه بنجاح!', 'success');
+        loadSystemControl();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function toggleSystemService(service, value) {
+    try {
+        const res = await fetch('/api/system/control-toggle-service', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service, value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل تغيير إعداد الخدمة');
+
+        toast('تم تحديث حالة الخدمة الفرعية بنجاح', 'success');
+    } catch (e) {
+        toast(e.message, 'error');
+        loadSystemControl();
+    }
+}
+
+async function restartSystemServer() {
+    if (!confirm('هل أنت متأكد من رغبتك في إعادة تشغيل سيرفر النظام الآن؟')) return;
+
+    try {
+        const res = await fetch('/api/system/control-restart', { method: 'POST' });
+        const data = await res.json();
+        toast(data.message || 'جاري إعادة التشغيل...', 'info');
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    } catch (e) {
+        toast(e.message, 'error');
+    }
+}
+
+async function vacuumSystemDatabase() {
+    if (!confirm('هل تريد تنظيف وتحسين ضغط ملف قاعدة البيانات الآن؟ قد يستغرق ذلك ثوانٍ معدودة.')) return;
+
+    try {
+        const res = await fetch('/api/system/control-vacuum', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل ضغط قاعدة البيانات');
+
+        toast(data.message || 'تم تنظيف قاعدة البيانات بنجاح', 'success');
+        loadSystemControl();
+    } catch (e) {
+        toast(e.message, 'error');
+    }
 }

@@ -249,9 +249,14 @@ router.get('/dashboard', authenticateUser, (req, res) => {
             platform, 
             campaign_id, 
             campaign_name, 
+            MAX(status) as status,
             SUM(spend) as total_spend, 
             SUM(impressions) as total_impressions, 
-            SUM(clicks) as total_clicks
+            SUM(clicks) as total_clicks,
+            SUM(purchase_value) as total_purchase_value,
+            SUM(purchases) as total_purchases,
+            MAX(effective_status) as effective_status,
+            MAX(objective) as objective
         FROM ads_campaign_metrics
         WHERE date(date) >= date(?) AND date(date) <= date(?)
         GROUP BY platform, campaign_id, campaign_name
@@ -259,14 +264,14 @@ router.get('/dashboard', authenticateUser, (req, res) => {
 
     // جلب المبيعات الفعلية المسندة للطلبات المدفوعة
     let salesQuery = `
-        SELECT 
+        SELECT
             oa.platform,
             oa.campaign_id,
             oa.campaign_name,
-            COUNT(DISTINCT o.reference_id) as orders_count,
+            COUNT(DISTINCT oa.order_id) as orders_count,
             SUM(o.amount) as sales_amount
         FROM order_attribution oa
-        JOIN salla_imported_orders o ON o.reference_id = oa.order_id OR o.reference_id LIKE oa.order_id || '_%'
+        JOIN salla_imported_orders o ON o.reference_id = oa.order_id
         WHERE date(o.date) >= date(?) AND date(o.date) <= date(?)
           AND o.status_slug NOT IN ('canceled', 'refunded', 'returned')
     `;
@@ -285,9 +290,10 @@ router.get('/dashboard', authenticateUser, (req, res) => {
 
     // استعلام المبيعات المسندة اليومية للرسومات البيانية
     let dailySalesQuery = `
-        SELECT date(o.date) as day, SUM(o.amount) as total_sales
+        SELECT date(o.date) as day,
+               SUM(o.amount) as total_sales
         FROM order_attribution oa
-        JOIN salla_imported_orders o ON o.reference_id = oa.order_id OR o.reference_id LIKE oa.order_id || '_%'
+        JOIN salla_imported_orders o ON o.reference_id = oa.order_id
         WHERE date(o.date) >= date(?) AND date(o.date) <= date(?)
           AND o.status_slug NOT IN ('canceled', 'refunded', 'returned')
     `;
@@ -322,11 +328,16 @@ router.get('/dashboard', authenticateUser, (req, res) => {
                             platform: s.platform,
                             campaign_id: baseCampaignId,
                             campaign_name: s.campaign_name,
+                            status: s.status || 'active',
                             spend: s.total_spend || 0,
                             impressions: s.total_impressions || 0,
                             clicks: s.total_clicks || 0,
                             orders: 0,
-                            sales: 0
+                            sales: 0,
+                            purchase_value: s.total_purchase_value || 0,
+                            purchases: s.total_purchases || 0,
+                            effective_status: s.effective_status || s.status,
+                            objective: s.objective || ''
                         };
 
                         if (baseCampaignId) campaignsMap[keyId] = campaignObj;
@@ -354,11 +365,16 @@ router.get('/dashboard', authenticateUser, (req, res) => {
                                 platform: sa.platform,
                                 campaign_id: baseCampaignId,
                                 campaign_name: sa.campaign_name || 'حملة غير مصنفة',
+                                status: 'paused',
                                 spend: 0,
                                 impressions: 0,
                                 clicks: 0,
                                 orders: 0,
-                                sales: 0
+                                sales: 0,
+                                purchase_value: 0,
+                                purchases: 0,
+                                effective_status: 'PAUSED',
+                                objective: ''
                             };
                             if (baseCampaignId) campaignsMap[keyId] = campaignObj;
                             if (baseCampaignName) campaignsMap[keyName] = campaignObj;

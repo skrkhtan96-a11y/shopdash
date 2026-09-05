@@ -6,7 +6,25 @@ process.env.SALLA_REDIRECT_URI = 'http://localhost:3000/callback';
 process.env.SALLA_WEBHOOK_SECRET = 'webhook_test_secret_12345';
 
 const request = require('supertest');
-const { expect } = require('chai');
+const assert = require('assert');
+const expect = (val) => ({
+    to: {
+        be: {
+            an: (type) => assert.ok(type === 'array' ? Array.isArray(val) : typeof val === type),
+            a: (type) => assert.ok(type === 'array' ? Array.isArray(val) : typeof val === type)
+        },
+        get exist() { assert.ok(val); return this; },
+        get not() { return { get exist() { assert.ok(!val); return this; } }; },
+        equal: (expected) => assert.strictEqual(val, expected),
+        include: (expected) => assert.ok(val && val.includes(expected)),
+        have: {
+            property: (prop, expected) => {
+                assert.ok(val && val.hasOwnProperty(prop));
+                if (expected !== undefined) assert.strictEqual(val[prop], expected);
+            }
+        }
+    }
+});
 const crypto = require('crypto');
 const app = require('../server');
 const { db, hashPassword } = require('../database');

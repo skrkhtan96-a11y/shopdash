@@ -4,7 +4,25 @@ process.env.MCP_TOKEN = 'mcp_test_token_999';
 process.env.AI_API_TOKEN = 'ai_test_token_888';
 
 const request = require('supertest');
-const { expect } = require('chai');
+const assert = require('assert');
+const expect = (val) => ({
+    to: {
+        be: {
+            an: (type) => assert.ok(type === 'array' ? Array.isArray(val) : typeof val === type),
+            a: (type) => assert.ok(type === 'array' ? Array.isArray(val) : typeof val === type)
+        },
+        get exist() { assert.ok(val); return this; },
+        get not() { return { get exist() { assert.ok(!val); return this; } }; },
+        equal: (expected) => assert.strictEqual(val, expected),
+        include: (expected) => assert.ok(val && val.includes(expected)),
+        have: {
+            property: (prop, expected) => {
+                assert.ok(val && val.hasOwnProperty(prop));
+                if (expected !== undefined) assert.strictEqual(val[prop], expected);
+            }
+        }
+    }
+});
 const http = require('http');
 const app = require('../server');
 const { db, hashPassword } = require('../database');
@@ -207,7 +225,7 @@ describe('🔒 Security Remediation Verification Tests', () => {
                     
                     if (err) return done(err);
                     expect(res.body).to.have.property('error', 'حدث خطأ داخلي في الخادم.');
-                    expect(res.body).to.not.have.property('stack');
+                    assert.strictEqual(res.body.stack, undefined);
                     done();
                 });
         });

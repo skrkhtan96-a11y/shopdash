@@ -417,9 +417,13 @@ router.post('/imported-orders', authenticateUser, (req, res) => {
         `);
 
         orders.forEach(o => {
+            // تنظيف reference_id: استخدام المعرف كما هو لدعم البنود المتعددة بنفس الطلب
+            const cleanRef = String(o.reference_id);
+            // تنظيف التاريخ: احتفظ بـ YYYY-MM-DD فقط
+            const cleanDate = String(o.date || '').substring(0, 10) || new Date().toISOString().substring(0, 10);
             stmt.run([
-                String(o.reference_id),
-                o.date,
+                cleanRef,
+                cleanDate,
                 o.status_slug || 'completed',
                 o.status_name || 'تم التنفيذ',
                 o.payment_method || 'mada',
@@ -864,6 +868,16 @@ function getSimulatedCarts() {
 function performFallbackAttribution(orderId, o, callback) {
     const customerPhone = o.customer ? (o.customer.mobile || o.customer.phone || '') : '';
     const customerEmail = o.customer ? (o.customer.email || '') : '';
+
+    // ⚠️ مهم: لا نطبق الإسناد الاحتياطي إلا على الطلبات الحديثة جداً (خلال ساعتين)
+    // لمنع نسب آلاف الطلبات التاريخية المستوردة لحملة واحدة عشوائياً
+    const orderCreatedAt = o.date ? new Date(o.date.date || o.date) : null;
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    if (orderCreatedAt && orderCreatedAt < twoHoursAgo) {
+        // الطلب قديم — لا نسند له أي حملة بالتخمين
+        return callback && callback(null, { platform: 'unattributed', campaign_id: '' });
+    }
+
     const orderDate = new Date().toISOString();
     
     // 1. استخراج معطيات سلة الذاتية لـ UTMs

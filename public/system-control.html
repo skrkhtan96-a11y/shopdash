@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة تحكم النظام — System Control Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0e1a;
+      --bg2:       #111627;
+      --bg3:       #171e30;
+      --border:    rgba(255,255,255,0.07);
+      --text:      #e8eaf6;
+      --text2:     #9ea8c8;
+      --text3:     #5a6480;
+      --green:     #3dba7e;
+      --red:       #e05555;
+      --amber:     #f59e0b;
+      --blue:      #4f8ef7;
+      --r:         10px;
+    }
+
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background-image:
+        radial-gradient(ellipse at 20% 20%, rgba(79,142,247,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 80%, rgba(61,186,126,0.05) 0%, transparent 60%);
+    }
+
+    /* ══════════ PIN SCREEN ══════════ */
+    #pin-screen {
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+      animation: fadeIn .4s ease;
+    }
+
+    .logo-wrap {
+      margin-bottom: 28px;
+    }
+    .logo-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1a2340, #232d4a);
+      border: 2px solid rgba(79,142,247,0.3);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: var(--blue);
+      margin-bottom: 14px;
+      box-shadow: 0 0 30px rgba(79,142,247,0.15);
+    }
+    .logo-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .logo-sub {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 4px;
+    }
+
+    .pin-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 32px 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .pin-label {
+      font-size: 13px;
+      color: var(--text2);
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+    .pin-display {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 14px;
+      font-size: 28px;
+      letter-spacing: 12px;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 20px;
+      min-height: 58px;
+      font-weight: 700;
+    }
+    .pin-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .pin-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 700;
+      font-family: 'Tajawal', sans-serif;
+      padding: 16px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .pin-btn:hover { background: rgba(79,142,247,0.12); border-color: rgba(79,142,247,0.3); }
+    .pin-btn:active { transform: scale(.95); }
+    .pin-btn.del { font-size: 16px; color: var(--text2); }
+    .pin-submit {
+      width: 100%;
+      padding: 14px;
+      border-radius: var(--r);
+      border: none;
+      background: linear-gradient(135deg, #4f8ef7, #3a72d4);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'Tajawal', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+      box-shadow: 0 4px 15px rgba(79,142,247,0.3);
+    }
+    .pin-submit:hover { opacity: .9; transform: translateY(-1px); }
+    .pin-error {
+      color: var(--red);
+      font-size: 12px;
+      margin-top: 10px;
+      min-height: 18px;
+      font-weight: 600;
+    }
+
+    /* ══════════ CONTROL PANEL ══════════ */
+    #control-panel {
+      display: none;
+      width: 100%;
+      max-width: 640px;
+      animation: fadeIn .4s ease;
+    }
+
+    .panel-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .panel-header h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .panel-header p {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 6px;
+    }
+
+    /* Master Power Card */
+    .master-card {
+      background: var(--bg2);
+      border: 2px solid var(--green);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 16px;
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .master-card.stopped {
+      border-color: var(--red);
+      box-shadow: 0 0 30px rgba(224,85,85,0.12);
+    }
+    .master-card.online {
+      box-shadow: 0 0 30px rgba(61,186,126,0.12);
+    }
+
+    .master-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .master-info { display: flex; align-items: center; gap: 14px; }
+    .master-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      border: 2px solid currentColor;
+      transition: all .3s;
+    }
+    .master-icon.online { background: rgba(61,186,126,0.12); color: var(--green); }
+    .master-icon.stopped { background: rgba(224,85,85,0.12); color: var(--red); }
+
+    .master-text h2 { font-size: 15px; font-weight: 700; }
+    .master-text p { font-size: 12px; color: var(--text2); margin-top: 3px; }
+
+    .power-btn {
+      padding: 12px 22px;
+      border-radius: var(--r);
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Tajawal', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all .2s;
+    }
+    .power-btn.stop { background: linear-gradient(135deg, #e05555, #b82f2f); color: #fff; box-shadow: 0 4px 15px rgba(224,85,85,0.3); }
+    .power-btn.start { background: linear-gradient(135deg, #3dba7e, #29855a); color: #fff; box-shadow: 0 4px 15px rgba(61,186,126,0.3); }
+    .power-btn:hover { opacity: .9; transform: translateY(-1px); }
+    .power-btn:active { transform: scale(.97); }
+    .power-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .master-msg {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .master-msg label { font-size: 11px; color: var(--text2); font-weight: 600; display: block; margin-bottom: 8px; }
+    .master-msg .msg-row { display: flex; gap: 8px; }
+    .master-msg input {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-family: 'Tajawal', sans-serif;
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    .master-msg input:focus { border-color: rgba(79,142,247,0.4); }
+    .save-btn {
+      padding: 10px 16px;
+      background: rgba(79,142,247,0.15);
+      border: 1px solid rgba(79,142,247,0.3);
+      border-radius: var(--r);
+      color: var(--blue);
+      font-weight: 700;
+      font-size: 12px;
+      font-family: 'Tajawal', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .save-btn:hover { background: rgba(79,142,247,0.25); }
+
+    /* Services Grid */
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .service-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .svc-info { display: flex; align-items: center; gap: 10px; }
+    .svc-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .svc-icon.teal { background: rgba(24,178,176,0.12); color: #18B2B0; }
+    .svc-icon.green { background: rgba(61,186,126,0.12); color: var(--green); }
+    .svc-icon.wa { background: rgba(37,211,102,0.12); color: #25D366; }
+
+    .svc-title { font-size: 12px; font-weight: 700; }
+    .svc-sub { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+    /* Toggle Switch */
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0;
+      background: #2a3350;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: .3s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 18px; width: 18px;
+      left: 3px; bottom: 3px;
+      background: #5a6480;
+      border-radius: 50%;
+      transition: .3s;
+    }
+    .toggle input:checked + .toggle-slider { background: rgba(61,186,126,0.3); }
+    .toggle input:checked + .toggle-slider::before { background: var(--green); transform: translateX(20px); }
+
+    /* Metrics */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .metric-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric-val { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+    .metric-label { font-size: 10px; color: var(--text3); font-weight: 600; }
+
+    /* Actions */
+    .actions-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .actions-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text2);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .actions-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .action-btn {
+      padding: 10px 16px;
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      color: var(--text);
+      font-family: 'Tajawal', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .2s;
+    }
+    .action-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
+    .action-btn.warn { color: var(--amber); border-color: rgba(245,158,11,0.3); }
+    .action-btn.warn:hover { background: rgba(245,158,11,0.1); }
+
+    /* Footer */
+    .panel-footer {
+      text-align: center;
+      margin-top: 4px;
+    }
+    .logout-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text3);
+      font-family: 'Tajawal', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 18px;
+      border-radius: var(--r);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .logout-btn:hover { color: var(--red); border-color: rgba(224,85,85,0.3); }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+      transition: transform .3s ease, opacity .3s;
+      opacity: 0;
+      z-index: 9999;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    #toast.success { border-color: rgba(61,186,126,0.4); color: var(--green); }
+    #toast.error { border-color: rgba(224,85,85,0.4); color: var(--red); }
+    #toast.info { border-color: rgba(79,142,247,0.4); color: var(--blue); }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+    @media (max-width: 480px) {
+      .master-top { flex-direction: column; align-items: flex-start; }
+      .power-btn { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════ PIN LOGIN SCREEN ══════ -->
+  <div id="pin-screen">
+    <div class="logo-wrap">
+      <div class="logo-icon"><i class="ti ti-server-cog"></i></div>
+      <div class="logo-title">لوحة تحكم النظام</div>
+      <div class="logo-sub">System Operation &amp; Control Panel</div>
+    </div>
+    <div class="pin-card">
+      <div class="pin-label"><i class="ti ti-lock"></i> أدخل رمز PIN للوصول</div>
+      <div class="pin-display" id="pinDisplay">••••</div>
+      <div class="pin-grid">
+        <button class="pin-btn" onclick="pinPress('1')">1</button>
+        <button class="pin-btn" onclick="pinPress('2')">2</button>
+        <button class="pin-btn" onclick="pinPress('3')">3</button>
+        <button class="pin-btn" onclick="pinPress('4')">4</button>
+        <button class="pin-btn" onclick="pinPress('5')">5</button>
+        <button class="pin-btn" onclick="pinPress('6')">6</button>
+        <button class="pin-btn" onclick="pinPress('7')">7</button>
+        <button class="pin-btn" onclick="pinPress('8')">8</button>
+        <button class="pin-btn" onclick="pinPress('9')">9</button>
+        <button class="pin-btn del" onclick="pinClear()"><i class="ti ti-backspace"></i> مسح</button>
+        <button class="pin-btn" onclick="pinPress('0')">0</button>
+        <button class="pin-btn del" onclick="pinDel()"><i class="ti ti-arrow-back"></i></button>
+      </div>
+      <button class="pin-submit" onclick="pinSubmit()"><i class="ti ti-login"></i> دخول</button>
+      <div class="pin-error" id="pinError"></div>
+    </div>
+  </div>
+
+  <!-- ══════ CONTROL PANEL ══════ -->
+  <div id="control-panel">
+
+    <div class="panel-header">
+      <h1><i class="ti ti-server-cog" style="color:var(--blue)"></i> لوحة تشغيل وإيقاف النظام</h1>
+      <p>System Operation &amp; Control — Admin Only</p>
+    </div>
+
+    <!-- Master Power Card -->
+    <div class="master-card online" id="masterCard">
+      <div class="master-top">
+        <div class="master-info">
+          <div class="master-icon online" id="masterIcon"><i class="ti ti-power"></i></div>
+          <div class="master-text">
+            <h2 id="masterTitle">النظام يعمل بشكل طبيعي (ON)</h2>
+            <p id="masterDesc">جميع الخدمات الحية قيد التشغيل</p>
+          </div>
+        </div>
+        <button class="power-btn stop" id="masterBtn" onclick="toggleMaster()">
+          <i class="ti ti-player-pause"></i> إيقاف النظام
+        </button>
+      </div>
+      <div class="master-msg">
+        <label><i class="ti ti-message-alert" style="color:var(--amber)"></i> رسالة الإيقاف (تظهر للمستخدمين عند إيقاف النظام):</label>
+        <div class="msg-row">
+          <input type="text" id="stoppedMsgInput" placeholder="نص رسالة الإيقاف..." value="عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة" />
+          <button class="save-btn" onclick="saveMsg()"><i class="ti ti-check"></i> حفظ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub-Services -->
+    <div class="services-grid">
+      <div class="service-card">
+        <div class="svc-info">
+          <div class="svc-icon teal"><i class="ti ti-refresh"></i></div>
+          <div>
+            <div class="svc-title">مزامنة سلة</div>
+            <div class="svc-sub">Auto Sync</div>
+          </div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="svcAutoSync" onchange="toggleService('auto_sync', this.checked)" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="service-card">
+        <div class="svc-info">
+          <div class="svc-icon green"><i class="ti ti-brand-playstation"></i></div>
+          <div>
+            <div class="svc-title">التسليم التلقائي</div>
+            <div class="svc-sub">Auto Delivery</div>
+          </div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="svcAutoDelivery" onchange="toggleService('auto_delivery', this.checked)" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="service-card">
+        <div class="svc-info">
+          <div class="svc-icon wa"><i class="ti ti-brand-whatsapp"></i></div>
+          <div>
+            <div class="svc-title">بوت الواتساب</div>
+            <div class="svc-sub">WhatsApp Bot</div>
+          </div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="svcWhatsapp" onchange="toggleService('whatsapp_bot', this.checked)" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-val" id="mUptime">-</div>
+        <div class="metric-label"><i class="ti ti-clock"></i> مدة التشغيل</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="mMemory">-</div>
+        <div class="metric-label"><i class="ti ti-cpu"></i> الذاكرة المستخدمة</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="mDbSize">-</div>
+        <div class="metric-label"><i class="ti ti-database"></i> حجم قاعدة البيانات</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="mNode">-</div>
+        <div class="metric-label"><i class="ti ti-server"></i> بيئة التشغيل</div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-card">
+      <div class="actions-title"><i class="ti ti-tool" style="color:var(--amber)"></i> إجراءات الصيانة</div>
+      <div class="actions-row">
+        <button class="action-btn warn" onclick="doRestart()">
+          <i class="ti ti-rotate"></i> إعادة تشغيل السيرفر
+        </button>
+        <button class="action-btn" onclick="doVacuum()">
+          <i class="ti ti-vacuum-cleaner"></i> تنظيف قاعدة البيانات (VACUUM)
+        </button>
+        <a class="action-btn" href="/api/database/backup" id="backupLink">
+          <i class="ti ti-download"></i> تحميل نسخة احتياطية
+        </a>
+        <button class="action-btn" onclick="loadStatus()">
+          <i class="ti ti-refresh"></i> تحديث الحالة
+        </button>
+      </div>
+    </div>
+
+    <div class="panel-footer">
+      <button class="logout-btn" onclick="logout()"><i class="ti ti-logout"></i> تسجيل الخروج</button>
+    </div>
+
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    // ─── PIN LOGIC ───────────────────────────────────────────────
+    // The PIN is verified server-side via a dedicated endpoint.
+    // Change this PIN in /api/system/control-pin on the backend.
+    let pinValue = '';
+
+    function pinPress(d) {
+      if (pinValue.length >= 8) return;
+      pinValue += d;
+      updateDisplay();
+    }
+    function pinDel() {
+      pinValue = pinValue.slice(0, -1);
+      updateDisplay();
+    }
+    function pinClear() {
+      pinValue = '';
+      updateDisplay();
+    }
+    function updateDisplay() {
+      const el = document.getElementById('pinDisplay');
+      el.textContent = pinValue ? '•'.repeat(pinValue.length) : '••••';
+    }
+    async function pinSubmit() {
+      if (!pinValue) return;
+      document.getElementById('pinError').textContent = '';
+      try {
+        const res = await fetch('/api/system/control-pin-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: pinValue })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          sessionStorage.setItem('sysctrl_token', data.token);
+          showPanel();
+        } else {
+          document.getElementById('pinError').textContent = data.error || 'رمز PIN غير صحيح';
+          pinValue = '';
+          updateDisplay();
+          // Shake animation
+          const card = document.querySelector('.pin-card');
+          card.style.animation = 'none';
+          card.style.borderColor = 'rgba(224,85,85,0.5)';
+          setTimeout(() => { card.style.borderColor = ''; }, 800);
+        }
+      } catch (e) {
+        document.getElementById('pinError').textContent = 'خطأ في الاتصال بالسيرفر';
+      }
+    }
+
+    function logout() {
+      sessionStorage.removeItem('sysctrl_token');
+      document.getElementById('control-panel').style.display = 'none';
+      document.getElementById('pin-screen').style.display = 'block';
+      pinValue = '';
+      updateDisplay();
+    }
+
+    // ─── AUTH HEADER ─────────────────────────────────────────────
+    function getHeaders() {
+      const token = sessionStorage.getItem('sysctrl_token');
+      return {
+        'Content-Type': 'application/json',
+        'X-Sysctrl-Token': token || ''
+      };
+    }
+
+    // ─── PANEL ───────────────────────────────────────────────────
+    function showPanel() {
+      document.getElementById('pin-screen').style.display = 'none';
+      document.getElementById('control-panel').style.display = 'block';
+      loadStatus();
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/system/control-status-ext', {
+          headers: getHeaders()
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        renderStatus(data);
+      } catch (e) {
+        toast('فشل تحميل البيانات: ' + e.message, 'error');
+      }
+    }
+
+    function renderStatus(data) {
+      if (!data || !data.config) return;
+      const cfg = data.config;
+      const metrics = data.metrics || {};
+
+      const isOnline = cfg.system_status === 'online';
+
+      const card = document.getElementById('masterCard');
+      const icon = document.getElementById('masterIcon');
+      const title = document.getElementById('masterTitle');
+      const desc = document.getElementById('masterDesc');
+      const btn = document.getElementById('masterBtn');
+
+      if (isOnline) {
+        card.className = 'master-card online';
+        icon.className = 'master-icon online';
+        icon.innerHTML = '<i class="ti ti-power"></i>';
+        title.textContent = 'النظام يعمل بشكل طبيعي (ON)';
+        desc.textContent = 'جميع الخدمات الحية قيد التشغيل والعمل';
+        btn.className = 'power-btn stop';
+        btn.innerHTML = '<i class="ti ti-player-pause"></i> إيقاف النظام';
+      } else {
+        card.className = 'master-card stopped';
+        icon.className = 'master-icon stopped';
+        icon.innerHTML = '<i class="ti ti-player-stop"></i>';
+        title.textContent = 'النظام متوقف — يجب تجديد الاستضافة';
+        desc.textContent = cfg.stopped_message || 'عفواً، النظام متوقف حالياً';
+        btn.className = 'power-btn start';
+        btn.innerHTML = '<i class="ti ti-player-play"></i> تشغيل النظام';
+      }
+
+      const msgInput = document.getElementById('stoppedMsgInput');
+      if (msgInput) msgInput.value = cfg.stopped_message || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+
+      document.getElementById('svcAutoSync').checked = !!cfg.auto_sync;
+      document.getElementById('svcAutoDelivery').checked = !!cfg.auto_delivery;
+      document.getElementById('svcWhatsapp').checked = !!cfg.whatsapp_bot;
+
+      // Metrics
+      document.getElementById('mUptime').textContent = formatUptime(metrics.uptimeSeconds || 0);
+      document.getElementById('mMemory').textContent = (metrics.heapUsedMb || 0) + ' MB';
+      document.getElementById('mDbSize').textContent = (metrics.dbSizeMb || 0) + ' MB';
+      document.getElementById('mNode').textContent = metrics.nodeVersion || '-';
+    }
+
+    async function toggleMaster() {
+      const btn = document.getElementById('masterBtn');
+      const isOnline = btn.classList.contains('stop');
+      const nextStatus = isOnline ? 'stopped' : 'online';
+      const stoppedMsg = document.getElementById('stoppedMsgInput').value.trim() || 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة';
+
+      const confirmText = nextStatus === 'stopped'
+        ? 'هل تريد إيقاف النظام وتفعيل رسالة تجديد الاستضافة؟'
+        : 'هل تريد تشغيل النظام وإتاحة كافة الخدمات؟';
+      if (!confirm(confirmText)) return;
+
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/system/control-toggle-master-ext', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ status: nextStatus, stopped_message: stoppedMsg })
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل التغيير');
+        toast(nextStatus === 'stopped' ? 'تم إيقاف النظام' : 'تم تشغيل النظام بنجاح', 'success');
+        loadStatus();
+      } catch (e) {
+        toast(e.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function saveMsg() {
+      const stoppedMsg = document.getElementById('stoppedMsgInput').value.trim();
+      if (!stoppedMsg) { toast('اكتب الرسالة أولاً', 'error'); return; }
+
+      const isOnline = document.getElementById('masterBtn').classList.contains('stop');
+      try {
+        const res = await fetch('/api/system/control-toggle-master-ext', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ status: isOnline ? 'online' : 'stopped', stopped_message: stoppedMsg })
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast('تم حفظ الرسالة بنجاح', 'success');
+        loadStatus();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function toggleService(service, value) {
+      try {
+        const res = await fetch('/api/system/control-toggle-service-ext', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ service, value })
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast('تم تحديث الخدمة بنجاح', 'success');
+      } catch (e) {
+        toast(e.message, 'error');
+        loadStatus();
+      }
+    }
+
+    async function doRestart() {
+      if (!confirm('هل تريد إعادة تشغيل السيرفر الآن؟')) return;
+      try {
+        const res = await fetch('/api/system/control-restart-ext', {
+          method: 'POST',
+          headers: getHeaders()
+        });
+        const data = await res.json();
+        toast(data.message || 'جاري إعادة التشغيل...', 'info');
+        setTimeout(() => window.location.reload(), 4000);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function doVacuum() {
+      if (!confirm('تنظيف قاعدة البيانات الآن؟')) return;
+      try {
+        const res = await fetch('/api/system/control-vacuum-ext', {
+          method: 'POST',
+          headers: getHeaders()
+        });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast(data.message || 'تم التنظيف بنجاح', 'success');
+        loadStatus();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    // ─── HELPERS ─────────────────────────────────────────────────
+    function formatUptime(s) {
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      if (d > 0) return `${d}ي ${h}س`;
+      if (h > 0) return `${h}س ${m}د`;
+      return `${m}د ${s % 60}ث`;
+    }
+
+    let toastTimer;
+    function toast(msg, type = 'success') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'show ' + type;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+    }
+
+    // ─── STARTUP: check existing token ───────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      const token = sessionStorage.getItem('sysctrl_token');
+      if (token) {
+        // Verify token still valid
+        fetch('/api/system/control-status-ext', { headers: { 'X-Sysctrl-Token': token } })
+          .then(r => {
+            if (r.ok) showPanel();
+          }).catch(() => {});
+      }
+    });
+
+    // Enter key support for PIN
+    document.addEventListener('keydown', e => {
+      if (document.getElementById('pin-screen').style.display !== 'none' || !document.getElementById('control-panel').style.display || document.getElementById('control-panel').style.display === 'none') {
+        if (e.key >= '0' && e.key <= '9') pinPress(e.key);
+        else if (e.key === 'Backspace') pinDel();
+        else if (e.key === 'Enter') pinSubmit();
+      }
+    });
+  </script>
+</body>
+</html>
