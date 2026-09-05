@@ -21,6 +21,7 @@ router.use(authenticateUser);
 
 // 1. Overview & Details
 router.get('/products', ProductControlController.getProductsOverview);
+router.post('/products', requireWritePermission, ProductControlController.createProduct);
 router.get('/products/:id', ProductControlController.getProductDetails);
 router.get('/products/:id/details', ProductControlController.getProductDetails);
 

@@ -345,6 +345,32 @@ const ProductControlController = {
         } catch (err) {
             next(err);
         }
+    },
+
+    createProduct: async (req, res, next) => {
+        try {
+            const { product_name, sku, salla_product_id, quantity, opening_quantity, cost, price, status } = req.body;
+            const username = req.user ? req.user.username : 'Admin';
+            const userId = req.user ? req.user.id : null;
+
+            const product = await ProductControlService.createProduct({
+                product_name,
+                sku,
+                salla_product_id,
+                opening_quantity: opening_quantity !== undefined ? opening_quantity : quantity,
+                cost,
+                price,
+                status
+            }, username, userId);
+
+            res.json({
+                success: true,
+                message: `تم إضافة المنتج "${product.product_name}" بنجاح.`,
+                data: product
+            });
+        } catch (err) {
+            next(err);
+        }
     }
 };
 

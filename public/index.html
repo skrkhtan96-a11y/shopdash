@@ -2134,7 +2134,7 @@
       <!-- PAGE: PRODUCT CONTROL CENTER (صفحة مراقبة المنتجات) -->
       <div class="page pad" id="page-product-control">
         <div class="import-panel" style="margin-bottom:14px; background:rgba(17, 21, 32, 0.6); backdrop-filter: blur(12px); border:1px solid var(--border)">
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
+          <div class="pc-header-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
             <div>
               <div class="import-panel-title" style="font-size:16px; font-weight:700; color:var(--text); display: flex; align-items: center; gap: 8px;">
                 <i class="ti ti-box-seam" style="color:var(--accent); font-size:22px;"></i>
@@ -2144,7 +2144,8 @@
                 مراقبة الجودة، المخزون، المشتريات، والمبيعات مع تتبع حركة كل منتج لحظيًا عبر معمارية الحقيقة الموحدة.
               </div>
             </div>
-            <div style="display:flex; gap:8px; align-items:center;">
+            <div class="pc-header-actions" style="display:flex; gap:8px; align-items:center;">
+              <button class="btn btn-sm btn-green" onclick="ProductControlUI.openCreateProductModal()"><i class="ti ti-plus"></i> إضافة منتج يدوي</button>
               <button class="btn btn-sm btn-primary" onclick="ProductControlUI.loadProductsList(1)"><i class="ti ti-refresh"></i> تحديث البيانات</button>
             </div>
           </div>
@@ -2160,15 +2161,15 @@
 
         <!-- Search & Filter Controls -->
         <div class="tbl-wrap" style="margin-bottom:14px; padding:12px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
-          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <div class="pc-controls-bar" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+            <div class="pc-controls-group" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
               <!-- Search Input -->
-              <div style="position:relative; width:220px;">
+              <div class="pc-search-box" style="position:relative; width:240px; flex: 1 1 auto;">
                 <input type="text" id="pcSearch" placeholder="بحث بالاسم، SKU أو Salla ID..." oninput="ProductControlUI.loadProductsList(1)" style="padding:6px 10px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); width:100%; outline:none">
               </div>
 
               <!-- Status Filter -->
-              <select id="pcStatusFilter" onchange="ProductControlUI.loadProductsList(1)" style="padding:6px 8px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); outline:none">
+              <select id="pcStatusFilter" class="pc-status-select" onchange="ProductControlUI.loadProductsList(1)" style="padding:6px 8px; font-size:11.5px; border-radius:var(--r); background:var(--bg4); border:1px solid var(--border2); color:var(--text); outline:none">
                 <option value="all">كافة الحالات</option>
                 <option value="normal">🟢 عادي</option>
                 <option value="needs_inventory">🟡 يحتاج جرد</option>
@@ -2179,13 +2180,13 @@
               </select>
 
               <!-- Date Filter & Shortcuts -->
-              <div style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:var(--r); border:1px solid var(--border2);">
+              <div class="pc-date-container" style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:var(--r); border:1px solid var(--border2);">
                 <span style="font-size:10.5px; color:var(--text3);">الفترة:</span>
                 <input type="date" id="pcFilterFrom" onchange="ProductControlUI.loadProductsList(1)" style="padding:2px 4px; font-size:10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
                 <span style="font-size:10.5px; color:var(--text3);">إلى:</span>
                 <input type="date" id="pcFilterTo" onchange="ProductControlUI.loadProductsList(1)" style="padding:2px 4px; font-size:10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
 
-                <div style="display:flex; gap:4px; margin-right:6px;">
+                <div class="pc-shortcut-buttons" style="display:flex; gap:4px; margin-right:6px;">
                   <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn active" data-shortcut="all" onclick="ProductControlUI.setListShortcut('all')" style="font-size:9.5px; padding:2px 6px;">الكل</button>
                   <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn" data-shortcut="today" onclick="ProductControlUI.setListShortcut('today')" style="font-size:9.5px; padding:2px 6px;">اليوم</button>
                   <button class="btn btn-sm btn-outline-secondary pc-shortcut-btn" data-shortcut="7days" onclick="ProductControlUI.setListShortcut('7days')" style="font-size:9.5px; padding:2px 6px;">7 أيام</button>
@@ -4843,6 +4844,58 @@
       <div class="modal-foot" style="border-top:1px solid var(--border2); margin-top:16px; padding-top:10px; display:flex; justify-content:flex-end; gap:8px;">
         <button class="btn btn-outline-secondary" onclick="ProductControlUI.closeAllocateExpenseModal()">إلغاء</button>
         <button class="btn btn-primary" onclick="ProductControlUI.submitAllocateExpense()"><i class="ti ti-check"></i> تأكيد التخصيص</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: إضافة منتج جديد يدوي لمركز التحكم -->
+  <div class="modal-bg" id="pcCreateProductModal">
+    <div class="modal" style="max-width: 500px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 90%;">
+      <div class="modal-title" style="border-bottom: 1px solid var(--border2); padding-bottom: 10px; margin-bottom: 12px; display:flex; align-items:center; justify-content:space-between;">
+        <span style="display:flex; align-items:center; gap:8px;"><i class="ti ti-box-seam" style="color:var(--accent)"></i> إضافة منتج جديد يدويًا</span>
+        <button onclick="ProductControlUI.closeCreateProductModal()" style="background:none; border:none; color:var(--text3); cursor:pointer; font-size:16px;"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">اسم المنتج *</label>
+          <input type="text" id="pcNewProductName" placeholder="مثال: اشتراك يوتيوب بريميوم - سنة" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">رمز SKU (اختياري)</label>
+            <input type="text" id="pcNewProductSku" placeholder="مثال: YT-PREM-1Y" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">Salla Product ID (اختياري)</label>
+            <input type="text" id="pcNewSallaId" placeholder="مثال: 987654" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+          <div>
+            <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">الكمية الافتتاحية</label>
+            <input type="number" id="pcNewOpeningQty" min="0" value="0" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">التكلفة (ر.س)</label>
+            <input type="number" step="0.01" id="pcNewCost" min="0" placeholder="0.00" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">سعر البيع (ر.س)</label>
+            <input type="number" step="0.01" id="pcNewPrice" min="0" placeholder="0.00" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">الحالة التشغيلية للمنتج</label>
+          <select id="pcNewStatus" style="width:100%; padding:8px; font-size:12px; border-radius:6px; background:var(--bg4); border:1px solid var(--border2); color:var(--text);">
+            <option value="normal">🟢 عادي (Normal)</option>
+            <option value="under_review">🟡 تحت المراجعة (Under Review)</option>
+            <option value="needs_inventory">📋 يحتاج جرد (Needs Inventory)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-foot" style="border-top:1px solid var(--border2); margin-top:16px; padding-top:10px; display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-outline-secondary" onclick="ProductControlUI.closeCreateProductModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="ProductControlUI.submitCreateProduct()"><i class="ti ti-check"></i> حفظ وإضافة المنتج</button>
       </div>
     </div>
   </div>

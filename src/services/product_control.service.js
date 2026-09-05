@@ -935,6 +935,77 @@ const ProductControlService = {
         );
 
         return { product_id: productId, alias_name: aliasName, mapping_status: mappingStatus };
+    },
+
+    /**
+     * Create a new product manually in product control center
+     */
+    createProduct: async (data, username, userId = null) => {
+        const { product_name, sku, salla_product_id, opening_quantity = 0, cost = 0, price = 0, status = 'normal' } = data;
+
+        if (!product_name || !String(product_name).trim()) {
+            const error = new Error('اسم المنتج مطلوب.');
+            error.status = 400;
+            throw error;
+        }
+
+        const cleanName = String(product_name).trim();
+        const cleanSku = sku ? String(sku).trim() : null;
+        const cleanSallaId = salla_product_id ? String(salla_product_id).trim() : null;
+        const qty = Math.max(parseInt(opening_quantity, 10) || 0, 0);
+        const unitCostHalalas = Math.max(Math.round((parseFloat(cost) || 0) * 100), 0);
+        const unitPriceHalalas = Math.max(Math.round((parseFloat(price) || 0) * 100), 0);
+        const totalValueHalalas = qty * unitCostHalalas;
+
+        return ProductControlRepository.executeTransaction(async () => {
+            const existing = await ProductControlRepository.getSql(
+                "SELECT id FROM inventory_products WHERE LOWER(TRIM(product_name)) = LOWER(TRIM(?))",
+                [cleanName]
+            );
+            if (existing) {
+                const error = new Error(`المنتج "${cleanName}" موجود بالفعل في قاعدة البيانات.`);
+                error.status = 400;
+                throw error;
+            }
+
+            const now = new Date().toISOString();
+            const todayDate = now.split('T')[0];
+
+            const res = await ProductControlRepository.runSql(
+                `INSERT INTO inventory_products 
+                (product_name, sku, salla_product_id, quantity, salla_quantity, cost_halalas, price_halalas, inventory_value_halalas, current_control_status, created_at)
+                VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+                [cleanName, cleanSku, cleanSallaId, qty, unitCostHalalas, unitPriceHalalas, totalValueHalalas, status || 'normal', todayDate]
+            );
+
+            const productId = res.lastID;
+
+            await ProductControlRepository.upsertMapping(productId, cleanSallaId, cleanSku, cleanName, 'ACTIVE');
+
+            if (qty > 0) {
+                await ProductControlRepository.insertStockMovement({
+                    product_id: productId,
+                    movement_type: 'INITIAL_STOCK',
+                    quantity: qty,
+                    source_reference_id: `INIT-${productId}`,
+                    source_item_reference_id: `ITEM-INIT-${productId}`,
+                    source_event_reference_id: 'MANUAL_CREATE',
+                    movement_at: now,
+                    unit_cogs_halalas: unitCostHalalas
+                });
+            }
+
+            await ProductControlRepository.logAudit('PRODUCT', productId, 'MANUAL_CREATE', null, {
+                product_name: cleanName,
+                sku: cleanSku,
+                salla_product_id: cleanSallaId,
+                quantity: qty,
+                cost_sar: unitCostHalalas / 100,
+                price_sar: unitPriceHalalas / 100
+            }, userId, username);
+
+            return ProductControlRepository.getProductById(productId);
+        });
     }
 };
 

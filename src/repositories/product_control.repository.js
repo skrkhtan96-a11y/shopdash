@@ -68,8 +68,8 @@ const ProductControlRepository = {
         let params = [];
 
         if (search) {
-            whereConditions.push('(LOWER(p.product_name) LIKE LOWER(?) OR LOWER(p.sku) LIKE LOWER(?))');
-            params.push(`%${search}%`, `%${search}%`);
+            whereConditions.push('(LOWER(p.product_name) LIKE LOWER(?) OR LOWER(p.sku) LIKE LOWER(?) OR LOWER(CAST(p.salla_product_id AS TEXT)) LIKE LOWER(?))');
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
         }
         if (statusFilter) {
             whereConditions.push('p.current_control_status = ?');

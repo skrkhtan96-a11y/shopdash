@@ -1719,3 +1719,87 @@ body.drawer-open .sidebar-overlay {
   }
 }
 
+/* ── RESPONSIVE STYLING FOR PRODUCT CONTROL CENTER ── */
+.pc-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pc-controls-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pc-controls-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  #page-product-control .kpi-grid,
+  #page-product-control-detail .kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .pc-header-bar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .pc-header-actions {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .pc-header-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .pc-search-box {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .pc-status-select {
+    width: 100% !important;
+  }
+
+  .pc-date-container {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    justify-content: space-between;
+  }
+
+  .pc-shortcut-buttons {
+    width: 100% !important;
+    display: flex !important;
+    overflow-x: auto !important;
+    padding-bottom: 4px;
+    margin-right: 0 !important;
+    margin-top: 4px;
+  }
+
+  .pc-shortcut-btn {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  #pcTableBody td, #pcTableBody th {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+}
+

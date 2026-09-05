@@ -147,6 +147,16 @@ window.ProductControlUI = (function() {
         if (emptyEl) emptyEl.style.display = 'none';
         if (errorEl) errorEl.style.display = 'none';
 
+        const searchEl = document.getElementById('pcSearch');
+        const statusEl = document.getElementById('pcStatusFilter');
+        const fromEl = document.getElementById('pcFilterFrom');
+        const toEl = document.getElementById('pcFilterTo');
+
+        if (searchEl) listState.q = searchEl.value.trim();
+        if (statusEl) listState.status = statusEl.value;
+        if (fromEl) listState.from = fromEl.value;
+        if (toEl) listState.to = toEl.value;
+
         try {
             let url = `/api/product-control/products?page=${listState.page}&limit=${listState.limit}`;
             if (listState.q) url += `&q=${encodeURIComponent(listState.q)}`;
@@ -1110,6 +1120,78 @@ window.ProductControlUI = (function() {
         }
     }
 
+    // =========================================================================
+    // MODAL: CREATE MANUAL PRODUCT
+    // =========================================================================
+
+    function openCreateProductModal() {
+        const modal = document.getElementById('pcCreateProductModal');
+        if (modal) modal.classList.add('open');
+
+        const nameEl = document.getElementById('pcNewProductName');
+        const skuEl = document.getElementById('pcNewProductSku');
+        const sallaIdEl = document.getElementById('pcNewSallaId');
+        const qtyEl = document.getElementById('pcNewOpeningQty');
+        const costEl = document.getElementById('pcNewCost');
+        const priceEl = document.getElementById('pcNewPrice');
+        const statusEl = document.getElementById('pcNewStatus');
+
+        if (nameEl) nameEl.value = '';
+        if (skuEl) skuEl.value = '';
+        if (sallaIdEl) sallaIdEl.value = '';
+        if (qtyEl) qtyEl.value = '0';
+        if (costEl) costEl.value = '';
+        if (priceEl) priceEl.value = '';
+        if (statusEl) statusEl.value = 'normal';
+    }
+
+    function closeCreateProductModal() {
+        const modal = document.getElementById('pcCreateProductModal');
+        if (modal) modal.classList.remove('open');
+    }
+
+    async function submitCreateProduct() {
+        const nameEl = document.getElementById('pcNewProductName');
+        const skuEl = document.getElementById('pcNewProductSku');
+        const sallaIdEl = document.getElementById('pcNewSallaId');
+        const qtyEl = document.getElementById('pcNewOpeningQty');
+        const costEl = document.getElementById('pcNewCost');
+        const priceEl = document.getElementById('pcNewPrice');
+        const statusEl = document.getElementById('pcNewStatus');
+
+        const product_name = nameEl ? nameEl.value.trim() : '';
+        if (!product_name) {
+            if (window.toast) window.toast('اسم المنتج مطلوب.', 'warn');
+            return;
+        }
+
+        const payload = {
+            product_name,
+            sku: skuEl ? skuEl.value.trim() : '',
+            salla_product_id: sallaIdEl ? sallaIdEl.value.trim() : '',
+            opening_quantity: qtyEl ? parseInt(qtyEl.value, 10) || 0 : 0,
+            cost: costEl ? parseFloat(costEl.value) || 0 : 0,
+            price: priceEl ? parseFloat(priceEl.value) || 0 : 0,
+            status: statusEl ? statusEl.value : 'normal'
+        };
+
+        try {
+            const res = await fetch('/api/product-control/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const resData = await handleApiResponse(res);
+            if (resData.success) {
+                if (window.toast) window.toast(resData.message || 'تم إضافة المنتج بنجاح!', 'ok');
+                closeCreateProductModal();
+                loadProductsList(1);
+            }
+        } catch (err) {
+            console.error('Create product error:', err);
+        }
+    }
+
     // Export public methods
     return {
         loadProductsList,
@@ -1131,6 +1213,9 @@ window.ProductControlUI = (function() {
         submitAddPurchase,
         openAllocateExpenseModal,
         closeAllocateExpenseModal,
-        submitAllocateExpense
+        submitAllocateExpense,
+        openCreateProductModal,
+        closeCreateProductModal,
+        submitCreateProduct
     };
 })();
