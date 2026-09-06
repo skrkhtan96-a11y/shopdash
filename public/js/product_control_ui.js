@@ -954,11 +954,21 @@ window.ProductControlUI = (function() {
 
             if (!checkData.allowed) {
                 const blocking = (checkData.blocking_reasons || []).map(r => `<li>${r}</li>`).join('');
+                const hasInventoryReason = (checkData.blocking_reasons || []).some(r => r.includes('جرد'));
+                const inventoryBtnHtml = hasInventoryReason ? `
+                    <div style="margin-top:10px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px;">
+                        <button type="button" class="btn btn-xs btn-amber" style="display:inline-flex; align-items:center; gap:6px; font-weight:600;" onclick="ProductControlUI.closeAddPurchaseModal(); ProductControlUI.openAddInventoryModal();">
+                            <i class="ti ti-clipboard-check"></i> إجراء جرد افتتاحي للمنتج الآن (فك حظر الشراء)
+                        </button>
+                    </div>
+                ` : '';
+
                 if (checkEl) {
                     checkEl.innerHTML = `
                         <div class="alert alert-red" style="font-size:11.5px; margin-bottom:12px;">
                             <i class="ti ti-barrier-block"></i> <strong>الشراء ممنوع حاليًا للمنتج لتطبيق قواعد ضبط الجودة:</strong>
                             <ul style="margin:4px 0 0 16px; padding:0;">${blocking}</ul>
+                            ${inventoryBtnHtml}
                         </div>
                     `;
                 }

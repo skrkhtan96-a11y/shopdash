@@ -982,6 +982,18 @@ const ProductControlService = {
 
             await ProductControlRepository.upsertMapping(productId, cleanSallaId, cleanSku, cleanName, 'ACTIVE');
 
+            // Record initial inventory count to establish baseline for quality control purchase gate
+            await ProductControlRepository.createInventoryCount({
+                product_id: productId,
+                inventory_at: now,
+                actual_qty: qty,
+                expected_qty_at_count: 0,
+                variance: qty,
+                notes: 'جرد افتتاحي مبدئي عند إضافة المنتج',
+                created_by: username || 'System',
+                user_id: userId
+            });
+
             if (qty > 0) {
                 await ProductControlRepository.insertStockMovement({
                     product_id: productId,
