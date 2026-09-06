@@ -2427,11 +2427,14 @@
                   <thead>
                     <tr>
                       <th>تاريخ ووقت الجرد</th>
+                      <th>فترة المنتج / الباقة</th>
+                      <th>مبلغ الشراء WAC</th>
                       <th>الكمية الفعلية</th>
-                      <th>الكمية المتوقعة وقت الجرد</th>
+                      <th>الكمية المتوقعة</th>
                       <th>الفارق (Variance)</th>
+                      <th>المشتراة / المباعة وقت الجرد</th>
                       <th>ملاحظات الجرد</th>
-                      <th>المستخدم المسؤول</th>
+                      <th>المسؤول</th>
                     </tr>
                   </thead>
                   <tbody id="pcdInventoryBody"></tbody>
@@ -4794,10 +4797,12 @@
 
   <!-- MODAL: إضافة جرد جديد للمنتج -->
   <div class="modal-bg" id="pcAddInventoryModal">
-    <div class="modal" style="max-width: 480px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;">
-      <div class="modal-title" style="border-bottom: 1px solid var(--border2); padding-bottom: 10px; margin-bottom: 12px;">
+    <div class="modal" style="max-width: 540px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px;">
+      <div class="modal-title" style="border-bottom: 1px solid var(--border2); padding-bottom: 10px; margin-bottom: 14px; font-weight:700;">
         <i class="ti ti-clipboard-check" style="color:var(--accent)"></i> إضافة جرد فعلي للمنتج
       </div>
+      <!-- بطاقة مؤشرات ما قبل الجرد والتحكم بالفترة -->
+      <div id="pcInvProductContextCard" style="margin-bottom:14px;"></div>
       <div style="display:flex; flex-direction:column; gap:12px;">
         <div>
           <label style="font-size:11px; color:var(--text2); display:block; margin-bottom:4px;">الكمية الفعلية بالمخزون (Actual Qty) *</label>

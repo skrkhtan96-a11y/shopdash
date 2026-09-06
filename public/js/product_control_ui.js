@@ -814,25 +814,33 @@ window.ProductControlUI = (function() {
             if (tbody) tbody.style.display = '';
 
             tbody.innerHTML = tab.data.map(inv => {
-                const v = inv.variance_qty || 0;
+                const v = inv.variance_qty !== undefined ? inv.variance_qty : (inv.variance || 0);
                 const vBadge = v === 0 
                     ? '<span class="pill pill-green">0 (مطابق)</span>' 
                     : `<span class="pill pill-red">${v > 0 ? '+' : ''}${v}</span>`;
 
+                const durLabel = inv.duration_label || (detailState.product ? detailState.product.duration_label : 'منتج مستقل');
+                const costDisplay = inv.unit_cost_sar != null ? `${fmtSar(inv.unit_cost_sar)} ر.س` : '—';
+                const purQty = inv.purchased_qty_at_count !== undefined ? inv.purchased_qty_at_count : '—';
+                const soldQty = inv.sold_qty_at_count !== undefined ? inv.sold_qty_at_count : '—';
+
                 return `
                     <tr>
-                        <td style="font-size:11px;">${fmtDate(inv.counted_at)}</td>
+                        <td style="font-size:11px;">${fmtDate(inv.counted_at || inv.inventory_at)}</td>
+                        <td><span class="pill pill-blue" style="font-size:10.5px;">${durLabel}</span></td>
+                        <td class="mono" style="font-size:11px;">${costDisplay}</td>
                         <td class="mono"><strong>${fmtInt(inv.actual_qty)}</strong></td>
                         <td class="mono">${fmtInt(inv.expected_qty_at_count)}</td>
                         <td>${vBadge}</td>
-                        <td>${inv.notes || '—'}</td>
-                        <td style="font-size:11px;">${inv.created_by_username || 'النظام'}</td>
+                        <td style="font-size:10.5px;" class="mono">مشتراة: <strong>${purQty}</strong> | مباعة: <strong>${soldQty}</strong></td>
+                        <td style="font-size:11px;">${inv.notes || '—'}</td>
+                        <td style="font-size:11px;">${inv.created_by_username || inv.created_by || 'النظام'}</td>
                     </tr>
                 `;
             }).join('');
 
             if (tab.data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text3); padding:20px;">لا يوجد سجل جرد تاريخي لهذا المنتج</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text3); padding:20px;">لا يوجد سجل جرد تاريخي لهذا المنتج</td></tr>`;
             }
 
             renderTabPagination('pcdInventoryPagination', tab.pagination, (p) => loadTabInventory(p));
@@ -1049,7 +1057,95 @@ window.ProductControlUI = (function() {
     // =========================================================================
 
     // 1. Add Inventory Count Modal
-    function openAddInventoryModal() {
+    let invModalState = { targetProductId: null };
+
+    async function loadInvModalContextCard(productId) {
+        invModalState.targetProductId = productId;
+        const cardEl = document.getElementById('pcInvProductContextCard');
+        if (!cardEl) return;
+
+        cardEl.innerHTML = `
+            <div style="padding:12px; background:rgba(30,41,59,0.5); border:1px solid var(--border); border-radius:8px; text-align:center; font-size:11px; color:var(--text2);">
+                <i class="ti ti-reload spinner" style="color:var(--accent);"></i> جاري جلب بيانات الجرد للمنتج...
+            </div>
+        `;
+
+        try {
+            const res = await fetch(`/api/product-control/products/${productId}`);
+            const data = await handleApiResponse(res);
+            const p = data.product || {};
+            const m = data.metrics || {};
+
+            // Duration Selector if viewing a Family
+            let durationSelectorHtml = '';
+            if (detailState.isFamily && detailState.familyData) {
+                const fData = detailState.familyData;
+                const variants = fData.variants_list || [];
+                if (variants.length > 0) {
+                    const btns = variants.map(v => {
+                        const isSel = v.id === productId;
+                        const label = v.duration_code === 'MONTHLY' ? 'شهري'
+                                    : v.duration_code === 'THREE_MONTHS' ? '3 أشهر'
+                                    : v.duration_code === 'YEARLY' ? 'سنة' : 'مستقل';
+                        return `
+                            <button type="button" class="btn btn-xs ${isSel ? 'btn-primary' : 'btn-outline-secondary'}" 
+                                onclick="ProductControlUI.onInvDurationChange(${v.id})" 
+                                style="font-weight:${isSel ? '700' : '500'}; min-width:65px; border-radius:4px;">
+                                ⚡ ${label}
+                            </button>
+                        `;
+                    }).join(' ');
+
+                    durationSelectorHtml = `
+                        <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:11px; color:var(--text2); font-weight:600;">اختيار فترة الباقة:</span>
+                            <div style="display:flex; gap:6px;">${btns}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            const durLabel = m.duration_label || p.duration_label || 'منتج مستقل';
+            const unitCost = m.unit_cost_sar != null ? `${fmtSar(m.unit_cost_sar)} ر.س` : (p.cost_sar != null ? `${fmtSar(p.cost_sar)} ر.س` : 'غير محدد');
+            const expectedStock = m.expected_stock !== undefined ? m.expected_stock : (p.quantity || 0);
+            const purchasedQty = m.total_purchased_qty !== undefined ? m.total_purchased_qty : 0;
+            const soldQty = m.total_sold_qty !== undefined ? m.total_sold_qty : (m.sold_since_last_inventory || 0);
+
+            cardEl.innerHTML = `
+                <div style="background:rgba(17,24,39,0.7); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:11.5px;">
+                    ${durationSelectorHtml}
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:6px;">
+                        <span style="font-weight:700; color:var(--text); font-size:12px;">
+                            <i class="ti ti-box" style="color:var(--accent);"></i> ${p.product_name || 'المنتج المحدد'}
+                        </span>
+                        <span class="pill pill-blue" style="font-size:10px;">${durLabel}</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px;">
+                        <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">💰 مبلغ الشراء / WAC:</span>
+                            <strong style="color:var(--text); font-size:12px;" class="mono">${unitCost}</strong>
+                        </div>
+                        <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">📦 الكمية المتبقية (المتوقعة):</span>
+                            <strong style="color:var(--accent); font-size:12px;" class="mono">${fmtInt(expectedStock)} قطعة</strong>
+                        </div>
+                        <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">🚚 إجمالي الكمية المشتراة:</span>
+                            <strong style="color:var(--text); font-size:12px;" class="mono">${fmtInt(purchasedQty)} قطعة</strong>
+                        </div>
+                        <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">🛒 المباع حتى وقت الجرد:</span>
+                            <strong style="color:var(--text); font-size:12px;" class="mono">${fmtInt(soldQty)} قطعة</strong>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } catch (err) {
+            cardEl.innerHTML = `<div class="alert alert-red" style="font-size:11px;">فشل تعبئة بطاقة معلومات الجرد: ${err.message}</div>`;
+        }
+    }
+
+    async function openAddInventoryModal() {
         if (!detailState.productId) return;
         const m = document.getElementById('pcAddInventoryModal');
         if (!m) return;
@@ -1059,6 +1155,12 @@ window.ProductControlUI = (function() {
         document.getElementById('pcInvNotes').value = '';
 
         m.classList.add('open');
+
+        await loadInvModalContextCard(detailState.productId);
+    }
+
+    async function onInvDurationChange(variantId) {
+        await loadInvModalContextCard(variantId);
     }
 
     function closeAddInventoryModal() {
@@ -1070,6 +1172,7 @@ window.ProductControlUI = (function() {
         const actualQty = parseInt(document.getElementById('pcInvActualQty').value);
         const countedAt = document.getElementById('pcInvCountedAt').value;
         const notes = document.getElementById('pcInvNotes').value.trim();
+        const targetId = invModalState.targetProductId || detailState.productId;
 
         if (isNaN(actualQty) || actualQty < 0) {
             if (window.toast) window.toast('يرجى تقديم كمية فعلية صالحة والجرد لا يكون بالسالب.', 'warn');
@@ -1081,7 +1184,7 @@ window.ProductControlUI = (function() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    product_id: detailState.productId,
+                    product_id: targetId,
                     actual_qty: actualQty,
                     counted_at: countedAt,
                     notes: notes
@@ -1093,8 +1196,12 @@ window.ProductControlUI = (function() {
             if (window.toast) window.toast('تم تسجيل عملية الجرد بنجاح!', 'ok');
             closeAddInventoryModal();
 
-            // Refresh Product Details & Lists
-            await loadProductDetail();
+            // Refresh Product / Family Details & Lists
+            if (detailState.isFamily) {
+                await loadFamilyDetail();
+            } else {
+                await loadProductDetail();
+            }
             await loadProductsList(listState.page);
         } catch (err) {
             // Handled in handleApiResponse
@@ -1386,6 +1493,7 @@ window.ProductControlUI = (function() {
         loadTabTimeline,
         openAddInventoryModal,
         closeAddInventoryModal,
+        onInvDurationChange,
         submitAddInventory,
         openAddPurchaseModal,
         closeAddPurchaseModal,

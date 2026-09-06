@@ -331,6 +331,26 @@ const ProductControlRepository = {
         return row ? parseInt(row.total_qty, 10) : 0;
     },
 
+    getMovementsSummaryUpToDate: async (productId, upToDate = null) => {
+        let sql = `
+            SELECT 
+                COALESCE(SUM(CASE WHEN movement_type = 'PURCHASE' THEN quantity ELSE 0 END), 0) AS total_purchased,
+                COALESCE(SUM(CASE WHEN movement_type IN ('SALE', 'RETURN') THEN ABS(quantity) ELSE 0 END), 0) AS total_sold
+            FROM product_stock_movements
+            WHERE product_id = ?
+        `;
+        let params = [productId];
+        if (upToDate) {
+            sql += ` AND datetime(movement_at) <= datetime(?)`;
+            params.push(upToDate);
+        }
+        const row = await getSql(sql, params);
+        return {
+            total_purchased: row ? parseInt(row.total_purchased, 10) : 0,
+            total_sold: row ? parseInt(row.total_sold, 10) : 0
+        };
+    },
+
     // --- Inventory Count Repository Methods ---
     createInventoryCount: async (data) => {
         const {

@@ -91,9 +91,38 @@ const ProductControlService = {
 
         const isCostAvailable = product.cost_halalas > 0 || (purchases && purchases.length > 0);
 
+        const overallMovements = await ProductControlRepository.getMovementsSummaryUpToDate(productId);
+
+        const getArabicDurationLabel = (code) => {
+            switch (String(code || '').toUpperCase()) {
+                case 'MONTHLY': return 'شهري';
+                case 'THREE_MONTHS': return '3 أشهر';
+                case 'YEARLY': return 'سنة';
+                default: return 'منتج مستقل';
+            }
+        };
+
+        const durationCode = product.duration_code || 'STANDALONE';
+        const durationLabel = getArabicDurationLabel(product.duration_code);
+
+        const enrichedInventoryCounts = await Promise.all((inventoryCounts || []).map(async (count) => {
+            const summary = await ProductControlRepository.getMovementsSummaryUpToDate(productId, count.inventory_at);
+            return {
+                ...count,
+                duration_code: durationCode,
+                duration_label: durationLabel,
+                unit_cost_sar: isCostAvailable ? CurrencyUtil.halalasToSar(product.cost_halalas) : null,
+                purchased_qty_at_count: summary.total_purchased,
+                sold_qty_at_count: summary.total_sold,
+                variance_qty: count.variance
+            };
+        }));
+
         return {
             product: {
                 ...product,
+                duration_code: durationCode,
+                duration_label: durationLabel,
                 cost_sar: isCostAvailable ? CurrencyUtil.halalasToSar(product.cost_halalas) : null,
                 price_sar: CurrencyUtil.halalasToSar(product.price_halalas),
                 inventory_value_sar: isCostAvailable ? CurrencyUtil.halalasToSar(product.inventory_value_halalas) : null
@@ -109,6 +138,11 @@ const ProductControlService = {
                 expected_stock: expectedStock,
                 current_expected_stock: expectedStock,
                 actual_stock: product.quantity,
+                duration_code: durationCode,
+                duration_label: durationLabel,
+                unit_cost_sar: isCostAvailable ? CurrencyUtil.halalasToSar(product.cost_halalas) : null,
+                total_purchased_qty: overallMovements.total_purchased,
+                total_sold_qty: overallMovements.total_sold,
                 expected_stock_before_last_count: lastInventory ? lastInventory.expected_qty_at_count : null,
                 last_inventory_actual_qty: lastInventory ? lastInventory.actual_qty : null,
                 last_inventory_variance: lastInventory ? lastInventory.variance : null,
@@ -132,7 +166,7 @@ const ProductControlService = {
             },
             history: {
                 stock_movements: stockMovements,
-                inventory_counts: inventoryCounts,
+                inventory_counts: enrichedInventoryCounts,
                 purchases,
                 expense_allocations: expenseAllocations,
                 status_history: statusHistory,
