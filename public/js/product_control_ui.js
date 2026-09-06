@@ -44,6 +44,7 @@ window.ProductControlUI = (function() {
         if (amount === null || amount === undefined || isNaN(amount)) return null;
         return new Intl.NumberFormat('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ر.س';
     }
+    const fmtSar = fmtSAR;
 
     function fmtInt(num) {
         if (num === null || num === undefined || isNaN(num)) return '0';
@@ -820,7 +821,7 @@ window.ProductControlUI = (function() {
                     : `<span class="pill pill-red">${v > 0 ? '+' : ''}${v}</span>`;
 
                 const durLabel = inv.duration_label || (detailState.product ? detailState.product.duration_label : 'منتج مستقل');
-                const costDisplay = inv.unit_cost_sar != null ? `${fmtSar(inv.unit_cost_sar)} ر.س` : '—';
+                const costDisplay = inv.unit_cost_sar != null ? fmtSAR(inv.unit_cost_sar) : '—';
                 const purQty = inv.purchased_qty_at_count !== undefined ? inv.purchased_qty_at_count : '—';
                 const soldQty = inv.sold_qty_at_count !== undefined ? inv.sold_qty_at_count : '—';
 
@@ -1106,7 +1107,7 @@ window.ProductControlUI = (function() {
             }
 
             const durLabel = m.duration_label || p.duration_label || 'منتج مستقل';
-            const unitCost = m.unit_cost_sar != null ? `${fmtSar(m.unit_cost_sar)} ر.س` : (p.cost_sar != null ? `${fmtSar(p.cost_sar)} ر.س` : 'غير محدد');
+            const unitCost = m.unit_cost_sar != null ? fmtSAR(m.unit_cost_sar) : (p.cost_sar != null ? fmtSAR(p.cost_sar) : 'غير محدد');
             const expectedStock = m.expected_stock !== undefined ? m.expected_stock : (p.quantity || 0);
             const purchasedQty = m.total_purchased_qty !== undefined ? m.total_purchased_qty : 0;
             const soldQty = m.total_sold_qty !== undefined ? m.total_sold_qty : (m.sold_since_last_inventory || 0);
