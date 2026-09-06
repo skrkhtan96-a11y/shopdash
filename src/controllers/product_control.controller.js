@@ -371,6 +371,59 @@ const ProductControlController = {
         } catch (err) {
             next(err);
         }
+    },
+
+    getCatalog: async (req, res, next) => {
+        try {
+            const ProductFamilyService = require('../services/product_family.service');
+            const { search, status } = req.query;
+            const catalog = await ProductFamilyService.getCatalog({ search, status });
+            res.json({
+                success: true,
+                count: catalog.length,
+                data: catalog
+            });
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    getFamiliesOverview: async (req, res, next) => {
+        try {
+            const ProductFamilyService = require('../services/product_family.service');
+            const { search, status } = req.query;
+            const catalog = await ProductFamilyService.getCatalog({ search, status });
+            const families = catalog.filter(c => c.type === 'FAMILY');
+            res.json({
+                success: true,
+                count: families.length,
+                data: families
+            });
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    getFamilyDetails: async (req, res, next) => {
+        try {
+            const ProductFamilyService = require('../services/product_family.service');
+            const { familyId } = req.params;
+            const { duration = 'all', from = null, to = null, date_preset = null } = req.query;
+
+            const familyDetails = await ProductFamilyService.getFamilyDetails(familyId, {
+                duration,
+                from,
+                to,
+                date_preset
+            });
+
+            res.json({
+                success: true,
+                data: familyDetails
+            });
+        } catch (err) {
+            next(err);
+        }
     }
 };
 

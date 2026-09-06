@@ -20,7 +20,9 @@ const filesToDeploy = [
     'public/js/product_control_ui.js',
     'src/controllers/product_control.controller.js',
     'src/migrations/migration_v1_product_control.js',
+    'src/migrations/migration_v2_product_families.js',
     'src/repositories/product_control.repository.js',
+    'src/repositories/product_family.repository.js',
     'src/routes/product_control.routes.js',
     'src/routes/ads.routes.js',
     'src/routes/ai.routes.js',
@@ -31,6 +33,7 @@ const filesToDeploy = [
     'src/routes/system.routes.js',
     'src/middlewares/auth.js',
     'src/services/product_control.service.js',
+    'src/services/product_family.service.js',
     'src/services/sync.service.js',
     'src/services/salla.service.js',
     'src/services/facebook.service.js',
@@ -94,7 +97,8 @@ conn.on('ready', () => {
             // Run post-upload commands on VPS
             const postCommands = [
                 "cd /var/www/shopdashboard && npm install --production",
-                "cd /var/www/shopdashboard && node -e \"require('./src/migrations/migration_v1_product_control').runMigration(false).then(r=>console.log('VPS Migration:', r)).catch(e=>console.error(e))\"",
+                "cd /var/www/shopdashboard && node -e \"require('./src/migrations/migration_v1_product_control').runMigration(false).then(r=>console.log('VPS Migration v1:', r)).catch(e=>console.error(e))\"",
+                "cd /var/www/shopdashboard && node -e \"require('./src/migrations/migration_v2_product_families').runMigration(false).then(r=>console.log('VPS Migration v2:', r)).catch(e=>console.error(e))\"",
                 "cd /var/www/shopdashboard && node scripts/seed_plus_catalog.js",
                 "cd /var/www/shopdashboard && (pm2 restart shopdashboard --update-env || pm2 restart server --update-env || pm2 start server.js --name shopdashboard)",
                 "pm2 status",

@@ -140,7 +140,6 @@ window.ProductControlUI = (function() {
         const loadingEl = document.getElementById('pcTableLoading');
         const emptyEl = document.getElementById('pcTableEmpty');
         const errorEl = document.getElementById('pcTableError');
-        const paginationEl = document.getElementById('pcPagination');
 
         if (loadingEl) loadingEl.style.display = 'flex';
         if (tbody) tbody.style.display = 'none';
@@ -158,22 +157,20 @@ window.ProductControlUI = (function() {
         if (toEl) listState.to = toEl.value;
 
         try {
-            let url = `/api/product-control/products?page=${listState.page}&limit=${listState.limit}`;
-            if (listState.q) url += `&q=${encodeURIComponent(listState.q)}`;
-            if (listState.status && listState.status !== 'all') url += `&status=${encodeURIComponent(listState.status)}`;
-            if (listState.from) url += `&from=${encodeURIComponent(listState.from)}`;
-            if (listState.to) url += `&to=${encodeURIComponent(listState.to)}`;
+            let url = `/api/product-control/catalog`;
+            const params = [];
+            if (listState.q) params.push(`search=${encodeURIComponent(listState.q)}`);
+            if (listState.status && listState.status !== 'all') params.push(`status=${encodeURIComponent(listState.status)}`);
+            if (params.length > 0) url += `?${params.join('&')}`;
 
             const res = await fetch(url);
             const resData = await handleApiResponse(res);
 
             listState.data = resData.data || [];
-            listState.pagination = resData.pagination || { total: 0, count: 0, per_page: listState.limit, current_page: 1, total_pages: 1 };
             listState.loading = false;
 
             renderProductsListTable();
             renderProductsListKPIs();
-            renderProductsListPagination();
 
             if (loadingEl) loadingEl.style.display = 'none';
 
@@ -187,94 +184,106 @@ window.ProductControlUI = (function() {
             if (loadingEl) loadingEl.style.display = 'none';
             if (errorEl) {
                 errorEl.style.display = 'block';
-                errorEl.textContent = `فشل تحميل بيانات المنتجات: ${err.message}`;
+                errorEl.textContent = `فشل تحميل الكتالوج: ${err.message}`;
             }
         }
     }
 
     function renderProductsListKPIs() {
-        const totalProducts = listState.pagination.total || listState.data.length;
-        const needsInventory = listState.data.filter(p => p.status === 'needs_inventory').length;
-        const lowStock = listState.data.filter(p => p.status === 'low_stock' || p.status === 'out_of_stock').length;
-        const warnings = listState.data.filter(p => p.variance_warning).length;
+        const totalItems = listState.data.length;
+        const familiesCount = listState.data.filter(item => item.type === 'FAMILY').length;
+        const standalonesCount = listState.data.filter(item => item.type === 'STANDALONE').length;
 
         const kpiTotal = document.getElementById('pcKpiTotal');
         const kpiNeedsInv = document.getElementById('pcKpiNeedsInv');
         const kpiLowStock = document.getElementById('pcKpiLowStock');
         const kpiWarnings = document.getElementById('pcKpiWarnings');
 
-        if (kpiTotal) kpiTotal.textContent = fmtInt(totalProducts);
-        if (kpiNeedsInv) kpiNeedsInv.textContent = fmtInt(needsInventory);
-        if (kpiLowStock) kpiLowStock.textContent = fmtInt(lowStock);
-        if (kpiWarnings) kpiWarnings.textContent = fmtInt(warnings);
+        if (kpiTotal) kpiTotal.textContent = fmtInt(totalItems);
+        if (kpiNeedsInv) kpiNeedsInv.textContent = fmtInt(familiesCount) + ' عائلات';
+        if (kpiLowStock) kpiLowStock.textContent = fmtInt(standalonesCount) + ' مستقلة';
+        if (kpiWarnings) kpiWarnings.textContent = '0';
     }
 
     function renderProductsListTable() {
         const tbody = document.getElementById('pcTableBody');
         if (!tbody) return;
 
-        tbody.innerHTML = listState.data.map(p => {
-            const currentQty = fmtInt(p.current_stock_qty);
-            const expectedQty = fmtInt(p.expected_stock_qty);
-            const lastCount = p.last_inventory_count_at ? `${fmtInt(p.last_count_qty)} (${fmtDate(p.last_inventory_count_at)})` : '—';
-            const lastPurchase = p.last_purchase_at ? `${fmtInt(p.last_purchase_qty)} unit @ ${fmtSAR(p.last_purchase_unit_cost_sar) || '—'}` : '—';
-            const salesQty = fmtInt(p.sales_qty_since_last_purchase);
-            const totalSales = fmtSAR(p.total_sales_sar) || '0.00 ر.س';
-            const adExp = fmtSAR(p.allocated_ad_expense_sar) || '0.00 ر.س';
-            const otherExp = fmtSAR(p.allocated_other_expense_sar) || '0.00 ر.س';
+        tbody.innerHTML = listState.data.map(item => {
+            if (item.type === 'FAMILY') {
+                const totalStock = (item.variants || []).reduce((acc, v) => acc + (v.quantity || 0), 0);
+                const durationBadges = '<span class="pill pill-cyan">شهري</span> <span class="pill pill-cyan">3 أشهر</span> <span class="pill pill-cyan">سنوي</span>';
+                
+                return `
+                    <tr style="background: rgba(45, 125, 210, 0.04);">
+                        <td>
+                            <div style="font-weight:700; color:var(--accent); font-size:13.5px; display:flex; align-items:center; gap:6px;">
+                                <i class="ti ti-folders" style="font-size:16px;"></i> ${item.product_name}
+                            </div>
+                            <div style="font-size:10.5px; color:var(--text3); margin-top:2px;">عائلة منتجات تشمل 3 مدد اشتراك</div>
+                        </td>
+                        <td class="mono">
+                            <span style="font-weight:600;">${item.family_code || item.sku}</span><br>
+                            <div style="margin-top:2px;">${durationBadges}</div>
+                        </td>
+                        <td>${getStatusBadge(item.status)}</td>
+                        <td class="mono">
+                            <strong style="color:var(--accent); font-size:14px;">${fmtInt(totalStock)}</strong> <span style="font-size:10px; color:var(--text3);">(مجموع المدد)</span>
+                        </td>
+                        <td style="font-size:11px;">مقسم بالمدد</td>
+                        <td style="font-size:11px;">مقسم بالمدد</td>
+                        <td class="mono">—</td>
+                        <td class="mono green" style="font-weight:600;">تجميعي</td>
+                        <td class="mono red">—</td>
+                        <td class="mono red">—</td>
+                        <td><span class="pill pill-green"><i class="ti ti-check"></i> عائلة مفعلة</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="ProductControlUI.openFamilyDetail(${item.id})">
+                                <i class="ti ti-folders"></i> تفاصيل العائلة
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                // STANDALONE product
+                const currentQty = fmtInt(item.quantity);
+                const warningHtml = item.variance_warning 
+                    ? `<span class="pill pill-amber"><i class="ti ti-alert-triangle"></i> فارق</span>` 
+                    : `<span class="pill pill-green"><i class="ti ti-check"></i> مطابق</span>`;
 
-            const warningHtml = p.variance_warning 
-                ? `<span class="pill pill-amber" title="فارق مخزني: ${p.variance_qty}"><i class="ti ti-alert-triangle"></i> فارق (${p.variance_qty})</span>` 
-                : `<span class="pill pill-green"><i class="ti ti-check"></i> مطابق</span>`;
-
-            return `
-                <tr>
-                    <td>
-                        <div style="font-weight:600; color:var(--text);">${p.product_name || 'منتج مجهول'}</div>
-                        <div style="font-size:10px; color:var(--text3);">Salla ID: ${p.salla_product_id || '—'}</div>
-                    </td>
-                    <td class="mono">${p.sku || '<span style="color:var(--text3)">بدون SKU</span>'}</td>
-                    <td>${getStatusBadge(p.status)}</td>
-                    <td class="mono">
-                        <strong style="color:var(--accent);">${currentQty}</strong> / <span style="color:var(--text2);">${expectedQty}</span>
-                    </td>
-                    <td style="font-size:11px;">${lastCount}</td>
-                    <td style="font-size:11px;">${lastPurchase}</td>
-                    <td class="mono">${salesQty}</td>
-                    <td class="mono green" style="font-weight:600;">${totalSales}</td>
-                    <td class="mono red">${adExp}</td>
-                    <td class="mono red">${otherExp}</td>
-                    <td>${warningHtml}</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="ProductControlUI.openProductDetail(${p.id})">
-                            <i class="ti ti-eye"></i> التفاصيل
-                        </button>
-                    </td>
-                </tr>
-            `;
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight:600; color:var(--text);">${item.product_name || 'منتج مستقل'}</div>
+                            <div style="font-size:10px; color:var(--text3);">منتج مستقل (Standalone)</div>
+                        </td>
+                        <td class="mono">${item.sku || '<span style="color:var(--text3)">بدون SKU</span>'}</td>
+                        <td>${getStatusBadge(item.current_control_status || item.status)}</td>
+                        <td class="mono">
+                            <strong style="color:var(--text);">${currentQty}</strong>
+                        </td>
+                        <td style="font-size:11px;">${item.last_inventory_count_at ? fmtDate(item.last_inventory_count_at) : '—'}</td>
+                        <td style="font-size:11px;">${item.last_purchase_at ? fmtDate(item.last_purchase_at) : '—'}</td>
+                        <td class="mono">${fmtInt(item.sales_qty_since_last_purchase || 0)}</td>
+                        <td class="mono green" style="font-weight:600;">${fmtSAR(item.price_sar) || '—'}</td>
+                        <td class="mono red">—</td>
+                        <td class="mono red">—</td>
+                        <td>${warningHtml}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="ProductControlUI.openProductDetail(${item.id})">
+                                <i class="ti ti-eye"></i> التفاصيل
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }
         }).join('');
     }
 
     function renderProductsListPagination() {
         const el = document.getElementById('pcPagination');
         if (!el) return;
-
-        const p = listState.pagination;
-        if (!p || p.total_pages <= 1) {
-            el.style.display = 'none';
-            return;
-        }
-        el.style.display = 'flex';
-
-        el.innerHTML = `
-            <button class="btn btn-sm btn-outline-secondary" ${p.current_page <= 1 ? 'disabled' : ''} onclick="ProductControlUI.loadProductsList(${p.current_page - 1})">
-                <i class="ti ti-chevron-right"></i> السابق
-            </button>
-            <span style="font-size:12px; color:var(--text2);">صفحة ${p.current_page} من ${p.total_pages} (إجمالي ${p.total} منتج)</span>
-            <button class="btn btn-sm btn-outline-secondary" ${p.current_page >= p.total_pages ? 'disabled' : ''} onclick="ProductControlUI.loadProductsList(${p.current_page + 1})">
-                التالي <i class="ti ti-chevron-left"></i>
-            </button>
-        `;
+        el.style.display = 'none';
     }
 
     function setListShortcut(shortcut) {
@@ -300,12 +309,167 @@ window.ProductControlUI = (function() {
     }
 
     // =========================================================================
-    // PAGE 2: PRODUCT DETAIL DASHBOARD (#page-product-control-detail)
+    // PAGE 2: PRODUCT DETAIL DASHBOARD & FAMILY DASHBOARD (#page-product-control-detail)
     // =========================================================================
 
+    async function openFamilyDetail(familyId, duration = 'all') {
+        detailState.isFamily = true;
+        detailState.familyId = familyId;
+        detailState.duration = duration || 'all';
+        detailState.activeTab = 'overview';
+        if (window.nav) window.nav('product-control-detail');
+        await loadFamilyDetail();
+    }
+
+    async function selectFamilyDuration(durationCode) {
+        detailState.duration = durationCode;
+        loadFamilyDetail();
+    }
+
+    async function loadFamilyDetail() {
+        detailState.loading = true;
+
+        const loadingEl = document.getElementById('pcdLoading');
+        const contentEl = document.getElementById('pcdContent');
+        if (loadingEl) loadingEl.style.display = 'flex';
+        if (contentEl) contentEl.style.display = 'none';
+
+        try {
+            let url = `/api/product-control/families/${detailState.familyId}/details?duration=${detailState.duration}`;
+            if (detailState.from) url += `&from=${encodeURIComponent(detailState.from)}`;
+            if (detailState.to) url += `&to=${encodeURIComponent(detailState.to)}`;
+
+            const res = await fetch(url);
+            const resData = await handleApiResponse(res);
+            const data = resData.data;
+
+            detailState.familyData = data;
+            detailState.loading = false;
+
+            renderFamilyDetailHeader(data);
+
+            if (data.selected_duration === 'ALL') {
+                renderFamilyDetailAggregatedMetrics(data);
+            } else if (data.selected_variant) {
+                detailState.productId = data.selected_variant.variant_id;
+                detailState.productData = data.selected_variant.detail;
+                detailState.product = data.selected_variant.detail.product;
+
+                const breakSec = document.getElementById('pcdDurationBreakdownSection');
+                if (breakSec) breakSec.style.display = 'none';
+
+                renderProductDetailOverviewKPIs();
+            }
+
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+
+            switchTab(detailState.activeTab);
+        } catch (err) {
+            detailState.loading = false;
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (window.toast) window.toast(`فشل جلب تفاصيل العائلة: ${err.message}`, 'err');
+        }
+    }
+
+    function renderFamilyDetailHeader(data) {
+        const f = data.family || {};
+        const titleEl = document.getElementById('pcdTitle');
+        const skuEl = document.getElementById('pcdSku');
+        const sallaIdEl = document.getElementById('pcdSallaId');
+        const badgeEl = document.getElementById('pcdStatusBadge');
+        const durBar = document.getElementById('pcdDurationSelectorBar');
+
+        if (titleEl) titleEl.textContent = f.family_name || 'عائلة المنتجات';
+        if (skuEl) skuEl.textContent = `رمز العائلة: ${f.family_code || '—'}`;
+        if (sallaIdEl) sallaIdEl.textContent = `منصة: ${f.platform} | باقة: ${f.tier}`;
+        if (badgeEl) badgeEl.innerHTML = getStatusBadge(f.status || 'normal');
+
+        if (durBar) {
+            durBar.style.display = 'flex';
+            const buttons = durBar.querySelectorAll('.pcd-duration-btn');
+            const targetDur = (data.selected_duration || 'all').toLowerCase();
+            buttons.forEach(btn => {
+                if (btn.dataset.duration === targetDur) {
+                    btn.classList.add('active', 'btn-primary');
+                    btn.classList.remove('btn-outline-secondary');
+                } else {
+                    btn.classList.remove('active', 'btn-primary');
+                    btn.classList.add('btn-outline-secondary');
+                }
+            });
+        }
+    }
+
+    function renderFamilyDetailAggregatedMetrics(data) {
+        const m = data.summary_metrics || {};
+        const isIncomplete = m.is_incomplete_cogs;
+
+        const noticeEl = document.getElementById('pcdCogsNotice');
+        if (noticeEl) {
+            noticeEl.style.display = isIncomplete ? 'flex' : 'none';
+        }
+
+        const elExpectedStock = document.getElementById('pcdKpiExpectedStock');
+        const elLastInventory = document.getElementById('pcdKpiLastInventory');
+        const elVariance = document.getElementById('pcdKpiVariance');
+        const elLastPurchase = document.getElementById('pcdKpiLastPurchase');
+        const elSalesSincePurchase = document.getElementById('pcdKpiSalesSincePurchase');
+        const elSalesSinceInv = document.getElementById('pcdKpiSalesSinceInv');
+
+        if (elExpectedStock) elExpectedStock.textContent = `${fmtInt(m.total_stock)} قطعة (مجموع العائلة)`;
+        if (elLastInventory) elLastInventory.textContent = 'محدد بكل مدة';
+        if (elVariance) elVariance.innerHTML = '<span class="green"><i class="ti ti-check"></i> تفصيلي بالمدد</span>';
+        if (elLastPurchase) elLastPurchase.textContent = `${fmtSAR(m.total_purchases_sar)}`;
+        if (elSalesSincePurchase) elSalesSincePurchase.textContent = `${fmtInt(m.total_units_sold)} قطعة مباعة`;
+        if (elSalesSinceInv) elSalesSinceInv.textContent = `${fmtInt(m.total_units_sold)} قطعة`;
+
+        const elRevenue = document.getElementById('pcdKpiRevenue');
+        const elPurchases = document.getElementById('pcdKpiPurchases');
+        const elCogs = document.getElementById('pcdKpiCogs');
+        const elGrossProfit = document.getElementById('pcdKpiGrossProfit');
+        const elAdExpense = document.getElementById('pcdKpiAdExpense');
+        const elOtherExpense = document.getElementById('pcdKpiOtherExpense');
+        const elNetProfit = document.getElementById('pcdKpiNetProfit');
+
+        if (elRevenue) elRevenue.textContent = fmtSAR(m.total_revenue_sar) || '0.00 ر.س';
+        if (elPurchases) elPurchases.textContent = fmtSAR(m.total_purchases_sar) || '0.00 ر.س';
+        if (elCogs) elCogs.innerHTML = isIncomplete ? '<span class="text-amber">غير مكتمل</span>' : fmtSAR(m.total_cogs_sar);
+        if (elGrossProfit) elGrossProfit.innerHTML = isIncomplete ? '<span class="text-amber">غير مكتمل</span>' : fmtSAR(m.gross_profit_sar);
+        if (elAdExpense) elAdExpense.textContent = fmtSAR(m.advertising_expenses_sar) || '0.00 ر.س';
+        if (elOtherExpense) elOtherExpense.textContent = fmtSAR(m.other_expenses_sar) || '0.00 ر.س';
+        if (elNetProfit) elNetProfit.innerHTML = isIncomplete ? '<span class="text-amber">غير مكتمل</span>' : fmtSAR(m.net_profit_sar);
+
+        const breakSec = document.getElementById('pcdDurationBreakdownSection');
+        const breakBody = document.getElementById('pcdDurationBreakdownBody');
+        if (breakSec && breakBody) {
+            breakSec.style.display = 'block';
+            breakBody.innerHTML = (data.breakdown || []).map(b => `
+                <tr>
+                    <td><span class="pill pill-cyan">${b.duration_label}</span></td>
+                    <td style="font-weight:600;">${b.product_name}</td>
+                    <td class="mono"><strong>${fmtInt(b.stock)}</strong></td>
+                    <td class="mono">${fmtSAR(b.unit_cost_sar) || '—'}</td>
+                    <td class="mono">${fmtSAR(b.unit_price_sar) || '—'}</td>
+                    <td class="mono">${fmtInt(b.sold_count)}</td>
+                    <td class="mono green">${fmtSAR(b.revenue_sar)}</td>
+                    <td>${b.cogs_status === 'UNAVAILABLE' ? '<span class="pill pill-amber">غير موثق</span>' : '<span class="pill pill-green">مكتمل</span>'}</td>
+                    <td class="mono green" style="font-weight:600;">${b.cogs_status === 'UNAVAILABLE' ? '—' : fmtSAR(b.net_profit_sar)}</td>
+                    <td>${getStatusBadge(b.control_status)}</td>
+                </tr>
+            `).join('');
+        }
+    }
+
     async function openProductDetail(productId) {
+        detailState.isFamily = false;
         detailState.productId = productId;
         detailState.activeTab = 'overview';
+        const durBar = document.getElementById('pcdDurationSelectorBar');
+        if (durBar) durBar.style.display = 'none';
+        const breakSec = document.getElementById('pcdDurationBreakdownSection');
+        if (breakSec) breakSec.style.display = 'none';
+
         if (window.nav) window.nav('product-control-detail');
         await loadProductDetail();
     }
@@ -317,10 +481,14 @@ window.ProductControlUI = (function() {
                 detailState.productId = parseInt(storedId, 10);
             } else {
                 try {
-                    const resList = await fetch('/api/product-control/products?page=1&limit=1');
+                    const resList = await fetch('/api/product-control/catalog');
                     const listData = await handleApiResponse(resList);
                     const firstProd = listData.data && listData.data[0];
                     if (firstProd && firstProd.id) {
+                        if (firstProd.type === 'FAMILY') {
+                            openFamilyDetail(firstProd.id);
+                            return;
+                        }
                         detailState.productId = firstProd.id;
                     } else {
                         if (window.nav) window.nav('product-control');
@@ -362,7 +530,6 @@ window.ProductControlUI = (function() {
             if (loadingEl) loadingEl.style.display = 'none';
             if (contentEl) contentEl.style.display = 'block';
 
-            // Render current active tab
             switchTab(detailState.activeTab);
         } catch (err) {
             detailState.loading = false;
@@ -1206,6 +1373,8 @@ window.ProductControlUI = (function() {
     return {
         loadProductsList,
         setListShortcut,
+        openFamilyDetail,
+        selectFamilyDuration,
         openProductDetail,
         loadProductDetail,
         setDetailShortcut,

@@ -2269,6 +2269,19 @@
               </div>
             </div>
           </div>
+
+          <!-- Executive Duration Selector Bar for Product Families -->
+          <div id="pcdDurationSelectorBar" style="display:none; margin-top:12px; padding-top:10px; border-top:1px solid var(--border2); align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-size:12px; font-weight:700; color:var(--accent); display:flex; align-items:center; gap:6px;">
+              <i class="ti ti-clock" style="font-size:16px;"></i> تحديد مدة اشتراك العائلة:
+            </span>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-sm btn-primary pcd-duration-btn active" data-duration="all" onclick="ProductControlUI.selectFamilyDuration('all')">كل الفترات (جميع المدد)</button>
+              <button class="btn btn-sm btn-outline-secondary pcd-duration-btn" data-duration="monthly" onclick="ProductControlUI.selectFamilyDuration('monthly')">شهري</button>
+              <button class="btn btn-sm btn-outline-secondary pcd-duration-btn" data-duration="three_months" onclick="ProductControlUI.selectFamilyDuration('three_months')">3 أشهر</button>
+              <button class="btn btn-sm btn-outline-secondary pcd-duration-btn" data-duration="yearly" onclick="ProductControlUI.selectFamilyDuration('yearly')">سنوي</button>
+            </div>
+          </div>
         </div>
 
         <div id="pcdLoading" style="display:none; padding:40px; justify-content:center; align-items:center; color:var(--accent);">
@@ -2319,6 +2332,31 @@
 
           <!-- TAB 1: OVERVIEW -->
           <div id="pcdTab_overview" class="pcd-tab-content" style="display:block;">
+            <!-- Duration Breakdown Section (Visible in Family All Mode) -->
+            <div id="pcdDurationBreakdownSection" style="display:none; margin-bottom:14px;">
+              <div class="tbl-wrap" style="padding:16px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
+                <h4 style="margin-bottom:12px; color:var(--text); font-size:14px; font-weight:700;"><i class="ti ti-table" style="color:var(--accent)"></i> تفكيك وتحليل المدد لعائلة المنتج (Duration Variants Breakdown)</h4>
+                <div class="tbl-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>المدة</th>
+                        <th>اسم المتغير الأصلي</th>
+                        <th>المخزون الحالي</th>
+                        <th>تكلفة الوحدة</th>
+                        <th>سعر البيع</th>
+                        <th>الكمية المباعة</th>
+                        <th>الإيرادات</th>
+                        <th>حالة COGS</th>
+                        <th>صافي الربح</th>
+                        <th>حالة التحكم</th>
+                      </tr>
+                    </thead>
+                    <tbody id="pcdDurationBreakdownBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
             <div class="tbl-wrap" style="padding:16px; background:rgba(17, 21, 32, 0.6); border:1px solid var(--border)">
               <h4 style="margin-bottom:12px; color:var(--text); font-size:14px;"><i class="ti ti-info-circle" style="color:var(--accent)"></i> ملخص الجاهزية والبطاقات التحليلية للمنتج</h4>
               <p style="font-size:12px; color:var(--text2); line-height:1.6;">

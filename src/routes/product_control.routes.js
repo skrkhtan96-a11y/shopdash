@@ -19,6 +19,12 @@ const requireWritePermission = (req, res, next) => {
 // All Product Control routes require authenticated user
 router.use(authenticateUser);
 
+// 0. Unified Catalog & Family Routes
+router.get('/catalog', ProductControlController.getCatalog);
+router.get('/families', ProductControlController.getFamiliesOverview);
+router.get('/families/:familyId/details', ProductControlController.getFamilyDetails);
+router.get('/families/:familyId', ProductControlController.getFamilyDetails);
+
 // 1. Overview & Details
 router.get('/products', ProductControlController.getProductsOverview);
 router.post('/products', requireWritePermission, ProductControlController.createProduct);
