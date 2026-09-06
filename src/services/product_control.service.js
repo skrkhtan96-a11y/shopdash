@@ -1,4 +1,5 @@
 const ProductControlRepository = require('../repositories/product_control.repository');
+const ProductFamilyRepository = require('../repositories/product_family.repository');
 const CurrencyUtil = require('../utils/currency');
 
 const ProductControlService = {
@@ -105,6 +106,26 @@ const ProductControlService = {
         const durationCode = product.duration_code || 'STANDALONE';
         const durationLabel = getArabicDurationLabel(product.duration_code);
 
+        let family = null;
+        let familyVariants = [];
+        if (product.family_id) {
+            try {
+                family = await ProductFamilyRepository.getFamilyById(product.family_id);
+                const rawVariants = await ProductFamilyRepository.getFamilyVariants(product.family_id);
+                familyVariants = (rawVariants || []).map(v => ({
+                    id: v.id,
+                    duration_code: v.duration_code || 'STANDALONE',
+                    duration_label: getArabicDurationLabel(v.duration_code),
+                    product_name: v.product_name,
+                    sku: v.sku,
+                    quantity: v.quantity,
+                    cost_sar: CurrencyUtil.halalasToSar(v.cost_halalas)
+                }));
+            } catch (e) {
+                // Ignore family fetch errors if any
+            }
+        }
+
         const enrichedInventoryCounts = await Promise.all((inventoryCounts || []).map(async (count) => {
             const summary = await ProductControlRepository.getMovementsSummaryUpToDate(productId, count.inventory_at);
             return {
@@ -127,6 +148,8 @@ const ProductControlService = {
                 price_sar: CurrencyUtil.halalasToSar(product.price_halalas),
                 inventory_value_sar: isCostAvailable ? CurrencyUtil.halalasToSar(product.inventory_value_halalas) : null
             },
+            family: family,
+            family_variants: familyVariants,
             cogs_status: isCostAvailable ? 'AVAILABLE' : 'UNAVAILABLE',
             unit_cogs_halalas: isCostAvailable ? product.cost_halalas : null,
             unit_cogs_sar: isCostAvailable ? CurrencyUtil.halalasToSar(product.cost_halalas) : null,

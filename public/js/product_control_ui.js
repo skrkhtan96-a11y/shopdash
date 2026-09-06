@@ -1067,7 +1067,7 @@ window.ProductControlUI = (function() {
 
         cardEl.innerHTML = `
             <div style="padding:12px; background:rgba(30,41,59,0.5); border:1px solid var(--border); border-radius:8px; text-align:center; font-size:11px; color:var(--text2);">
-                <i class="ti ti-reload spinner" style="color:var(--accent);"></i> جاري جلب بيانات الجرد للمنتج...
+                <i class="ti ti-reload spinner" style="color:var(--accent);"></i> جاري جلب بيانات الحركة والجرد للمنتج...
             </div>
         `;
 
@@ -1076,67 +1076,80 @@ window.ProductControlUI = (function() {
             const data = await handleApiResponse(res);
             const p = data.product || {};
             const m = data.metrics || {};
+            const familyVariants = data.family_variants || (detailState.familyData ? detailState.familyData.variants_list : []);
 
-            // Duration Selector if viewing a Family
+            // Duration Selector Pills if part of a Family
             let durationSelectorHtml = '';
-            if (detailState.isFamily && detailState.familyData) {
-                const fData = detailState.familyData;
-                const variants = fData.variants_list || [];
-                if (variants.length > 0) {
-                    const btns = variants.map(v => {
-                        const isSel = v.id === productId;
-                        const label = v.duration_code === 'MONTHLY' ? 'شهري'
-                                    : v.duration_code === 'THREE_MONTHS' ? '3 أشهر'
-                                    : v.duration_code === 'YEARLY' ? 'سنة' : 'مستقل';
-                        return `
-                            <button type="button" class="btn btn-xs ${isSel ? 'btn-primary' : 'btn-outline-secondary'}" 
-                                onclick="ProductControlUI.onInvDurationChange(${v.id})" 
-                                style="font-weight:${isSel ? '700' : '500'}; min-width:65px; border-radius:4px;">
-                                ⚡ ${label}
-                            </button>
-                        `;
-                    }).join(' ');
-
-                    durationSelectorHtml = `
-                        <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
-                            <span style="font-size:11px; color:var(--text2); font-weight:600;">اختيار فترة الباقة:</span>
-                            <div style="display:flex; gap:6px;">${btns}</div>
-                        </div>
+            if (familyVariants && familyVariants.length > 0) {
+                const btns = familyVariants.map(v => {
+                    const isSel = v.id === productId;
+                    const label = v.duration_label || (v.duration_code === 'MONTHLY' ? 'شهري'
+                                : v.duration_code === 'THREE_MONTHS' ? '3 أشهر'
+                                : v.duration_code === 'YEARLY' ? 'سنة' : 'مستقل');
+                    return `
+                        <button type="button" class="btn btn-xs ${isSel ? 'btn-primary' : 'btn-outline-secondary'}" 
+                            onclick="ProductControlUI.onInvDurationChange(${v.id})" 
+                            style="font-weight:${isSel ? '700' : '500'}; min-width:70px; border-radius:4px; transition:all 0.2s;">
+                            ⚡ ${label}
+                        </button>
                     `;
-                }
+                }).join(' ');
+
+                durationSelectorHtml = `
+                    <div style="margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                        <span style="font-size:11px; color:var(--text2); font-weight:600;"><i class="ti ti-clock" style="color:var(--accent);"></i> اختيار فترة الباقة للجرد:</span>
+                        <div style="display:flex; gap:6px;">${btns}</div>
+                    </div>
+                `;
             }
 
             const durLabel = m.duration_label || p.duration_label || 'منتج مستقل';
             const unitCost = m.unit_cost_sar != null ? fmtSAR(m.unit_cost_sar) : (p.cost_sar != null ? fmtSAR(p.cost_sar) : 'غير محدد');
             const expectedStock = m.expected_stock !== undefined ? m.expected_stock : (p.quantity || 0);
-            const purchasedQty = m.total_purchased_qty !== undefined ? m.total_purchased_qty : 0;
-            const soldQty = m.total_sold_qty !== undefined ? m.total_sold_qty : (m.sold_since_last_inventory || 0);
+            const purchasesSinceInv = m.purchases_since_last_inventory !== undefined ? m.purchases_since_last_inventory : 0;
+            const totalPurchased = m.total_purchased_qty !== undefined ? m.total_purchased_qty : 0;
+            const soldSincePur = m.sold_since_last_purchase !== undefined ? m.sold_since_last_purchase : 0;
+            const soldSinceInv = m.sold_since_last_inventory !== undefined ? m.sold_since_last_inventory : 0;
+            const lastInvText = m.last_inventory ? fmtDate(m.last_inventory.inventory_at) : 'لا يوجد جرد سابق';
 
             cardEl.innerHTML = `
-                <div style="background:rgba(17,24,39,0.7); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:11.5px;">
+                <div style="background:rgba(17,24,39,0.75); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:11.5px;">
                     ${durationSelectorHtml}
+                    
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:6px;">
-                        <span style="font-weight:700; color:var(--text); font-size:12px;">
+                        <span style="font-weight:700; color:var(--text); font-size:12.5px;">
                             <i class="ti ti-box" style="color:var(--accent);"></i> ${p.product_name || 'المنتج المحدد'}
                         </span>
-                        <span class="pill pill-blue" style="font-size:10px;">${durLabel}</span>
+                        <span class="pill pill-blue" style="font-size:10px; font-weight:600;">${durLabel}</span>
                     </div>
-                    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px;">
+
+                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px;">
                         <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
-                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">💰 مبلغ الشراء / WAC:</span>
-                            <strong style="color:var(--text); font-size:12px;" class="mono">${unitCost}</strong>
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">💰 تكلفة WAC:</span>
+                            <strong style="color:var(--text); font-size:11.5px;" class="mono">${unitCost}</strong>
                         </div>
                         <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
-                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">📦 الكمية المتبقية (المتوقعة):</span>
-                            <strong style="color:var(--accent); font-size:12px;" class="mono">${fmtInt(expectedStock)} قطعة</strong>
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">📅 آخر جرد سابق:</span>
+                            <strong style="color:var(--text); font-size:10.5px;">${lastInvText}</strong>
                         </div>
                         <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
-                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">🚚 إجمالي الكمية المشتراة:</span>
-                            <strong style="color:var(--text); font-size:12px;" class="mono">${fmtInt(purchasedQty)} قطعة</strong>
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">🚚 المشتريات السابقة:</span>
+                            <strong style="color:var(--text); font-size:11.5px;" class="mono">${fmtInt(purchasesSinceInv)} قطعة <span style="font-size:9px; color:var(--text3);">(إجمالي: ${fmtInt(totalPurchased)})</span></strong>
                         </div>
                         <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
-                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">🛒 المباع حتى وقت الجرد:</span>
-                            <strong style="color:var(--text); font-size:12px;" class="mono">${fmtInt(soldQty)} قطعة</strong>
+                            <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">🛒 المباع منذ آخر شراء/جرد:</span>
+                            <strong style="color:var(--text); font-size:11.5px;" class="mono">${fmtInt(soldSincePur || soldSinceInv)} قطعة</strong>
+                        </div>
+                        <div style="background:var(--bg3); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); grid-column: span 2;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <span style="color:var(--text2); display:block; font-size:10px; margin-bottom:2px;">📦 الرصيد الحسابي المتوقع:</span>
+                                    <strong style="color:var(--accent); font-size:12.5px;" class="mono">${fmtInt(expectedStock)} قطعة</strong>
+                                </div>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="document.getElementById('pcInvActualQty').value = '${expectedStock}';" style="font-size:10px; padding:3px 8px; border-radius:4px;">
+                                    ⚡ استخدام هذا الرصيد
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
