@@ -44,7 +44,8 @@ const filesToDeploy = [
     'scripts/prod_post_deployment_smoke_test.js',
     'scripts/prod_release_gate_checker.js',
     'scripts/prod_run_migration.js',
-    'scripts/prod_salla_orders_analysis.js'
+    'scripts/prod_salla_orders_analysis.js',
+    'scripts/seed_plus_catalog.js'
 ];
 
 const conn = new Client();
@@ -94,6 +95,7 @@ conn.on('ready', () => {
             const postCommands = [
                 "cd /var/www/shopdashboard && npm install --production",
                 "cd /var/www/shopdashboard && node -e \"require('./src/migrations/migration_v1_product_control').runMigration(false).then(r=>console.log('VPS Migration:', r)).catch(e=>console.error(e))\"",
+                "cd /var/www/shopdashboard && node scripts/seed_plus_catalog.js",
                 "cd /var/www/shopdashboard && (pm2 restart shopdashboard --update-env || pm2 restart server --update-env || pm2 start server.js --name shopdashboard)",
                 "pm2 status",
                 "curl -I -s http://localhost:3000/ | head -n 5"
