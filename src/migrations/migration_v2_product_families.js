@@ -133,30 +133,21 @@ async function runMigration(forceRebuild = false) {
             }
         }
 
-        // Manifest Validation & Linkage
+        // Manifest Validation & Linkage by Exact Product Name Match
         for (const v of VARIANT_MANIFEST) {
-            const prod = await getSql("SELECT id, product_name FROM inventory_products WHERE id = ?", [v.id]);
+            const prod = await getSql("SELECT id, product_name FROM inventory_products WHERE TRIM(product_name) = TRIM(?)", [v.expected_name]);
             if (!prod) {
-                // If variant ID not found, match by exact name
-                const byName = await getSql("SELECT id, product_name FROM inventory_products WHERE TRIM(product_name) = TRIM(?)", [v.expected_name]);
-                if (byName) {
-                    const famId = familyIdMap[v.family_code];
-                    if (famId) {
-                        await runSql("UPDATE inventory_products SET family_id = ?, duration_code = ? WHERE id = ?", [famId, v.duration_code, byName.id]);
-                    }
-                }
-            } else {
-                // Verify exact name match
-                if (prod.product_name.trim() !== v.expected_name.trim()) {
-                    console.error(`[Migration v2 ABORT] Manifest mismatch for ID=${v.id}. DB name: "${prod.product_name}", expected: "${v.expected_name}". Rolling back!`);
-                    await runSql("ROLLBACK;");
-                    throw new Error(`Migration v2 Manifest Mismatch on ID ${v.id}`);
-                }
-                const famId = familyIdMap[v.family_code];
-                if (famId) {
-                    await runSql("UPDATE inventory_products SET family_id = ?, duration_code = ? WHERE id = ?", [famId, v.duration_code, v.id]);
-                }
+                console.error(`[Migration v2 ABORT] Expected variant product name "${v.expected_name}" not found in inventory_products. Rolling back!`);
+                await runSql("ROLLBACK;");
+                throw new Error(`Migration v2 Variant Not Found: "${v.expected_name}"`);
             }
+
+            const famId = familyIdMap[v.family_code];
+            if (!famId) {
+                throw new Error(`Family ID not found for code: ${v.family_code}`);
+            }
+
+            await runSql("UPDATE inventory_products SET family_id = ?, duration_code = ? WHERE id = ?", [famId, v.duration_code, prod.id]);
         }
 
         await runSql("COMMIT;");
@@ -176,9 +167,9 @@ async function runMigration(forceRebuild = false) {
 
         // PRAGMA checks
         const integrity = await getSql("PRAGMA integrity_check;");
-        const fkCheck = await allSql("PRAGMA foreign_key_check;");
+        const fkCheck = await allSql("PRAGMA foreign_key_check(inventory_products);");
         if (integrity.integrity_check !== 'ok' || fkCheck.length > 0) {
-            throw new Error(`Integrity check failed post migration: ${JSON.stringify(integrity)}, FK violations: ${fkCheck.length}`);
+            throw new Error(`Integrity check failed post migration: ${JSON.stringify(integrity)}, FK violations on inventory_products: ${fkCheck.length}`);
         }
 
         await runSql("INSERT OR REPLACE INTO schema_version (version, name) VALUES (2, 'v2_product_family_duration_variants');");
