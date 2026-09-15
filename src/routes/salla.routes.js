@@ -6,6 +6,7 @@ const db = require('../config/db');
 const ConfigRepository = require('../repositories/config.repository');
 const SallaService = require('../services/salla.service');
 const { authenticateUser, requireRole } = require('../middlewares/auth');
+const { extractSallaTimestamp } = require('../utils/salla_timestamp');
 
 const SALLA_AUTH_URL = 'https://accounts.salla.sa/oauth2/auth';
 const SALLA_TOKEN_URL = 'https://accounts.salla.sa/oauth2/token';
@@ -16,6 +17,49 @@ function hasRealSallaCredentials() {
            process.env.SALLA_CLIENT_ID !== 'PLACEHOLDER_CLIENT_ID' &&
            process.env.SALLA_CLIENT_SECRET && 
            process.env.SALLA_CLIENT_SECRET !== 'PLACEHOLDER_CLIENT_SECRET';
+}
+
+// Promisified db.run — resolves to the statement result (this.changes / this.lastID available on it).
+function dbRunAsync(sql, params) {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, function (err) {
+            if (err) reject(err);
+            else resolve(this);
+        });
+    });
+}
+
+// Atomically inserts a new order row, or updates an existing one by reference_id — but ONLY if the
+// incoming externalUpdatedAt is at least as new as what's already stored. This makes the write both
+// idempotent (re-delivering the same webhook is a no-op change-wise) and safe against out-of-order
+// delivery (an older event can never clobber a newer state already saved).
+// Returns the number of rows changed (0 means the write was rejected as stale).
+async function upsertSallaOrderRow(order) {
+    const result = await dbRunAsync(`
+        INSERT INTO salla_imported_orders
+            (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity, customer_phone, external_updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(reference_id) DO UPDATE SET
+            date = excluded.date,
+            status_slug = excluded.status_slug,
+            status_name = excluded.status_name,
+            payment_method = excluded.payment_method,
+            amount = excluded.amount,
+            customer_name = excluded.customer_name,
+            product_name = excluded.product_name,
+            product_thumbnail = excluded.product_thumbnail,
+            quantity = excluded.quantity,
+            customer_phone = excluded.customer_phone,
+            external_updated_at = excluded.external_updated_at
+        WHERE excluded.external_updated_at IS NULL
+           OR salla_imported_orders.external_updated_at IS NULL
+           OR excluded.external_updated_at >= salla_imported_orders.external_updated_at
+    `, [
+        order.referenceId, order.date, order.statusSlug, order.statusName, order.paymentMethod,
+        order.amount, order.customerName, order.productName, order.productThumbnail,
+        order.quantity, order.customerPhone, order.externalUpdatedAt
+    ]);
+    return result.changes;
 }
 
 // 1. Salla OAuth auth redirect (mounted at /auth in server.js but we will handle it)
@@ -610,8 +654,18 @@ router.post('/webhook', async (req, res) => {
         }
 
         if (['order.created', 'order.updated', 'order.status.updated'].includes(eventName) && payload.data) {
-            const o = payload.data;
-            const refId = String(o.reference_id);
+            // "order.status.updated" wraps the real order under payload.data.order (payload.data itself
+            // is an activity/log record: {id, status: "<localized name string>", customized, note, order: {...}}).
+            // "order.created"/"order.updated" send the order object directly as payload.data.
+            // Proven from production webhook payloads (salla_webhook_logs ids 18291-18295).
+            const o = (payload.data && payload.data.order) ? payload.data.order : payload.data;
+            const refId = o && o.reference_id != null ? String(o.reference_id) : null;
+
+            if (!refId) {
+                console.error(`[SallaWebhook] ${eventName}: no reference_id found in payload (order/data missing). Skipping.`);
+                return res.json({ success: true, message: 'No reference_id found, skipped.' });
+            }
+
             let dateStr = new Date().toISOString().substring(0, 10);
             const rawDate = o.date || o.created_at;
             if (rawDate) {
@@ -626,22 +680,21 @@ router.post('/webhook', async (req, res) => {
             const statusSlug = o.status?.slug || 'completed';
             const statusName = o.status?.name || 'تم التنفيذ';
             const paymentMethod = o.payment_method || 'mada';
-            const amount = parseFloat(o.total?.amount || 0);
+            // Salla order payloads have no top-level "total" field; the real total lives under "amounts.total".
+            const amount = parseFloat(o.total?.amount ?? o.amounts?.total?.amount ?? 0);
             const customerName = o.customer ? `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim() : 'عميل خارجي';
             const customerPhone = o.customer ? (o.customer.mobile || o.customer.phone || '') : '';
-            
+            // Salla's own "order last updated" timestamp — used to reject an out-of-order/older webhook
+            // from overwriting a newer state already saved (events are not guaranteed to arrive in order).
+            const externalUpdatedAt = extractSallaTimestamp(o.updated_at);
+
             const items = o.items || [];
-            
-            db.serialize(() => {
-                db.run("DELETE FROM salla_imported_orders WHERE reference_id = ? OR reference_id LIKE ?", [refId, refId + '_%']);
-                
+
+            try {
+                const rowChanges = [];
                 if (items.length > 0) {
-                    const stmt = db.prepare(`
-                        INSERT INTO salla_imported_orders 
-                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity, customer_phone) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `);
-                    items.forEach(item => {
+                    for (let idx = 0; idx < items.length; idx++) {
+                        const item = items[idx];
                         let prodName = item.name || 'منتج مستورد';
                         if (item.options && Array.isArray(item.options) && item.options.length > 0) {
                             const opts = item.options.map(opt => opt.value || opt.name).filter(v => v).join(' - ');
@@ -651,44 +704,67 @@ router.post('/webhook', async (req, res) => {
                         }
                         const thumbnail = item.thumbnail || '';
                         const qty = parseInt(item.quantity) || 1;
-                        
-                        stmt.run([
-                            refId + '_' + (item.id || item.product_id || Math.floor(Math.random() * 100000)),
-                            dateStr,
+                        // Deterministic key (not random) so the same item always maps to the same row on re-delivery.
+                        const itemKey = refId + '_' + (item.id || item.product_id || ('idx' + idx));
+
+                        const changes = await upsertSallaOrderRow({
+                            referenceId: itemKey,
+                            date: dateStr,
                             statusSlug,
                             statusName,
                             paymentMethod,
-                            amount / items.length,
+                            amount: amount / items.length,
                             customerName,
-                            prodName,
-                            thumbnail,
-                            qty,
-                            customerPhone
-                        ]);
-                    });
-                    stmt.finalize();
+                            productName: prodName,
+                            productThumbnail: thumbnail,
+                            quantity: qty,
+                            customerPhone,
+                            externalUpdatedAt
+                        });
+                        rowChanges.push({ key: itemKey, changes });
+                    }
+
+                    const accepted = rowChanges.some(r => r.changes > 0);
+                    if (accepted) {
+                        const currentKeys = rowChanges.map(r => r.key);
+                        const placeholders = currentKeys.map(() => '?').join(',');
+                        await dbRunAsync(
+                            `DELETE FROM salla_imported_orders WHERE (reference_id = ? OR reference_id LIKE ?) AND reference_id NOT IN (${placeholders})`,
+                            [refId, refId + '_%', ...currentKeys]
+                        );
+                        console.log(`[SallaWebhook] Processed order ${refId} successfully (${eventName}, status=${statusSlug}).`);
+                    } else {
+                        console.log(`[SallaWebhook] Ignored stale ${eventName} for order ${refId}: a newer update is already stored.`);
+                    }
                 } else {
-                    db.run(`
-                        INSERT INTO salla_imported_orders 
-                        (reference_id, date, status_slug, status_name, payment_method, amount, customer_name, product_name, product_thumbnail, quantity, customer_phone) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `, [
-                        refId,
-                        dateStr,
+                    const changes = await upsertSallaOrderRow({
+                        referenceId: refId,
+                        date: dateStr,
                         statusSlug,
                         statusName,
                         paymentMethod,
                         amount,
                         customerName,
-                        'طلب بدون عناصر',
-                        '',
-                        1,
-                        customerPhone
-                    ]);
+                        productName: 'طلب بدون عناصر',
+                        productThumbnail: '',
+                        quantity: 1,
+                        customerPhone,
+                        externalUpdatedAt
+                    });
+
+                    if (changes > 0) {
+                        // Clean up any leftover per-item rows from a previous version of this order that had items.
+                        await dbRunAsync("DELETE FROM salla_imported_orders WHERE reference_id LIKE ?", [refId + '_%']);
+                        console.log(`[SallaWebhook] Processed order ${refId} successfully (${eventName}, status=${statusSlug}).`);
+                    } else {
+                        console.log(`[SallaWebhook] Ignored stale ${eventName} for order ${refId}: a newer update is already stored.`);
+                    }
                 }
-            });
-            console.log(`[SallaWebhook] Processed order ${refId} successfully.`);
-            
+            } catch (dbErr) {
+                console.error(`[SallaWebhook] Database error while processing order ${refId}:`, dbErr.message);
+                throw dbErr;
+            }
+
             // تشغيل الإسناد الاحتياطي لربط الطلب بالحملة والزيارة المناسبة
             performFallbackAttribution(refId, o, (errMatch, result) => {
                 if (errMatch) {
