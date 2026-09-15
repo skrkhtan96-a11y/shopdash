@@ -200,6 +200,7 @@ const aiRouter = require('./src/routes/ai.routes');
 const uploadRouter = require('./src/routes/upload.routes');
 const campaignsRouter = require('./src/routes/campaigns.routes');
 const productControlRouter = require('./src/routes/product_control.routes');
+const integrationCenterRouter = require('./src/routes/integration_center.routes');
 
 // --- MOUNT APIS & PAGES ---
 
@@ -214,6 +215,7 @@ app.use('/api/salla', sallaRouter.router);
 app.use('/api/ads', adsRouter.router);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/product-control', productControlRouter);
+app.use('/api/integration', integrationCenterRouter);
 app.use('/api', deliveryRouter);
 app.use('/api', inventoryRouter);
 app.use('/api', systemRouter);

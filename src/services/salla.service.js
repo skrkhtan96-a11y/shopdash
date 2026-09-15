@@ -2,6 +2,7 @@ const axios = require('axios');
 const ConfigRepository = require('../repositories/config.repository');
 const db = require('../config/db');
 const { extractSallaTimestamp } = require('../utils/salla_timestamp');
+const SallaOrderItemsService = require('./salla_order_items.service');
 
 const SALLA_TOKEN_URL = 'https://accounts.salla.sa/oauth2/token';
 
@@ -250,6 +251,23 @@ const SallaService = {
                         (err) => err ? reject(err) : resolve());
                     });
                 }
+
+                // Item-level write (salla_order_items) — the authoritative source for product sales
+                // reporting, built from Salla's own per-item amounts rather than this function's
+                // equal-split merged-order total. Isolated in its own try/catch: a failure here must
+                // never affect the order-level sync above.
+                try {
+                    await SallaOrderItemsService.upsertOrderItemsForOrder(o, {
+                        statusSlug,
+                        statusName,
+                        orderDate: dateStr,
+                        externalUpdatedAt,
+                        source: 'sync'
+                    });
+                } catch (itemErr) {
+                    console.error(`[SallaSync] Failed to write order items for ${refId}:`, itemErr.message);
+                }
+
                 newCount++;
             }
 

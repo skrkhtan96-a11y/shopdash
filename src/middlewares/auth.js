@@ -2,11 +2,16 @@ const db = require('../config/db');
 const rateLimit = require('express-rate-limit');
 
 // Rate limiting setup
+// skip: the automated test suite runs many real /api/auth/login and /api/* calls across dozens of
+// files sharing this one in-process limiter (NODE_ENV=test never runs in production), so counting
+// them would make later test files fail purely from earlier files' request volume rather than any
+// real behavior under test. Production (NODE_ENV=production/development) is unaffected either way.
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 mins
     max: 500,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
     message: { error: 'تم تجاوز الحد المسموح به من الطلبات. يرجى المحاولة لاحقاً.' }
 });
 
@@ -15,12 +20,13 @@ const loginLimiter = rateLimit({
     max: 15,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
     message: { error: 'تم تجاوز الحد المسموح لمحاولات تسجيل الدخول. يرجى المحاولة بعد 15 دقيقة.' }
 });
 
 // Middleware to protect API endpoints
 const authenticateUser = (req, res, next) => {
-    const token = req.cookies.session_token || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
+    const token = (req.cookies && req.cookies.session_token) || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
     if (!token) {
         return res.status(401).json({ error: 'غير مصرح بالدخول. يرجى تسجيل الدخول.', code: 'UNAUTHORIZED' });
     }
@@ -68,7 +74,7 @@ const sessionStaticCheckMiddleware = (req, res, next) => {
     const isHtmlOrRoot = req.path === '/' || req.path.endsWith('.html') || req.path === '/system-control';
     
     if (isHtmlOrRoot && !publicPages.includes(req.path)) {
-        const token = req.cookies.session_token;
+        const token = req.cookies && req.cookies.session_token;
         if (!token) {
             return res.redirect('/login.html');
         }

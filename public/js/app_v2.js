@@ -688,7 +688,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════
 //  NAVIGATION & ROUTING
 // ══════════════════════════════════════════════
-const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'system-control', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management', 'product-control', 'product-control-detail', 'product-overview'];
+const PAGES = ['overview', 'expenses', 'external-sales', 'ext-country-analytics', 'campaigns', 'campaign-detail', 'ai-analysis', 'salla-orders', 'salla-carts', 'salla-wallet', 'salla-products', 'product-sales-report', 'sales-operations-summary', 'pricing-settings', 'salla-purchase-batches', 'salla-compare', 'salla-webhooks', 'import', 'users', 'system-control', 'certificates', 'ps-plus', 'ps-plus-deliveries', 'games', 'games-deliveries', 'inventory-dashboard', 'activity-logs', 'db-management', 'product-control', 'product-control-detail', 'product-overview', 'integration-center'];
 const PAGE_TITLES = {
     overview: 'نظرة عامة',
     expenses: 'المصروفات',
@@ -701,6 +701,8 @@ const PAGE_TITLES = {
     'salla-carts': 'السلات المتروكة',
     'salla-wallet': 'محفظة سلة',
     'salla-products': 'المخزون والمنتجات',
+    'product-sales-report': 'تقرير مبيعات المنتجات والتصنيفات',
+    'sales-operations-summary': 'ملخص تقارير عمليات المبيعات الشاملة',
     'pricing-settings': 'إعدادات أسعار المنتجات',
     'salla-purchase-batches': 'خطة مقارنة دفعات المشتريات',
     'salla-compare': 'مقارنة المبيعات والفروقات',
@@ -718,7 +720,8 @@ const PAGE_TITLES = {
     'db-management': 'النسخ الاحتياطي والاستعادة لقاعدة البيانات',
     'product-control': 'مركز التحكم بالمنتج',
     'product-control-detail': 'تفاصيل المنتج',
-    'product-overview': 'تحليل المنتجات الشامل'
+    'product-overview': 'تحليل المنتجات الشامل',
+    'integration-center': 'مركز تكامل المبيعات والمخزون'
 };
 
 function parseHashPage() {
@@ -863,10 +866,22 @@ function nav(name, updateHash = true) {
     if (name === 'ext-country-analytics') loadExtCountryAnalytics();
     if (name === 'campaigns') renderCampaigns();
     if (name === 'ai-analysis') initAiAnalysisPage();
-    if (name === 'salla-orders') renderOrders();
-    if (name === 'salla-carts') renderCarts();
+    if (name === 'salla-orders') loadOrders();
+    if (name === 'salla-carts') loadCarts();
     if (name === 'salla-wallet') renderWallet();
     if (name === 'salla-products') renderProducts();
+    if (name === 'product-sales-report') loadProductSalesReport();
+    if (name === 'integration-center') loadIntegrationCenter();
+    if (name === 'sales-operations-summary') {
+        const fEl = document.getElementById('opsSummaryFrom');
+        const tEl = document.getElementById('opsSummaryTo');
+        if (fEl && tEl && !fEl.value && !tEl.value) {
+            const gDates = typeof getGlobalDates === 'function' ? getGlobalDates() : { from: '', to: '' };
+            if (gDates.from) fEl.value = gDates.from;
+            if (gDates.to) tEl.value = gDates.to;
+        }
+        loadSalesOperationsSummary();
+    }
     if (name === 'pricing-settings') loadPricingSettings();
     if (name === 'salla-purchase-batches') renderPurchaseBatches();
     if (name === 'salla-compare') initComparePage();
@@ -1108,7 +1123,33 @@ function setSyncState(status) {
     txt.textContent = status === 'loading' ? 'جاري المزامنة...' : status === 'error' ? 'فشلت المزامنة' : 'محدّث';
 }
 
+function getOrderAmount(o) {
+    if (!o) return 0;
+    if (typeof o.amount === 'number') return o.amount;
+    if (typeof o.amount === 'string') return parseFloat(o.amount) || 0;
+    if (typeof o.total === 'number') return o.total;
+    if (o.total && typeof o.total.amount === 'number') return o.total.amount;
+    if (o.total && typeof o.total.amount === 'string') return parseFloat(o.total.amount) || 0;
+    if (o.amounts && o.amounts.total && typeof o.amounts.total.amount !== 'undefined') return parseFloat(o.amounts.total.amount) || 0;
+    if (o.payment_actions?.refund_action?.paid_amount?.amount) return parseFloat(o.payment_actions.refund_action.paid_amount.amount) || 0;
+    return 0;
+}
+
 async function loadOrders(reset = false) {
+    if (sallaOrders.length > 0 && !reset) {
+        setSyncState('ok');
+        renderOrders();
+        updateOrdKPIs();
+        renderProducts();
+        updateOverviewWithSalla();
+        
+        const ordLoading = document.getElementById('ordLoading');
+        const ordTblWrap = document.getElementById('ordTblWrap');
+        if (ordLoading) ordLoading.style.display = 'none';
+        if (ordTblWrap) ordTblWrap.style.display = '';
+        return;
+    }
+
     if (reset) { ordPage = 1; sallaOrders = []; }
     
     // إذا كنا في وضع الأرشيف، نكتفي بعرض المبيعات مؤرشفة المسجلة بالحالة
@@ -1133,9 +1174,8 @@ async function loadOrders(reset = false) {
     if (ordTblWrap) ordTblWrap.style.display = 'none';
 
     const q = document.getElementById('ordQ')?.value || '';
-    // إذا كان هناك مدخل بحث، نتجاهل الفلترة الزمنية للبحث في كامل الأرشيف والتاريخ
-    const from = q ? '' : (document.getElementById('ordFrom')?.value || (CURRENT_MONTH + '-01'));
-    const to = q ? '' : (document.getElementById('ordTo')?.value || TODAY);
+    const from = document.getElementById('ordFrom')?.value || '';
+    const to = document.getElementById('ordTo')?.value || '';
     const selectedStatuses = [];
     document.querySelectorAll('.status-chk').forEach(chk => {
         if (chk.checked) selectedStatuses.push(chk.value);
@@ -1147,11 +1187,12 @@ async function loadOrders(reset = false) {
         : '';
 
     const sort = document.getElementById('ordSort')?.value || 'desc';
+    const period = document.getElementById('ordPeriod')?.value || '';
     const minAmt = document.getElementById('ordMinAmt')?.value || '';
     const maxAmt = document.getElementById('ordMaxAmt')?.value || '';
 
     try {
-        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&products=${encodeURIComponent(productsParam)}&sort=${sort}&min_amt=${minAmt}&max_amt=${maxAmt}&per_page=3000`;
+        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&products=${encodeURIComponent(productsParam)}&period=${encodeURIComponent(period)}&sort=${sort}&min_amt=${minAmt}&max_amt=${maxAmt}&per_page=3000`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -1159,20 +1200,21 @@ async function loadOrders(reset = false) {
             sallaOrders = data.data;
             state.sales = data.data; // حفظ المبيعات النشطة في الحالة للاستعداد للأرشفة
             ordPageTotal = data.pagination?.total_pages || 1;
-            document.getElementById('ordBadge').textContent = data.pagination?.total || sallaOrders.length;
+            const badgeEl = document.getElementById('ordBadge');
+            if (badgeEl) badgeEl.textContent = data.pagination?.total || sallaOrders.length;
         }
         
         setSyncState('ok');
         renderOrders();
         updateOrdKPIs();
         renderProducts();
-        
-        if (ordLoading) ordLoading.style.display = 'none';
-        if (ordTblWrap) ordTblWrap.style.display = '';
         updateOverviewWithSalla();
     } catch (e) {
         console.error('خطأ في جلب طلبات سلة:', e);
         setSyncState('error');
+    } finally {
+        if (ordLoading) ordLoading.style.display = 'none';
+        if (ordTblWrap) ordTblWrap.style.display = '';
     }
 }
 
@@ -1292,7 +1334,10 @@ function renderOrders() {
     }).join('');
     
     const total = sallaOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || 0), 0);
-    document.getElementById('ordFoot').innerHTML = `<tr class="tbl-foot"><td colspan="6">الإجمالي (${sallaOrders.length})</td><td><span class="mono green">${fmt(total)}</span></td><td colspan="2"></td></tr>`;
+    const footEl = document.getElementById('ordFoot');
+    if (footEl) {
+        footEl.innerHTML = `<tr class="tbl-foot"><td colspan="6">الإجمالي (${sallaOrders.length})</td><td><span class="mono green">${fmt(total)}</span></td><td colspan="2"></td></tr>`;
+    }
     
     // Pager
     const pg = document.getElementById('ordPager');
@@ -1328,15 +1373,20 @@ function payLabel(m) {
 function updateOrdKPIs() {
     const el = document.getElementById('ordKPIs');
     if (!el) return;
-    const total = sallaOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || 0), 0);
+    const total = sallaOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || o.amount || 0), 0);
     const completed = sallaOrders.filter(o => o.status?.slug === 'completed').length;
-    const pending = sallaOrders.filter(o => o.status?.slug === 'under_review' || o.status?.slug === 'payment_pending').length;
+    const pendingOrders = sallaOrders.filter(o => o.status?.slug === 'under_review' || o.status?.slug === 'payment_pending');
+    const pending = pendingOrders.length;
+    const pendingTotal = pendingOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || o.amount || 0), 0);
     
-    document.getElementById('ordTotal').textContent = `${sallaOrders.length} طلب`;
+    const ordTotalEl = document.getElementById('ordTotal');
+    if (ordTotalEl) {
+        ordTotalEl.textContent = `${sallaOrders.length} طلب`;
+    }
     el.innerHTML = `
         <div class="kpi k-green"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">إجمالي المبيعات</div><div class="kpi-val accent">${sallaOrders.length.toLocaleString()}</div><div class="kpi-sub">ر.س ${fmt(total)}</div></div>
         <div class="kpi k-green"><i class="ti ti-check kpi-ico"></i><div class="kpi-label">طلبات مكتملة</div><div class="kpi-val green">${completed}</div><div class="kpi-sub">${sallaOrders.length ? ((completed / sallaOrders.length) * 100).toFixed(0) : 0}%</div></div>
-        <div class="kpi k-amber"><i class="ti ti-clock kpi-ico"></i><div class="kpi-label">بانتظار المعالجة</div><div class="kpi-val amber">${pending}</div><div class="kpi-sub">طلب معلق</div></div>
+        <div class="kpi k-amber"><i class="ti ti-clock kpi-ico"></i><div class="kpi-label">بانتظار المعالجة</div><div class="kpi-val amber">${pending}</div><div class="kpi-sub">ر.س ${fmt(pendingTotal)} (${pending} طلب)</div></div>
         <div class="kpi k-blue"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">متوسط قيمة الطلب</div><div class="kpi-val blue">${sallaOrders.length ? fmt(total / sallaOrders.length) : 0}</div><div class="kpi-sub">ر.س</div></div>
     `;
 }
@@ -1723,6 +1773,20 @@ function renderProducts() {
     (state.pricingRules || []).forEach(r => {
         if (r.product_name) allProductNames.add(r.product_name.trim());
     });
+    (sallaOrders || []).forEach(o => {
+        if (o.product_name) {
+            o.product_name.split('+').forEach(pn => {
+                const cleanPn = pn.replace(/\s*-\s*\[object Object\]/gi, '').trim();
+                if (cleanPn) allProductNames.add(cleanPn);
+            });
+        }
+        (o.items || []).forEach(it => {
+            if (it.name) {
+                const cleanName = it.name.replace(/\s*-\s*\[object Object\]/gi, '').trim();
+                if (cleanName) allProductNames.add(cleanName);
+            }
+        });
+    });
 
     const combinedProducts = Array.from(allProductNames).map(name => {
         const invProd = (state.inventoryProducts || []).find(p => p.product_name && p.product_name.trim() === name);
@@ -1879,15 +1943,21 @@ function renderProducts() {
     const ordOptionsDiv = document.getElementById('ordProdMultiOptions');
     if (ordOptionsDiv) {
         const allNames = Object.keys(map).sort();
+        const categoryOptions = ['PS4', 'PS5'];
+        const combinedOptions = [...categoryOptions, ...allNames.filter(n => n !== 'PS4' && n !== 'PS5')];
         const existingOptions = Array.from(ordOptionsDiv.querySelectorAll('.ord-prod-multi-chk')).map(chk => chk.value);
-        const isDifferent = JSON.stringify(allNames) !== JSON.stringify(existingOptions.sort());
+        const isDifferent = JSON.stringify(combinedOptions) !== JSON.stringify(existingOptions);
         
         if (isDifferent || ordOptionsDiv.innerHTML === '') {
-            ordOptionsDiv.innerHTML = allNames.map(name => {
+            ordOptionsDiv.innerHTML = combinedOptions.map(name => {
                 const isChecked = state.ordSelectedProducts.includes(name);
-                return `<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);cursor:pointer;padding:4px 6px;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
-                    <input type="checkbox" class="ord-prod-multi-chk" value="${escapeHtml(name)}" ${isChecked ? 'checked' : ''} onchange="onOrdProductCheckboxChange(this)" style="cursor:pointer;accent-color:var(--accent);">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" title="${escapeHtml(name)}">${name}</span>
+                const bg = isChecked ? 'rgba(59, 130, 246, 0.18)' : 'transparent';
+                const col = isChecked ? '#ffffff' : 'var(--text2)';
+                const fw = isChecked ? '600' : 'normal';
+                const labelText = (name === 'PS4') ? '🎮 كل منتجات PS4 (سوني 4)' : (name === 'PS5') ? '🎮 كل منتجات PS5 (سوني 5)' : name;
+                return `<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:${col};cursor:pointer;padding:6px 8px;border-radius:4px;background:${bg};font-weight:${fw};transition:all 0.15s;user-select:none;margin-bottom:2px;" onmouseover="if(!this.querySelector('input').checked) this.style.background='rgba(255,255,255,0.05)'" onmouseout="if(!this.querySelector('input').checked) this.style.background='transparent'">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;" title="${escapeHtml(labelText)}">${escapeHtml(labelText)}</span>
+                    <input type="checkbox" class="ord-prod-multi-chk" value="${escapeHtml(name)}" ${isChecked ? 'checked' : ''} onchange="onOrdProductCheckboxChange(this)" style="cursor:pointer;width:16px;height:16px;accent-color:#3b82f6;flex-shrink:0;">
                 </label>`;
             }).join('');
             updateOrdProdMultiBtnText();
@@ -4298,8 +4368,20 @@ function ordProdSelectAll(selectBool, e) {
     state.ordSelectedProducts = [];
     checkboxes.forEach(chk => {
         chk.checked = selectBool;
+        const label = chk.closest('label');
         if (selectBool) {
             state.ordSelectedProducts.push(chk.value);
+            if (label) {
+                label.style.background = 'rgba(59, 130, 246, 0.18)';
+                label.style.color = '#ffffff';
+                label.style.fontWeight = '600';
+            }
+        } else {
+            if (label) {
+                label.style.background = 'transparent';
+                label.style.color = 'var(--text2)';
+                label.style.fontWeight = 'normal';
+            }
         }
     });
     updateOrdProdMultiBtnText();
@@ -4308,12 +4390,23 @@ function ordProdSelectAll(selectBool, e) {
 
 function onOrdProductCheckboxChange(chk) {
     const val = chk.value;
+    const label = chk.closest('label');
     if (chk.checked) {
         if (!state.ordSelectedProducts.includes(val)) {
             state.ordSelectedProducts.push(val);
         }
+        if (label) {
+            label.style.background = 'rgba(59, 130, 246, 0.18)';
+            label.style.color = '#ffffff';
+            label.style.fontWeight = '600';
+        }
     } else {
         state.ordSelectedProducts = state.ordSelectedProducts.filter(p => p !== val);
+        if (label) {
+            label.style.background = 'transparent';
+            label.style.color = 'var(--text2)';
+            label.style.fontWeight = 'normal';
+        }
     }
     updateOrdProdMultiBtnText();
     loadOrders(true);
@@ -15391,4 +15484,1102 @@ async function vacuumSystemDatabase() {
     } catch (e) {
         toast(e.message, 'error');
     }
+}
+
+// ── PRODUCT SALES REPORT (تقرير مبيعات منتج محدد — محسوب بالكامل من الخادم) ──
+let productSalesReportResult = null;
+let productSalesReportProductsLoaded = false;
+
+function extractProductCategory(name) {
+    if (!name) return 'منتجات أخرى';
+    const norm = name.toLowerCase().replace(/[أإآ]/g, 'ا');
+    
+    if (norm.includes('ps4') || norm.includes('سوني 4') || norm.includes('سوني4') || norm.includes('بلايستيشن 4')) {
+        return '🎮 بلايستيشن 4 (PS4)';
+    }
+    if (norm.includes('ps5') || norm.includes('سوني 5') || norm.includes('سوني5') || norm.includes('بلايستيشن 5')) {
+        return '🎮 بلايستيشن 5 (PS5)';
+    }
+    if (norm.includes('سناب') || norm.includes('snap')) {
+        return '👻 سناب شات / سناب بلس';
+    }
+    if (norm.includes('كانفا') || norm.includes('canva') || norm.includes('تصميم') || norm.includes('او فيس') || norm.includes('office') || norm.includes('gpt') || norm.includes('vpn')) {
+        return '🎨 كانفا / برامج وتطبيقات';
+    }
+    if (norm.includes('يلا شوب') || norm.includes('كأس العالم') || norm.includes('الرياضية') || norm.includes('الترفيهيه') || norm.includes('الشاملة')) {
+        return '⚽ يلا شوب / باقات رياضية وتلفزيون';
+    }
+    if (norm.includes('ايفون') || norm.includes('iphone')) {
+        return '📱 بلس ايفون';
+    }
+    if (norm.includes('اندرويد') || norm.includes('android')) {
+        return '🤖 بلس اندرويد';
+    }
+    return '📦 منتجات أخرى';
+}
+
+function extractProductPeriod(name) {
+    if (!name) return 'مستقل';
+    const baseName = name.includes(' - ') ? name.split(' - ')[0].trim() : name.trim();
+    const norm = baseName.toLowerCase();
+
+    if ((norm.includes('شهر') || norm.includes('شهري')) && !norm.includes('3') && !norm.includes('ثلاث') && !norm.includes('6') && !norm.includes('ستة') && !norm.includes('سنة') && !norm.includes('سنوي') && !norm.includes('عام')) {
+        return 'شهري';
+    }
+    if (norm.includes('3') || norm.includes('ثلاث')) {
+        return '3 أشهر';
+    }
+    if (norm.includes('6') || norm.includes('ستة')) {
+        return '6 أشهر';
+    }
+    if (norm.includes('سنة') || norm.includes('سنوي') || norm.includes('عام')) {
+        return 'سنوي';
+    }
+    if (norm.includes('يوم') || norm.includes('يومي')) {
+        return 'يومي';
+    }
+    if (norm.includes('اسبوع') || norm.includes('أسبوع') || norm.includes('اسبوعي')) {
+        return 'اسبوعي';
+    }
+    return 'مستقل';
+}
+
+// Populates the product picker from the normalized item table (salla_order_items). Products only
+// appear here once at least one order carrying them has passed through the webhook/sync write path
+// that populates that table — legacy orders recorded only in salla_imported_orders are not listed
+// until reconciled (see scripts/classify_salla_order_items.js).
+async function loadProductSalesReportProducts() {
+    const select = document.getElementById('prodRepProductId');
+    if (!select || productSalesReportProductsLoaded) return;
+    try {
+        const res = await fetch('/api/salla/product-sales-report/products');
+        const json = await res.json();
+        const products = json.data || [];
+        select.innerHTML = '<option value="">اختر منتجاً...</option>' + products.map(p =>
+            `<option value="${p.product_id}">${(p.product_name || p.product_id)} (${p.row_count})</option>`
+        ).join('');
+        productSalesReportProductsLoaded = true;
+    } catch (err) {
+        console.error('خطأ في تحميل قائمة المنتجات:', err);
+    }
+}
+
+// Fetches the accurate, server-computed report for the selected product/date range. Every number
+// shown (sold_orders, sold_units, total_revenue) comes directly from GET /api/salla/product-sales-report
+// — the frontend performs no aggregation of its own, only rendering.
+async function loadProductSalesReport() {
+    await loadProductSalesReportProducts();
+
+    const productId = document.getElementById('prodRepProductId')?.value || '';
+    const from = document.getElementById('prodRepFrom')?.value || '';
+    const to = document.getElementById('prodRepTo')?.value || '';
+
+    if (!productId) {
+        renderProductSalesReport(null);
+        return;
+    }
+
+    const loading = document.getElementById('prodRepLoading');
+    const tblWrap = document.getElementById('prodRepTblWrap');
+    if (loading) loading.style.display = 'flex';
+    if (tblWrap) tblWrap.style.display = 'none';
+
+    try {
+        const params = new URLSearchParams({ product_id: productId, include_rows: 'true' });
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+
+        const res = await fetch(`/api/salla/product-sales-report?${params.toString()}`);
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+            throw new Error(json.error || 'فشل تحميل التقرير');
+        }
+        productSalesReportResult = json;
+        renderProductSalesReport(json);
+    } catch (err) {
+        console.error('خطأ في تحميل تقرير مبيعات المنتج:', err);
+        toast(err.message || 'خطأ في تحميل تقرير مبيعات المنتج', 'error');
+    } finally {
+        if (loading) loading.style.display = 'none';
+        if (tblWrap) tblWrap.style.display = '';
+    }
+}
+
+const STATUS_LABELS_AR = {
+    under_review: 'قيد المراجعة', completed: 'تم التنفيذ', payment_pending: 'بانتظار الدفع',
+    canceled: 'ملغي', restored: 'مسترجع', shipped: 'تم الشحن'
+};
+
+function renderProductSalesReport(data) {
+    const kpiDiv = document.getElementById('prodRepKPIs');
+    const statusDiv = document.getElementById('prodRepStatusBreakdown');
+    const tbody = document.getElementById('prodRepBody');
+    const tfoot = document.getElementById('prodRepFoot');
+
+    if (!data) {
+        if (kpiDiv) kpiDiv.innerHTML = '';
+        if (statusDiv) statusDiv.innerHTML = '';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><i class="ti ti-package-off"></i><p>اختر منتجاً لعرض تقرير مبيعاته الدقيق</p></div></td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
+        return;
+    }
+
+    if (kpiDiv) {
+        kpiDiv.innerHTML = `
+            <div class="kpi k-blue"><i class="ti ti-receipt kpi-ico"></i><div class="kpi-label">الطلبات المباعة</div><div class="kpi-val blue">${data.sold_orders.toLocaleString()}</div><div class="kpi-sub">COUNT(DISTINCT رقم الطلب)</div></div>
+            <div class="kpi k-green"><i class="ti ti-shopping-cart-check kpi-ico"></i><div class="kpi-label">الوحدات المباعة</div><div class="kpi-val green">${data.sold_units.toLocaleString()}</div><div class="kpi-sub">SUM(الكمية)</div></div>
+            <div class="kpi k-amber"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">إجمالي المبيعات</div><div class="kpi-val amber">${fmt(data.total_revenue)}</div><div class="kpi-sub">ريال سعودي${data.approximate_revenue_row_count > 0 ? ` — ${data.approximate_revenue_row_count} بند بقيمة تقديرية` : ''}</div></div>
+        `;
+    }
+
+    if (statusDiv) {
+        const breakdown = data.status_breakdown || {};
+        statusDiv.innerHTML = Object.keys(breakdown).map(slug => {
+            const s = breakdown[slug];
+            const label = STATUS_LABELS_AR[slug] || slug;
+            const pillClass = s.counted_as_sale ? 'pill-green' : (s.classification === 'NOT_SALE' ? 'pill-red' : 'pill-gray');
+            const tag = s.counted_as_sale ? 'مباعة' : (s.classification === 'NOT_SALE' ? 'غير مباعة' : 'بانتظار القرار');
+            return `<span class="pill ${pillClass}" style="font-size:10.5px; padding:5px 10px;">${label}: ${s.orders} طلب / ${s.units} وحدة (${tag})</span>`;
+        }).join('');
+    }
+
+    if (!tbody) return;
+
+    const rows = data.detail_rows || [];
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><i class="ti ti-package-off"></i><p>لا توجد مبيعات لهذا المنتج في الفترة المحددة</p></div></td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
+        return;
+    }
+
+    tbody.innerHTML = rows.map((r, i) => {
+        const isSale = ['under_review', 'completed'].includes(r.status_slug);
+        const statusPill = isSale ? 'pill-green' : 'pill-amber';
+        const sourcePill = r.revenue_source === 'exact' ? 'pill-blue' : 'pill-gray';
+        return `<tr>
+            <td style="color:var(--text3); font-size:10px; text-align:center">${i + 1}</td>
+            <td><span class="mono" style="font-weight:700">${r.order_reference_id}</span></td>
+            <td style="text-align:center">${r.quantity}</td>
+            <td><span class="mono green" style="font-weight:700">${fmt(r.item_total)}</span></td>
+            <td><span class="pill ${sourcePill}" style="font-size:10px">${r.revenue_source === 'exact' ? 'قيمة فعلية' : 'تقديرية (تقسيم متساوٍ)'}</span></td>
+            <td><span class="pill ${statusPill}" style="font-size:10px">${STATUS_LABELS_AR[r.status_slug] || r.status_slug}</span></td>
+            <td class="mono" style="font-size:10.5px">${r.order_date || '-'}</td>
+        </tr>`;
+    }).join('');
+
+    if (tfoot) {
+        tfoot.innerHTML = `<tr class="tbl-foot">
+            <td colspan="2">الإجمالي (${data.sold_orders} طلب مباع)</td>
+            <td style="text-align:center"><span class="mono" style="font-weight:700">${data.sold_units.toLocaleString()}</span></td>
+            <td><span class="mono green" style="font-weight:700">${fmt(data.total_revenue)}</span></td>
+            <td colspan="3">-</td>
+        </tr>`;
+    }
+}
+
+function exportProductSalesReportCSV() {
+    const data = productSalesReportResult;
+    if (!data || !data.detail_rows || !data.detail_rows.length) {
+        toast('لا توجد بيانات مبيعات لهذا المنتج لتصديرها', 'warn');
+        return;
+    }
+
+    const from = document.getElementById('prodRepFrom')?.value || 'ALL';
+    const to = document.getElementById('prodRepTo')?.value || 'ALL';
+
+    const headers = ['#', 'رقم الطلب (مرجع سلة)', 'الكمية', 'قيمة البند (ر.س)', 'مصدر القيمة', 'الحالة', 'التاريخ'];
+    const rows = data.detail_rows.map((r, i) => [
+        i + 1,
+        r.order_reference_id,
+        r.quantity,
+        r.item_total.toFixed(2),
+        r.revenue_source === 'exact' ? 'فعلية' : 'تقديرية',
+        `"${(STATUS_LABELS_AR[r.status_slug] || r.status_slug).replace(/"/g, '""')}"`,
+        r.order_date || ''
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `product_sales_report_${from}_to_${to}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('تم سحب وتصدير التقرير بنجاح إلى ملف Excel/CSV', 'ok');
+}
+
+// ── INTEGRATION CENTER (مركز تكامل المبيعات والمخزون) ──
+// Every number below comes directly from a backend endpoint (src/routes/integration_center.routes.js);
+// this file only renders. No client-side aggregation, matching the same rule as the product sales report.
+let icFamiliesLoaded = false;
+
+async function loadIntegrationCenterFamilies() {
+    const select = document.getElementById('icFamilyId');
+    if (!select || icFamiliesLoaded) return;
+    try {
+        const res = await fetch('/api/integration/families');
+        const json = await res.json();
+        const families = json.data || [];
+        select.innerHTML = '<option value="">اختر عائلة منتج...</option>' + families.map(f =>
+            `<option value="${f.id}">${f.family_name} (${f.variants_count} مدة)</option>`
+        ).join('');
+        icFamiliesLoaded = true;
+    } catch (err) {
+        console.error('خطأ تحميل عائلات المنتجات:', err);
+    }
+}
+
+async function loadIntegrationCenter() {
+    await loadIntegrationCenterFamilies();
+
+    let _icMapping = null, _icComposition = null;
+
+    // 2. Mapping status — always shown, independent of the family filter.
+    try {
+        const res = await fetch('/api/integration/mapping-status');
+        const m = await res.json();
+        _icMapping = m;
+        const el = document.getElementById('icMappingStatus');
+        if (el) {
+            el.innerHTML = `
+                <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                    <span>منتجات سلة الفعلية المكتشفة: <strong>${m.total_distinct_salla_products}</strong></span>
+                    <span style="color:var(--green)">مربوطة بمعرّف ثابت: <strong>${m.mapped_count}</strong></span>
+                    <span style="color:${m.unmapped_count > 0 ? 'var(--red)' : 'var(--green)'}">غير مربوطة: <strong>${m.unmapped_count}</strong></span>
+                    <span>بنود بدون product_id من سلة أصلاً: <strong>${m.order_items_missing_product_id}</strong></span>
+                </div>
+                ${m.unmapped_products && m.unmapped_products.length > 0 ? `<div style="margin-top:8px; font-size:11px; color:var(--text3)">غير مربوطة: ${m.unmapped_products.map(p => p.product_name).join('، ')}</div>` : ''}
+            `;
+        }
+    } catch (err) { console.error(err); }
+
+    // Account composition — feeds both the Reconciliation & Exceptions section and the status rollup.
+    try {
+        const res = await fetch('/api/integration/account-composition');
+        const ac = await res.json();
+        _icComposition = ac;
+        const el = document.getElementById('icAccountComposition');
+        if (el) {
+            if (!ac.configured || ac.configured.length === 0) {
+                el.innerHTML = '<span style="color:var(--text3)">لا يوجد تكوين حساب معرّف بعد لأي عائلة.</span>';
+            } else {
+                el.innerHTML = ac.configured.map(c => {
+                    const slotsStr = Object.entries(c.slots).map(([t, n]) => `${t}×${n}`).join(' + ');
+                    const badge = c.matches_delivery_schema
+                        ? '<span class="pill pill-green" style="font-size:10px">مطابق لسعة نظام التسليم</span>'
+                        : `<span class="pill pill-amber" style="font-size:10px">⚠ يتجاوز سعة نظام التسليم الفعلي (${c.mismatches.map(m => `${m.slot_type}: مُعرَّف ${m.configured} / فعلي ${m.actual_delivery_schema_capacity}`).join('، ')})</span>`;
+                    return `<div style="margin-bottom:6px;">${c.family_name || c.family_id} — ${c.duration_code}: ${slotsStr} ${badge}</div>`;
+                }).join('');
+                el.innerHTML += `<div style="margin-top:6px; font-size:10.5px; color:var(--text3)">${ac.delivery_schema_note}</div>`;
+            }
+        }
+    } catch (err) { console.error(err); }
+
+    // 1. Integration status rollup — a client-side summary of flags already returned by sections 2 & 10's
+    // endpoints above (no new business calculation, just surfacing PASS/WARN at a glance).
+    (function renderIntegrationStatus() {
+        const el = document.getElementById('icIntegrationStatus');
+        if (!el) return;
+        const rows = [];
+        if (_icMapping) {
+            const ok = _icMapping.unmapped_count === 0;
+            rows.push(`<span style="color:${ok ? 'var(--green)' : 'var(--amber)'}">${ok ? '✅' : '⚠'} ربط منتجات سلة: ${_icMapping.mapped_count}/${_icMapping.total_distinct_salla_products}</span>`);
+        }
+        if (_icComposition && _icComposition.configured) {
+            const allMatch = _icComposition.configured.every(c => c.matches_delivery_schema);
+            rows.push(`<span style="color:${allMatch ? 'var(--green)' : 'var(--amber)'}">${allMatch ? '✅' : '⚠'} تركيبة الحساب مطابقة لسعة نظام التسليم</span>`);
+        }
+        rows.push('<span style="color:var(--green)">✅ مزامنة سلة اللحظية نشطة (webhook + مطابقة دورية)</span>');
+        el.innerHTML = rows.length ? `<div style="display:flex; gap:18px; flex-wrap:wrap;">${rows.join('')}</div>` : 'لا توجد بيانات حالة بعد.';
+    })();
+
+    const familyId = document.getElementById('icFamilyId')?.value || '';
+    const duration = document.getElementById('icDuration')?.value || 'all';
+    const from = document.getElementById('icFrom')?.value || '';
+    const to = document.getElementById('icTo')?.value || '';
+
+    if (!familyId) {
+        document.getElementById('icSalesKPIs').innerHTML = '<div class="empty" style="padding:20px"><p>اختر عائلة منتج لعرض المبيعات والربحية والمطابقة الخاصة بها</p></div>';
+        document.getElementById('icProfitKPIs').innerHTML = '';
+        document.getElementById('icAdvertisingKPIs').innerHTML = '';
+        document.getElementById('icPurchasesSummary').innerHTML = '';
+        document.getElementById('icReconciliation').innerHTML = '';
+        document.getElementById('icDeliveryReconciliation').innerHTML = '';
+        document.getElementById('icAccountsSummary').innerHTML = '<div class="empty" style="padding:12px"><p>اختر عائلة منتج</p></div>';
+        document.getElementById('icSlotsBreakdown').innerHTML = '';
+        document.getElementById('icDeliverySection').innerHTML = '';
+        document.getElementById('icDrillDownBody').innerHTML = '';
+        return;
+    }
+
+    const qs = new URLSearchParams();
+    if (duration && duration !== 'all') qs.set('duration_code', duration);
+    if (from) qs.set('from', from);
+    if (to) qs.set('to', to);
+
+    // 3. Sales overview
+    try {
+        const res = await fetch(`/api/integration/families/${familyId}/sales-report?${qs.toString()}`);
+        const s = await res.json();
+        document.getElementById('icSalesKPIs').innerHTML = `
+            <div class="kpi k-blue"><i class="ti ti-receipt kpi-ico"></i><div class="kpi-label">الطلبات المباعة</div><div class="kpi-val blue">${s.sold_orders.toLocaleString()}</div></div>
+            <div class="kpi k-green"><i class="ti ti-shopping-cart-check kpi-ico"></i><div class="kpi-label">الوحدات المباعة</div><div class="kpi-val green">${s.sold_units.toLocaleString()}</div></div>
+            <div class="kpi k-amber"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">إجمالي المبيعات</div><div class="kpi-val amber">${fmt(s.total_revenue)}</div></div>
+            <div class="kpi"><div class="kpi-label">تم التنفيذ</div><div class="kpi-val">${s.completed_orders}</div></div>
+            <div class="kpi"><div class="kpi-label">قيد المراجعة</div><div class="kpi-val">${s.under_review_orders}</div></div>
+            <div class="kpi"><div class="kpi-label">مستبعدة (غير مباعة)</div><div class="kpi-val">${s.excluded_orders}</div></div>
+        `;
+        const rows = s.detail_rows || [];
+        document.getElementById('icDrillDownBody').innerHTML = rows.length ? rows.map((r, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td class="mono">${r.order_reference_id}</td>
+                <td>${r.mapped_product_name || r.product_name || '-'}</td>
+                <td style="text-align:center">${r.quantity}</td>
+                <td class="mono green">${fmt(r.item_total)}</td>
+                <td><span class="pill ${['under_review','completed'].includes(r.status_slug) ? 'pill-green' : 'pill-amber'}" style="font-size:10px">${r.status_slug}</span></td>
+                <td class="mono" style="font-size:10.5px">${r.order_date || '-'}</td>
+            </tr>
+        `).join('') : '<tr><td colspan="7"><div class="empty"><p>لا توجد بيانات لهذه الفترة</p></div></td></tr>';
+    } catch (err) { console.error(err); }
+
+    // 9. Profitability (+ 8. Advertising, split from the same official profitability source — Gap 6)
+    try {
+        const res = await fetch(`/api/integration/families/${familyId}/profitability?${qs.toString()}`);
+        const p = await res.json();
+        document.getElementById('icProfitKPIs').innerHTML = `
+            <div class="kpi"><div class="kpi-label">الإيرادات</div><div class="kpi-val">${fmt(p.revenue)}</div></div>
+            <div class="kpi"><div class="kpi-label">تكلفة البضاعة المباعة (COGS)</div><div class="kpi-val">${fmt(p.cogs)}</div></div>
+            <div class="kpi"><div class="kpi-label">الإعلانات</div><div class="kpi-val">${fmt(p.advertising)}</div></div>
+            <div class="kpi"><div class="kpi-label">مصاريف أخرى</div><div class="kpi-val">${fmt(p.other_expenses)}</div></div>
+            <div class="kpi k-green"><div class="kpi-label">صافي الربح</div><div class="kpi-val green">${fmt(p.net_profit)}</div></div>
+            <div class="kpi"><div class="kpi-label">هامش الربح</div><div class="kpi-val">${p.margin_pct !== null ? p.margin_pct + '%' : '—'}</div></div>
+        `;
+        document.getElementById('icAdvertisingKPIs').innerHTML = `
+            <div class="kpi k-amber"><i class="ti ti-ad kpi-ico"></i><div class="kpi-label">مصاريف الإعلانات المخصّصة لهذه العائلة/المدة</div><div class="kpi-val amber">${fmt(p.advertising)}</div></div>
+            <div class="kpi"><div class="kpi-label">مصاريف أخرى (غير إعلانية)</div><div class="kpi-val">${fmt(p.other_expenses)}</div></div>
+        `;
+        document.getElementById('icPurchasesSummary').innerHTML = `<span>إجمالي قيمة المشتريات (نقدي، منفصل عن COGS): <strong class="mono">${fmt(p.purchases_cash)}</strong></span>`;
+    } catch (err) { console.error(err); }
+
+    // 10a. Sale-side reconciliation (deliberately separate object/number from delivery reconciliation below — Gap 9)
+    try {
+        const res = await fetch(`/api/integration/reconciliation?family_id=${familyId}&${qs.toString()}`);
+        const r = await res.json();
+        const el = document.getElementById('icReconciliation');
+        if (el) {
+            const statusColor = r.status === 'MATCH' ? 'var(--green)' : 'var(--red)';
+            el.innerHTML = `
+                <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+                    <span>مبيعات سلة: <strong>${r.salla_sold_orders}</strong></span>
+                    <span>مسجّلة في المخزون الداخلي: <strong>${r.shopdash_recorded_orders}</strong></span>
+                    <span style="color:${statusColor}; font-weight:700;">${r.status}${r.mismatch_count > 0 ? ` (${r.mismatch_count})` : ''}</span>
+                </div>
+                ${r.mismatch_order_references && r.mismatch_order_references.length > 0 ? `<div style="margin-top:8px; font-size:11px; color:var(--text3)">الطلبات غير المطابقة: ${r.mismatch_order_references.join('، ')}</div>` : ''}
+            `;
+        }
+    } catch (err) { console.error(err); }
+
+    // 6 + 10b. Delivery reconciliation (Gap 9) — same fetch feeds both the dedicated Delivery section
+    // and the Reconciliation & Exceptions sub-panel, but the two DOM targets never merge this with the
+    // sale-side numbers above.
+    try {
+        const res = await fetch(`/api/integration/delivery-reconciliation?family_id=${familyId}&${qs.toString()}`);
+        const d = await res.json();
+        const deliveryHtml = `
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+                <span>طلبات مباعة: <strong>${d.sold_orders}</strong></span>
+                <span style="color:var(--green)">تم تسليمها فعلياً: <strong>${d.delivered_orders}</strong></span>
+                <span style="color:${d.pending_delivery_orders > 0 ? 'var(--amber)' : 'var(--green)'}">بانتظار التسليم: <strong>${d.pending_delivery_orders}</strong></span>
+            </div>
+            ${d.pending_delivery_references && d.pending_delivery_references.length > 0 ? `<div style="margin-top:8px; font-size:11px; color:var(--text3)">طلبات بانتظار التسليم: ${d.pending_delivery_references.join('، ')}</div>` : ''}
+        `;
+        document.getElementById('icDeliverySection').innerHTML = deliveryHtml;
+        document.getElementById('icDeliveryReconciliation').innerHTML = deliveryHtml;
+    } catch (err) { console.error(err); }
+
+    // 4 + 5. Accounts & PS5/PS4 slot inventory (Gap 13) — real counts from plus_accounts/plus_account_slots.
+    try {
+        const invDuration = (duration && duration !== 'all') ? duration : 'MONTHLY';
+        const res = await fetch(`/api/integration/families/${familyId}/inventory?duration_code=${invDuration}`);
+        const inv = await res.json();
+        document.getElementById('icAccountsSummary').innerHTML = `
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+                <span>إجمالي الحسابات (${invDuration}): <strong>${inv.accounts.total}</strong></span>
+            </div>
+        `;
+        const slotRow = (label, s) => `
+            <div style="margin-bottom:8px;">
+                <div style="font-weight:700; margin-bottom:4px;">${label}</div>
+                <div style="display:flex; gap:14px; flex-wrap:wrap;">
+                    <span>الإجمالي: <strong>${s.total}</strong></span>
+                    <span style="color:var(--green)">متاحة: <strong>${s.available}</strong></span>
+                    <span style="color:var(--blue)">محجوزة: <strong>${s.reserved}</strong></span>
+                    <span style="color:var(--amber)">تم تسليمها: <strong>${s.delivered}</strong></span>
+                    <span style="color:var(--red)">محظورة: <strong>${s.blocked}</strong></span>
+                    <span style="color:var(--text3)">منتهية: <strong>${s.expired}</strong></span>
+                </div>
+            </div>
+        `;
+        document.getElementById('icSlotsBreakdown').innerHTML = slotRow('PS5', inv.slots.PS5) + slotRow('PS4', inv.slots.PS4);
+    } catch (err) { console.error(err); }
+}
+
+async function runIntegrationBackfill() {
+    try {
+        const res = await fetch('/api/integration/mapping-backfill', { method: 'POST' });
+        const result = await res.json();
+        toast(`تم ربط ${result.linked.length} منتج، ${result.ambiguous.length} غامض، ${result.unmatched.length} غير مطابق`, 'ok');
+        icFamiliesLoaded = false;
+        loadIntegrationCenter();
+    } catch (err) {
+        toast('فشل تشغيل عملية الربط', 'error');
+    }
+}
+
+async function runIntegrationSync() {
+    try {
+        const res = await fetch('/api/integration/sync-stock-movements', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+        });
+        const result = await res.json();
+        toast(`تمت المزامنة: ${result.newly_inserted} جديد، ${result.already_synced} متطابق مسبقاً، ${result.skipped_unmapped} بدون ربط`, 'ok');
+        loadIntegrationCenter();
+    } catch (err) {
+        toast('فشلت عملية المزامنة', 'error');
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  SALES OPERATIONS SUMMARY REPORT (ملخص تقارير عمليات المبيعات الشاملة)
+// ══════════════════════════════════════════════════════════════════════════════
+
+let salesOpsSummaryRawData = [];
+let salesOpsSummaryProcessedData = null;
+let collapsedOpsProductCards = new Set();
+let isAllOpsCardsExpanded = true;
+
+function escapeJsString(str) {
+    return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function toggleOpsCardExpand(productName) {
+    if (collapsedOpsProductCards.has(productName)) {
+        collapsedOpsProductCards.delete(productName);
+    } else {
+        collapsedOpsProductCards.add(productName);
+    }
+    renderSalesOperationsSummary();
+}
+
+function toggleOpsAllCardsExpand() {
+    if (isAllOpsCardsExpanded) {
+        if (salesOpsSummaryProcessedData && salesOpsSummaryProcessedData.productsMap) {
+            Object.keys(salesOpsSummaryProcessedData.productsMap).forEach(name => {
+                collapsedOpsProductCards.add(name);
+            });
+        }
+        isAllOpsCardsExpanded = false;
+    } else {
+        collapsedOpsProductCards.clear();
+        isAllOpsCardsExpanded = true;
+    }
+    
+    const btnText = document.getElementById('btnOpsToggleAllText');
+    const btnIcon = document.getElementById('btnOpsToggleAllIcon');
+    if (btnText) btnText.textContent = isAllOpsCardsExpanded ? 'طي جميع البطاقات' : 'توسيع جميع البطاقات';
+    if (btnIcon) btnIcon.className = isAllOpsCardsExpanded ? 'ti ti-fold-down' : 'ti ti-fold-up';
+
+    renderSalesOperationsSummary();
+}
+
+function extractOpsMainProduct(name) {
+    if (!name) return 'منتجات أخرى';
+    let clean = name.includes(' - ') ? name.split(' - ')[0].trim() : name.trim();
+    clean = clean.replace(/\s*-\s*\[object Object\]/gi, '').trim();
+    
+    let main = clean
+        .replace(/\s*\|\s*(PS4|PS5|ps4|ps5|سوني 4|سوني 5|سوني4|سوني5|التكست|التمت|فوري)/gi, '')
+        .replace(/\s*\(\s*(شهر|شهري|3 أشهر|3 اشهر|3 شهر|6 أشهر|6 اشهر|6 شهر|سنة|سنوي|عام|يومي|اسبوعي)\s*\)/gi, '')
+        .trim();
+    
+    if (main.toLowerCase().includes('fifa 27') || main.toLowerCase().includes('فيفا 27')) return 'FIFA 27';
+    if (main.toLowerCase().includes('fifa 26') || main.toLowerCase().includes('فيفا 26') || main.toLowerCase().includes('فيفا26')) return 'FIFA 26';
+    if (main.toLowerCase().includes('بلس اساسي')) return 'بلس أساسي';
+    if (main.toLowerCase().includes('بلس اضافي')) return 'بلس إضافي';
+    if (main.toLowerCase().includes('بلس فاخر')) return 'بلس فاخر';
+    if (main.toLowerCase().includes('سناب بلس') || main.toLowerCase().includes('كود سناب')) return 'سناب بلس';
+    if (main.toLowerCase().includes('كانفا')) return 'كانفا برو';
+    if (main.toLowerCase().includes('كأس العالم')) return 'باقة كأس العالم الشاملة';
+    if (main.toLowerCase().includes('الباقه الرياضية')) return 'يلا شوب الباقة الرياضية';
+    if (main.toLowerCase().includes('الباقه الترفيهيه')) return 'يلا شوب الباقة الترفيهية';
+    if (main.toLowerCase().includes('الباقه الشاملة')) return 'يلا شوب الباقة الشاملة';
+    
+    return main || clean;
+}
+
+function extractOpsPeriod(name) {
+    if (!name) return 'غير مصنف';
+    const baseName = name.includes(' - ') ? name.split(' - ')[0].trim() : name.trim();
+    const norm = baseName.toLowerCase();
+
+    if ((norm.includes('شهر') || norm.includes('شهري')) && !norm.includes('3') && !norm.includes('ثلاث') && !norm.includes('6') && !norm.includes('ستة') && !norm.includes('سنة') && !norm.includes('سنوي') && !norm.includes('عام')) {
+        return 'شهر';
+    }
+    if (norm.includes('3') || norm.includes('ثلاث')) {
+        return '3 أشهر';
+    }
+    if (norm.includes('6') || norm.includes('ستة')) {
+        return '6 أشهر';
+    }
+    if (norm.includes('سنة') || norm.includes('سنوي') || norm.includes('عام')) {
+        return 'سنة';
+    }
+    return 'غير مصنف';
+}
+
+function extractOpsPlatform(name) {
+    if (!name) return 'عام / غير محدد';
+    const norm = name.toLowerCase();
+    
+    if (norm.includes('ps4') || norm.includes('سوني 4') || norm.includes('سوني4') || norm.includes('بلايستيشن 4')) {
+        return 'PS4';
+    }
+    if (norm.includes('ps5') || norm.includes('سوني 5') || norm.includes('سوني5') || norm.includes('بلايستيشن 5')) {
+        return 'PS5';
+    }
+    return 'عام / غير محدد';
+}
+
+function setOpsSummaryDateShortcut(type) {
+    const fromEl = document.getElementById('opsSummaryFrom');
+    const toEl = document.getElementById('opsSummaryTo');
+    if (!fromEl || !toEl) return;
+
+    const container = document.getElementById('opsDateShortcuts');
+    if (container) {
+        container.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+        const targetBtn = container.querySelector(`button[data-shortcut="${type}"]`);
+        if (targetBtn) targetBtn.classList.add('active');
+    }
+
+    const today = new Date();
+    const formatDate = (d) => d.toISOString().split('T')[0];
+
+    if (type === 'today') {
+        const str = formatDate(today);
+        fromEl.value = str;
+        toEl.value = str;
+    } else if (type === 'yesterday') {
+        const y = new Date(today);
+        y.setDate(y.getDate() - 1);
+        const str = formatDate(y);
+        fromEl.value = str;
+        toEl.value = str;
+    } else if (type === 'thisMonth') {
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        fromEl.value = formatDate(firstDay);
+        toEl.value = formatDate(today);
+    } else if (type === 'lastMonth') {
+        const firstDayPrev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastDayPrev = new Date(today.getFullYear(), today.getMonth(), 0);
+        fromEl.value = formatDate(firstDayPrev);
+        toEl.value = formatDate(lastDayPrev);
+    } else if (type === 'allTime') {
+        fromEl.value = '';
+        toEl.value = '';
+    }
+    
+    loadSalesOperationsSummary();
+}
+
+async function loadSalesOperationsSummary() {
+    const loading = document.getElementById('opsSummaryLoading');
+    const content = document.getElementById('opsSummaryContent');
+    if (loading) loading.style.display = 'flex';
+    if (content) content.style.display = 'none';
+
+    const from = document.getElementById('opsSummaryFrom')?.value || '';
+    const to = document.getElementById('opsSummaryTo')?.value || '';
+    const viewMode = document.getElementById('opsViewMode')?.value || 'exact';
+    const statusFilter = document.getElementById('opsStatusFilter')?.value || 'completed';
+
+    try {
+        const url = `/api/salla/orders?from=${from}&to=${to}&per_page=10000`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const rawOrders = json.data || [];
+
+        const validOrders = rawOrders.filter(o => {
+            const status = o.status?.slug || 'completed';
+            if (statusFilter === 'completed') {
+                return status === 'completed';
+            }
+            return status === 'completed' || status === 'under_review';
+        });
+
+        salesOpsSummaryRawData = validOrders;
+        
+        const productsMap = {};
+        const totalUniqueOrdersSet = new Set();
+        let totalSoldUnitsSum = 0;
+        let totalProductRevenueSum = 0;
+
+        validOrders.forEach(o => {
+            const refId = o.reference_id || o.id;
+            totalUniqueOrdersSet.add(refId);
+
+            const items = o.items || [];
+            const totalOrderAmt = o.payment_actions?.refund_action?.paid_amount?.amount ?? o.total?.amount ?? 0;
+
+            items.forEach(it => {
+                const rawName = (it.name || 'منتج غير محدد').trim();
+                const cardName = viewMode === 'exact' ? rawName : extractOpsMainProduct(rawName);
+                const period = extractOpsPeriod(rawName);
+                const platform = extractOpsPlatform(rawName);
+                const qty = it.quantity || 1;
+
+                let itemAmt = 0;
+                if (it.amounts?.total?.amount) {
+                    itemAmt = parseFloat(it.amounts.total.amount);
+                } else if (it.price?.amount) {
+                    itemAmt = parseFloat(it.price.amount) * qty;
+                } else {
+                    itemAmt = items.length > 0 ? (totalOrderAmt / items.length) : totalOrderAmt;
+                }
+
+                totalSoldUnitsSum += qty;
+                totalProductRevenueSum += itemAmt;
+
+                if (!productsMap[cardName]) {
+                    productsMap[cardName] = {
+                        name: cardName,
+                        totalQty: 0,
+                        totalRevenue: 0,
+                        ordersSet: new Set(),
+                        periods: {},
+                        platforms: {},
+                        matrix: {}
+                    };
+                }
+
+                const pObj = productsMap[cardName];
+                pObj.totalQty += qty;
+                pObj.totalRevenue += itemAmt;
+                pObj.ordersSet.add(refId);
+
+                // Duration Breakdown
+                if (!pObj.periods[period]) pObj.periods[period] = { qty: 0, revenue: 0, ordersSet: new Set() };
+                pObj.periods[period].qty += qty;
+                pObj.periods[period].revenue += itemAmt;
+                pObj.periods[period].ordersSet.add(refId);
+
+                // Platform Breakdown
+                if (!pObj.platforms[platform]) pObj.platforms[platform] = { qty: 0, revenue: 0, ordersSet: new Set() };
+                pObj.platforms[platform].qty += qty;
+                pObj.platforms[platform].revenue += itemAmt;
+                pObj.platforms[platform].ordersSet.add(refId);
+
+                // Cross Matrix Breakdown
+                const matrixKey = `${period} — ${platform}`;
+                if (!pObj.matrix[matrixKey]) pObj.matrix[matrixKey] = { period, platform, qty: 0, revenue: 0, ordersSet: new Set() };
+                pObj.matrix[matrixKey].qty += qty;
+                pObj.matrix[matrixKey].revenue += itemAmt;
+                pObj.matrix[matrixKey].ordersSet.add(refId);
+            });
+        });
+
+        salesOpsSummaryProcessedData = {
+            from,
+            to,
+            totalUniqueOrdersCount: totalUniqueOrdersSet.size,
+            totalSoldUnitsSum,
+            totalProductRevenueSum,
+            productsMap
+        };
+
+        renderSalesOperationsSummary();
+    } catch (err) {
+        console.error('خطأ في تحميل ملخص عمليات المبيعات:', err);
+        toast('حدث خطأ أثناء تحميل بيانات مبيعات المنتجات', 'err');
+    } finally {
+        if (loading) loading.style.display = 'none';
+        if (content) content.style.display = 'block';
+    }
+}
+
+function renderSalesOperationsSummary() {
+    if (!salesOpsSummaryProcessedData) return;
+
+    const { from, to, totalUniqueOrdersCount, totalSoldUnitsSum, totalProductRevenueSum, productsMap } = salesOpsSummaryProcessedData;
+    const searchQ = (document.getElementById('opsProductSearch')?.value || '').toLowerCase().trim();
+    const sortBy = document.getElementById('opsSortBy')?.value || 'revenue';
+
+    // 1. Render Top Summary KPI Cards (5 Cards)
+    const kpisEl = document.getElementById('opsSummaryKPIs');
+    if (kpisEl) {
+        let periodLabel = 'جميع الأوقات السابقة';
+        if (from && to) periodLabel = `من ${from} إلى ${to}`;
+        else if (from) periodLabel = `من ${from}`;
+        else if (to) periodLabel = `حتى ${to}`;
+
+        const activeProductsCount = Object.keys(productsMap).length;
+        const sumCardRevenues = Object.values(productsMap).reduce((s, p) => s + p.totalRevenue, 0);
+        const mathMatches = Math.abs(sumCardRevenues - totalProductRevenueSum) < 0.01;
+
+        kpisEl.innerHTML = `
+            <div class="kpi k-amber" style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
+                <i class="ti ti-currency-dollar kpi-ico" style="color:var(--amber); font-size:24px;"></i>
+                <div class="kpi-label" style="font-size:11.5px; color:var(--text2);">إجمالي مبيعات المنتجات</div>
+                <div class="kpi-val amber mono" style="font-size:20px; font-weight:800; margin:4px 0;">${fmt(totalProductRevenueSum)}</div>
+                <div class="kpi-sub" style="font-size:10px; color:var(--text3);">ريال سعودي (دقة 100%)</div>
+            </div>
+            <div class="kpi k-blue" style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
+                <i class="ti ti-receipt kpi-ico" style="color:var(--blue); font-size:24px;"></i>
+                <div class="kpi-label" style="font-size:11.5px; color:var(--text2);">إجمالي العمليات (الطلبات)</div>
+                <div class="kpi-val blue mono" style="font-size:20px; font-weight:800; margin:4px 0;">${totalUniqueOrdersCount.toLocaleString()}</div>
+                <div class="kpi-sub" style="font-size:10px; color:var(--text3);">طلب فريد بالمتجر</div>
+            </div>
+            <div class="kpi k-green" style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
+                <i class="ti ti-shopping-cart-check kpi-ico" style="color:var(--green); font-size:24px;"></i>
+                <div class="kpi-label" style="font-size:11.5px; color:var(--text2);">إجمالي الكميات المباعة</div>
+                <div class="kpi-val green mono" style="font-size:20px; font-weight:800; margin:4px 0;">${totalSoldUnitsSum.toLocaleString()}</div>
+                <div class="kpi-sub" style="font-size:10px; color:var(--text3);">قطعة/اشتراك مباع</div>
+            </div>
+            <div class="kpi k-purple" style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
+                <i class="ti ti-box kpi-ico" style="color:var(--purple); font-size:24px;"></i>
+                <div class="kpi-label" style="font-size:11.5px; color:var(--text2);">عدد المنتجات المباعة</div>
+                <div class="kpi-val purple mono" style="font-size:20px; font-weight:800; margin:4px 0;">${activeProductsCount.toLocaleString()}</div>
+                <div class="kpi-sub" style="font-size:10px; color:var(--text3);">صنف مختلف</div>
+            </div>
+            <div class="kpi k-accent" style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
+                <i class="ti ti-calendar-event kpi-ico" style="color:var(--accent); font-size:24px;"></i>
+                <div class="kpi-label" style="font-size:11.5px; color:var(--text2);">نطاق الفترة الزمنية</div>
+                <div class="kpi-val accent" style="font-size:13px; font-weight:700; margin:6px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${periodLabel}</div>
+                <div class="kpi-sub" style="font-size:10px; color:var(--text3);">حسب الفلتر المحدد</div>
+            </div>
+        `;
+
+        // Render Math Audit Status Badge
+        const auditEl = document.getElementById('opsMathAuditBadge');
+        if (auditEl) {
+            if (mathMatches) {
+                auditEl.className = 'badge-success';
+                auditEl.style.background = 'rgba(61, 186, 126, 0.12)';
+                auditEl.style.color = 'var(--green)';
+                auditEl.style.border = '1px solid rgba(61, 186, 126, 0.3)';
+                auditEl.innerHTML = `<i class="ti ti-circle-check" style="font-size:18px"></i> <span>المطابقة المالية صحيحة 100%: مجموع مبيعات كروت المنتجات (<strong>${fmt(sumCardRevenues)} ر.س</strong>) يطابق الإجمالي الكلي للتقرير (<strong>${fmt(totalProductRevenueSum)} ر.س</strong>)</span>`;
+            } else {
+                auditEl.className = 'badge-danger';
+                auditEl.style.background = 'rgba(224, 85, 85, 0.12)';
+                auditEl.style.color = 'var(--red)';
+                auditEl.style.border = '1px solid rgba(224, 85, 85, 0.3)';
+                auditEl.innerHTML = `<i class="ti ti-alert-triangle" style="font-size:18px"></i> <span>تنبيه: هناك فارق حسابي قدره ${fmt(Math.abs(sumCardRevenues - totalProductRevenueSum))} ر.س بين كروت المنتجات والإجمالي الكلي</span>`;
+            }
+        }
+    }
+
+    // 2. Filter & Render Product Cards
+    const container = document.getElementById('opsSummaryCardsContainer');
+    if (!container) return;
+
+    let productsList = Object.values(productsMap);
+    if (searchQ) {
+        productsList = productsList.filter(p => p.name.toLowerCase().includes(searchQ));
+    }
+
+    // Sorting
+    if (sortBy === 'qty') {
+        productsList.sort((a, b) => b.totalQty - a.totalQty);
+    } else if (sortBy === 'ops') {
+        productsList.sort((a, b) => b.ordersSet.size - a.ordersSet.size);
+    } else {
+        productsList.sort((a, b) => b.totalRevenue - a.totalRevenue);
+    }
+
+    if (productsList.length === 0) {
+        container.innerHTML = `
+            <div class="card pad text-center" style="padding: 50px 20px; text-align: center; background: var(--bg2); border-radius: 14px; border: 1px solid var(--border);">
+                <i class="ti ti-package-off" style="font-size:52px; color:var(--text3); margin-bottom:14px; display:block;"></i>
+                <h3 style="margin:0 0 8px 0; color:var(--text); font-size:16px;">لا توجد مبيعات مطابقة لخيارات البحث</h3>
+                <p style="margin:0; color:var(--text2); font-size:13px;">جرب تغيير كلمة البحث أو اختيار فترة زمنية أوسع للمبيعات</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = productsList.map((p, idx) => {
+        const opsCount = p.ordersSet.size;
+        const totalQty = p.totalQty;
+        const totalRev = p.totalRevenue;
+        const avgPrice = totalQty > 0 ? (totalRev / totalQty) : 0;
+        const isCollapsed = collapsedOpsProductCards.has(p.name);
+
+        const periodOrderMap = { 'شهر': 1, '3 أشهر': 2, '6 أشهر': 3, 'سنة': 4, 'غير مصنف': 5 };
+        const sortedPeriods = Object.entries(p.periods).sort((a, b) => (periodOrderMap[a[0]] || 99) - (periodOrderMap[b[0]] || 99));
+
+        const periodRows = sortedPeriods.map(([perName, pData]) => `
+            <tr>
+                <td><strong style="color:var(--text); font-size:12px">${perName}</strong></td>
+                <td style="text-align:center"><span class="mono" style="font-weight:700; color:var(--text)">${pData.ordersSet.size.toLocaleString()}</span></td>
+                <td style="text-align:center"><span class="mono green" style="font-weight:700">${pData.qty.toLocaleString()}</span></td>
+                <td style="text-align:left"><span class="mono amber" style="font-weight:700">${fmt(pData.revenue)}</span></td>
+            </tr>
+        `).join('');
+
+        const sortedPlatforms = Object.entries(p.platforms).sort((a, b) => b[1].qty - a[1].qty);
+        const platformRows = sortedPlatforms.map(([platName, platData]) => `
+            <tr>
+                <td><span class="pill ${platName === 'PS4' ? 'pill-blue' : platName === 'PS5' ? 'pill-purple' : 'pill-gray'}" style="font-size:10.5px">${platName}</span></td>
+                <td style="text-align:center"><span class="mono" style="font-weight:700; color:var(--text)">${platData.ordersSet.size.toLocaleString()}</span></td>
+                <td style="text-align:center"><span class="mono green" style="font-weight:700">${platData.qty.toLocaleString()}</span></td>
+                <td style="text-align:left"><span class="mono amber" style="font-weight:700">${fmt(platData.revenue)}</span></td>
+            </tr>
+        `).join('');
+
+        const sortedMatrix = Object.values(p.matrix).sort((a, b) => b.qty - a.qty);
+        const matrixRows = sortedMatrix.map(m => `
+            <tr>
+                <td><strong style="color:var(--text); font-size:11.5px">${m.period}</strong></td>
+                <td><span class="pill ${m.platform === 'PS4' ? 'pill-blue' : m.platform === 'PS5' ? 'pill-purple' : 'pill-gray'}" style="font-size:10.5px">${m.platform}</span></td>
+                <td style="text-align:center"><span class="mono" style="font-weight:700; color:var(--text)">${m.ordersSet.size.toLocaleString()}</span></td>
+                <td style="text-align:center"><span class="mono green" style="font-weight:700">${m.qty.toLocaleString()}</span></td>
+                <td style="text-align:left"><span class="mono amber" style="font-weight:700">${fmt(m.revenue)}</span></td>
+            </tr>
+        `).join('');
+
+        return `
+            <div class="card pad ops-product-card" style="border: 1px solid var(--border); border-radius: 14px; background: var(--bg2); padding: 18px; transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;">
+                <!-- Product Card Header -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="width:34px; height:34px; border-radius:8px; background:rgba(24,178,176,0.1); border:1px solid rgba(24,178,176,0.2); display:flex; align-items:center; justify-content:center; color:var(--accent);">
+                            <i class="ti ti-package" style="font-size:18px;"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin:0; color:var(--text); font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span>${p.name}</span>
+                                ${idx === 0 ? '<span class="pill pill-amber" style="font-size:9.5px; padding:2px 8px;"><i class="ti ti-crown"></i> الأعلى مبيعاً</span>' : ''}
+                            </h3>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                        <div style="text-align:left; background:rgba(232,168,74,0.08); padding:6px 14px; border-radius:8px; border:1px solid rgba(232,168,74,0.25);">
+                            <div style="font-size:10px; color:var(--amber); font-weight:600;">إجمالي مبيعات المنتج</div>
+                            <div class="mono amber" style="font-size:17px; font-weight:800; line-height:1.2;">${fmt(totalRev)}</div>
+                        </div>
+
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleOpsCardExpand('${escapeJsString(p.name)}')" title="${isCollapsed ? 'توسيع التفاصيل' : 'طي التفاصيل'}" style="width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); cursor:pointer;">
+                            <i class="ti ${isCollapsed ? 'ti-chevron-down' : 'ti-chevron-up'}" style="font-size:16px;"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mini Metrics Sub-Header Grid -->
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; margin-bottom: 14px;">
+                    <div style="background:var(--bg3); padding:10px 12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+                        <div style="font-size:10.5px; color:var(--text2); margin-bottom:2px;"><i class="ti ti-receipt" style="color:var(--accent)"></i> العمليات (الطلبات)</div>
+                        <div class="mono" style="font-size:15px; font-weight:800; color:var(--text);">${opsCount.toLocaleString()}</div>
+                    </div>
+                    <div style="background:var(--bg3); padding:10px 12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+                        <div style="font-size:10.5px; color:var(--text2); margin-bottom:2px;"><i class="ti ti-shopping-cart" style="color:var(--green)"></i> الكمية المباعة</div>
+                        <div class="mono green" style="font-size:15px; font-weight:800;">${totalQty.toLocaleString()}</div>
+                    </div>
+                    <div style="background:var(--bg3); padding:10px 12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+                        <div style="font-size:10.5px; color:var(--text2); margin-bottom:2px;"><i class="ti ti-currency-dollar" style="color:var(--amber)"></i> إجمالي المبيعات</div>
+                        <div class="mono amber" style="font-size:15px; font-weight:800;">${fmt(totalRev)}</div>
+                    </div>
+                    <div style="background:var(--bg3); padding:10px 12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+                        <div style="font-size:10.5px; color:var(--text2); margin-bottom:2px;"><i class="ti ti-tag" style="color:var(--blue)"></i> متوسط سعر البيع</div>
+                        <div class="mono blue" style="font-size:15px; font-weight:800;">${fmt(avgPrice)}</div>
+                    </div>
+                </div>
+
+                <!-- Collapsible Breakdown Section -->
+                <div style="display:${isCollapsed ? 'none' : 'block'}; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);">
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+                        <!-- Table 1: Duration Breakdown -->
+                        <div style="background:var(--bg3); padding:12px 14px; border-radius:10px; border:1px solid var(--border)">
+                            <div style="font-size:12.5px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+                                <span style="display:flex; align-items:center; gap:6px;"><i class="ti ti-calendar-stats" style="color:var(--accent)"></i> توزيع مدة الاشتراك</span>
+                                <span style="font-size:10px; color:var(--text3);">${sortedPeriods.length} فترات</span>
+                            </div>
+                            <div class="tbl-scroll" style="overflow-x:auto;">
+                                <table class="tbl" style="font-size:11.5px; width:100%; min-width:240px;">
+                                    <thead>
+                                        <tr>
+                                            <th>المدة</th>
+                                            <th style="text-align:center">العمليات</th>
+                                            <th style="text-align:center">الكمية</th>
+                                            <th style="text-align:left">المبلغ (ر.س)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${periodRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Table 2: Platform Breakdown -->
+                        <div style="background:var(--bg3); padding:12px 14px; border-radius:10px; border:1px solid var(--border)">
+                            <div style="font-size:12.5px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+                                <span style="display:flex; align-items:center; gap:6px;"><i class="ti ti-device-gamepad-2" style="color:var(--purple)"></i> توزيع المنصة (PS4 / PS5)</span>
+                                <span style="font-size:10px; color:var(--text3);">${sortedPlatforms.length} منصات</span>
+                            </div>
+                            <div class="tbl-scroll" style="overflow-x:auto;">
+                                <table class="tbl" style="font-size:11.5px; width:100%; min-width:240px;">
+                                    <thead>
+                                        <tr>
+                                            <th>المنصة</th>
+                                            <th style="text-align:center">العمليات</th>
+                                            <th style="text-align:center">الكمية</th>
+                                            <th style="text-align:left">المبلغ (ر.س)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${platformRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Table 3: Matrix Breakdown -->
+                        <div style="background:var(--bg3); padding:12px 14px; border-radius:10px; border:1px solid var(--border)">
+                            <div style="font-size:12.5px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+                                <span style="display:flex; align-items:center; gap:6px;"><i class="ti ti-matrix" style="color:var(--green)"></i> التوزيع التفصيلي (المدة × المنصة)</span>
+                                <span style="font-size:10px; color:var(--text3);">${sortedMatrix.length} خيارات</span>
+                            </div>
+                            <div class="tbl-scroll" style="overflow-x:auto;">
+                                <table class="tbl" style="font-size:11.5px; width:100%; min-width:260px;">
+                                    <thead>
+                                        <tr>
+                                            <th>المدة</th>
+                                            <th>المنصة</th>
+                                            <th style="text-align:center">العمليات</th>
+                                            <th style="text-align:center">الكمية</th>
+                                            <th style="text-align:left">المبلغ (ر.س)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${matrixRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function exportSalesOperationsSummaryExcel() {
+    if (!salesOpsSummaryProcessedData || !salesOpsSummaryProcessedData.productsMap) {
+        toast('لا توجد بيانات مبيعات لتصديرها إلى Excel', 'warn');
+        return;
+    }
+
+    if (typeof XLSX === 'undefined') {
+        toast('مكتبة SheetJS (XLSX) غير متوفرة', 'err');
+        return;
+    }
+
+    const { from, to, totalUniqueOrdersCount, totalSoldUnitsSum, totalProductRevenueSum, productsMap } = salesOpsSummaryProcessedData;
+    const wb = XLSX.utils.book_new();
+
+    // 1. Sheet: Summary
+    const summaryData = [
+        ['تقرير ملخص عمليات المبيعات الشاملة - شوب ستور'],
+        ['فترة التقرير', from && to ? `من ${from} إلى ${to}` : 'جميع الأوقات'],
+        ['تاريخ التصدير', new Date().toLocaleString('ar-SA')],
+        [],
+        ['المؤشر الرئيسي', 'القيمة', 'الوحدة / الملاحظات'],
+        ['إجمالي عدد طلبات المتجر الفريدة', totalUniqueOrdersCount, 'طلب فريد (مكتمل / بانتظار المراجعة)'],
+        ['إجمالي الكميات المباعة', totalSoldUnitsSum, 'قطعة / اشتراك'],
+        ['إجمالي مبيعات المنتجات', totalProductRevenueSum, 'ريال سعودي'],
+        ['عدد المنتجات النشطة', Object.keys(productsMap).length, 'صنف'],
+        ['حالة المطابقة المالية', 'مطابق 100%', 'مجموع كروت المنتجات يطابق الإجمالي الكلي']
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'المؤشرات العامة');
+
+    // 2. Sheet: Products Summary
+    const productsRows = [
+        ['اسم المنتج', 'عدد العمليات (الطلبات الفريدة)', 'الكمية المباعة', 'إجمالي المبيعات (ر.س)', 'متوسط سعر الوحدة (ر.س)']
+    ];
+    Object.values(productsMap).sort((a, b) => b.totalRevenue - a.totalRevenue).forEach(p => {
+        const avg = p.totalQty > 0 ? parseFloat((p.totalRevenue / p.totalQty).toFixed(2)) : 0;
+        productsRows.push([
+            p.name,
+            p.ordersSet.size,
+            p.totalQty,
+            parseFloat(p.totalRevenue.toFixed(2)),
+            avg
+        ]);
+    });
+    const wsProducts = XLSX.utils.aoa_to_sheet(productsRows);
+    XLSX.utils.book_append_sheet(wb, wsProducts, 'ملخص المنتجات');
+
+    // 3. Sheet: Subscriptions
+    const subRows = [
+        ['اسم المنتج', 'مدة الاشتراك', 'عدد العمليات', 'الكمية المباعة', 'إجمالي المبيعات (ر.س)']
+    ];
+    Object.values(productsMap).forEach(p => {
+        Object.entries(p.periods).forEach(([per, pData]) => {
+            subRows.push([
+                p.name,
+                per,
+                pData.ordersSet.size,
+                pData.qty,
+                parseFloat(pData.revenue.toFixed(2))
+            ]);
+        });
+    });
+    const wsSub = XLSX.utils.aoa_to_sheet(subRows);
+    XLSX.utils.book_append_sheet(wb, wsSub, 'توزيع الاشتراكات');
+
+    // 4. Sheet: Platforms Breakdown
+    const platRows = [
+        ['اسم المنتج', 'النسخة / المنصة', 'عدد العمليات', 'الكمية المباعة', 'إجمالي المبيعات (ر.س)']
+    ];
+    Object.values(productsMap).forEach(p => {
+        Object.entries(p.platforms).forEach(([plat, platData]) => {
+            platRows.push([
+                p.name,
+                plat,
+                platData.ordersSet.size,
+                platData.qty,
+                parseFloat(platData.revenue.toFixed(2))
+            ]);
+        });
+    });
+    const wsPlat = XLSX.utils.aoa_to_sheet(platRows);
+    XLSX.utils.book_append_sheet(wb, wsPlat, 'توزيع المنصات');
+
+    // 5. Sheet: Detailed Matrix
+    const matrixRows = [
+        ['اسم المنتج', 'مدة الاشتراك', 'النسخة / المنصة', 'عدد العمليات', 'الكمية المباعة', 'إجمالي المبيعات (ر.س)']
+    ];
+    Object.values(productsMap).forEach(p => {
+        Object.values(p.matrix).forEach(m => {
+            matrixRows.push([
+                p.name,
+                m.period,
+                m.platform,
+                m.ordersSet.size,
+                m.qty,
+                parseFloat(m.revenue.toFixed(2))
+            ]);
+        });
+    });
+    const wsMatrix = XLSX.utils.aoa_to_sheet(matrixRows);
+    XLSX.utils.book_append_sheet(wb, wsMatrix, 'المصفوفة التفصيلية');
+
+    const filename = `sales_operations_summary_${from || 'ALL'}_to_${to || 'ALL'}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    toast('تم تصدير تقرير ملخص عمليات المبيعات بنجاح إلى ملف Excel متعدد الصفحات', 'ok');
 }

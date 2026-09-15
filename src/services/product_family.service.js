@@ -1,5 +1,13 @@
 const ProductFamilyRepository = require('../repositories/product_family.repository');
 const ProductControlService = require('./product_control.service');
+// Gap 6: the ONE official profitability calculation, shared by this endpoint and the new Integration
+// Center — see that module's header comment for why the calculation below no longer reads
+// vd.detail.metrics.* (those field names never existed on ProductControlService.getProductDetails()'s
+// actual return shape, so summary_metrics/breakdown here were always zero/null regardless of real data;
+// proven by direct execution before this fix). The response SHAPE (summary_metrics/breakdown field
+// names) is unchanged — public/js/product_control_ui.js keeps working exactly as before, just with
+// correct numbers instead of always-zero ones.
+const SallaFamilyIntegration = require('./salla_family_integration.service');
 
 const ProductFamilyService = {
     getCatalog: async (filters = {}) => {
@@ -73,6 +81,13 @@ const ProductFamilyService = {
                 throw err;
             }
 
+            // Gap 6: same official profitability source as the "ALL durations" branch below, scoped to
+            // just this one duration — so summary_metrics is present and correct here too, not only when
+            // no specific duration is selected.
+            const selectedProfit = await SallaFamilyIntegration.getFamilyProfitability({ familyId: family.id, durationCode: targetDuration, from, to });
+            const selectedSales = await SallaFamilyIntegration.getFamilySalesReport({ familyId: family.id, durationCode: targetDuration, from, to });
+            const selectedCogsStatus = (selected.cost_sar === null || selected.cost_sar === undefined) ? 'UNAVAILABLE' : 'AVAILABLE';
+
             return {
                 family: {
                     id: family.id,
@@ -84,7 +99,20 @@ const ProductFamilyService = {
                 },
                 selected_duration: targetDuration,
                 variants_list: variants.map(v => ({ id: v.id, duration_code: v.duration_code, name: v.product_name })),
-                selected_variant: selected
+                selected_variant: selected,
+                summary_metrics: {
+                    total_stock: selected.quantity,
+                    total_units_sold: selectedSales.sold_units,
+                    total_revenue_sar: selectedProfit.revenue,
+                    total_purchases_sar: selectedProfit.purchases_cash,
+                    total_cogs_sar: selectedProfit.cogs,
+                    advertising_expenses_sar: selectedProfit.advertising,
+                    other_expenses_sar: selectedProfit.other_expenses,
+                    gross_profit_sar: selectedProfit.revenue - selectedProfit.cogs,
+                    net_profit_sar: selectedProfit.net_profit,
+                    family_cogs_status: selectedCogsStatus,
+                    is_incomplete_cogs: selectedCogsStatus === 'UNAVAILABLE'
+                }
             };
         }
 
@@ -106,14 +134,24 @@ const ProductFamilyService = {
 
         for (const vd of variantDetails) {
             const m = vd.detail.metrics || {};
-            const rev = m.total_revenue_halalas || 0;
-            const pur = m.total_purchases_halalas || 0;
-            const cogs = m.total_cogs_halalas || 0;
-            const adv = m.advertising_expenses_halalas || 0;
-            const oth = m.other_expenses_halalas || 0;
-            const gp = m.gross_profit_halalas || 0;
-            const np = m.net_profit_halalas || 0;
-            const sold = m.units_sold || 0;
+
+            // Gap 6 fix: revenue/COGS/advertising/other/profit/units-sold come from the single official
+            // profitability source (SallaFamilyIntegration), not from vd.detail.metrics — those specific
+            // fields (total_revenue_halalas, units_sold, etc.) never existed there (proven pre-fix).
+            // Stock/inventory/status fields below are untouched, still sourced from vd/ProductControlService
+            // exactly as before.
+            const profit = await SallaFamilyIntegration.getFamilyProfitability({ familyId: family.id, durationCode: vd.duration_code, from, to });
+            const sales = await SallaFamilyIntegration.getFamilySalesReport({ familyId: family.id, durationCode: vd.duration_code, from, to });
+
+            const rev = Math.round(profit.revenue * 100);
+            const pur = Math.round(profit.purchases_cash * 100);
+            const cogs = Math.round(profit.cogs * 100);
+            const adv = Math.round(profit.advertising * 100);
+            const oth = Math.round(profit.other_expenses * 100);
+            const gp = rev - cogs;
+            const np = Math.round(profit.net_profit * 100);
+            const sold = sales.sold_units;
+            const cogsStatus = (vd.cost_sar === null || vd.cost_sar === undefined) ? 'UNAVAILABLE' : 'AVAILABLE';
 
             totalStock += vd.quantity;
             totalRevenueHalalas += rev;
@@ -125,7 +163,7 @@ const ProductFamilyService = {
             totalNetProfitHalalas += np;
             totalUnitsSold += sold;
 
-            if (m.cogs_status === 'UNAVAILABLE') {
+            if (cogsStatus === 'UNAVAILABLE') {
                 hasUnavailableCogs = true;
             }
 
@@ -152,7 +190,7 @@ const ProductFamilyService = {
                 sold_count: sold,
                 revenue_sar: rev / 100,
                 cogs_sar: cogs / 100,
-                cogs_status: m.cogs_status || 'AVAILABLE',
+                cogs_status: cogsStatus,
                 net_profit_sar: np / 100,
                 control_status: vd.current_control_status
             });

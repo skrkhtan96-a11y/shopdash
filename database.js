@@ -95,6 +95,71 @@ db.serialize(() => {
     // تخزين آخر updated_at قادم من سلة نفسها (وليس وقتنا المحلي) لمنع تحديثات قديمة من الكتابة فوق حالة أحدث عند اختلاف ترتيب وصول الأحداث
     db.run("ALTER TABLE salla_imported_orders ADD COLUMN external_updated_at TEXT", (err) => { /* تجاهل الخطأ إذا كان العمود موجوداً */ });
 
+    // 4.6. جدول بنود الطلبات على مستوى المنتج الواحد (Order Items) — مصدر الحقيقة لتقارير مبيعات المنتجات.
+    // خلافاً لـ salla_imported_orders (التي قد تدمج عدة منتجات في صف واحد عبر syncOrders، أو تفصلها
+    // عبر الـ webhook)، هذا الجدول يخزّن دائماً صفاً واحداً لكل بند حقيقي في الطلب، بمعرّف سلة الفعلي
+    // عند توفره، وبقيمة العنصر الحقيقية بدل تقسيم إجمالي الطلب بالتساوي.
+    db.run(`
+        CREATE TABLE IF NOT EXISTS salla_order_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_reference_id TEXT NOT NULL,
+            salla_order_id TEXT,
+            item_id TEXT NOT NULL,
+            product_id TEXT,
+            variant_id TEXT,
+            sku TEXT,
+            product_name TEXT NOT NULL,
+            options_json TEXT,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            unit_price REAL,
+            item_total REAL NOT NULL DEFAULT 0,
+            revenue_source TEXT NOT NULL DEFAULT 'exact',
+            status_slug TEXT,
+            status_name TEXT,
+            order_date TEXT,
+            external_updated_at TEXT,
+            source TEXT NOT NULL DEFAULT 'webhook',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(order_reference_id, item_id)
+        )
+    `);
+    db.run("CREATE INDEX IF NOT EXISTS idx_salla_order_items_product ON salla_order_items(product_id)", (err) => { /* تجاهل الخطأ */ });
+    db.run("CREATE INDEX IF NOT EXISTS idx_salla_order_items_name ON salla_order_items(product_name)", (err) => { /* تجاهل الخطأ */ });
+    db.run("CREATE INDEX IF NOT EXISTS idx_salla_order_items_date ON salla_order_items(order_date)", (err) => { /* تجاهل الخطأ */ });
+    db.run("CREATE INDEX IF NOT EXISTS idx_salla_order_items_status ON salla_order_items(status_slug)", (err) => { /* تجاهل الخطأ */ });
+
+    // 4.5. جدول إسناد الطلبات (Attribution)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS order_attribution (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT UNIQUE,
+            platform TEXT,
+            match_method TEXT,
+            confidence REAL,
+            campaign_name TEXT,
+            campaign_id TEXT,
+            adset_id TEXT,
+            ad_id TEXT,
+            sd_vid TEXT,
+            utm_source TEXT,
+            utm_medium TEXT,
+            utm_campaign TEXT,
+            utm_content TEXT,
+            utm_term TEXT,
+            created_at TEXT
+        )
+    `);
+    db.run("ALTER TABLE order_attribution ADD COLUMN campaign_id TEXT", (err) => { /* تجاهل الخطأ إذا كان العمود موجوداً */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN adset_id TEXT", (err) => { /* تجاهل الخطأ إذا كان العمود موجوداً */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN ad_id TEXT", (err) => { /* تجاهل الخطأ إذا كان العمود موجوداً */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN sd_vid TEXT", (err) => { /* تجاهل الخطأ إذا كان العمود موجوداً */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN utm_source TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN utm_medium TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN utm_campaign TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN utm_content TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE order_attribution ADD COLUMN utm_term TEXT", (err) => { /* تجاهل الخطأ */ });
+
     // 5. جدول عمليات المحفظة المستوردة من إكسل
     db.run(`
         CREATE TABLE IF NOT EXISTS salla_imported_wallet (
@@ -673,6 +738,14 @@ db.serialize(() => {
     db.run("ALTER TABLE inventory_products ADD COLUMN last_synced_from_salla TEXT", (err) => { /* تجاهل الخطأ */ });
     db.run("ALTER TABLE inventory_products ADD COLUMN reorder_threshold INTEGER DEFAULT 3", (err) => { /* تجاهل الخطأ */ });
 
+    // ربط اختياري (nullable) بين حسابات التسليم الفعلية وعائلة/مدة المنتج — إضافي بحت، لا يغيّر أي
+    // استعلام أو سلوك موجود في delivery.routes.js لأن تلك الاستعلامات تُسمّي أعمدتها صراحة ولا تستخدم
+    // SELECT * بافتراض عدد أعمدة ثابت. يبقى NULL على البيانات القديمة عمداً بدل تخمين الربط.
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN family_id INTEGER REFERENCES product_families(id)", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE ps_plus_accounts ADD COLUMN duration_code TEXT", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE game_accounts ADD COLUMN family_id INTEGER REFERENCES product_families(id)", (err) => { /* تجاهل الخطأ */ });
+    db.run("ALTER TABLE game_accounts ADD COLUMN duration_code TEXT", (err) => { /* تجاهل الخطأ */ });
+
     // ترقية جدول campaign_spend لإضافة أعمدة الأداء والمجموعات الإعلانية
     db.run("ALTER TABLE campaign_spend ADD COLUMN account_id TEXT", (err) => { /* تجاهل */ });
     db.run("ALTER TABLE campaign_spend ADD COLUMN adset_id TEXT", (err) => { /* تجاهل */ });
@@ -724,6 +797,91 @@ db.serialize(() => {
         INSERT OR IGNORE INTO system_control_config (key, system_status, stopped_message, auto_sync, auto_delivery, whatsapp_bot)
         VALUES ('main', 'online', 'عفواً، النظام متوقف حالياً - يجب تجديد الاستضافة', 1, 1, 1)
     `);
+
+    // جدول تكوين الحساب (عدد نسخ/سلوتات كل منصة لكل عائلة+مدة) — يوثّق التركيبة المقصودة تجارياً،
+    // منفصل عمداً عن جداول التسليم الفعلية (ps_plus_accounts/game_slots) حتى لا نغيّر سلوكها الحالي.
+    // إن اختلفت السعة الفعلية القابلة للتخزين في جدول التسليم عن هذا التكوين، تظهر الفجوة صراحة في
+    // لوحة المطابقة بدل افتراض أنها متطابقة.
+    db.run(`
+        CREATE TABLE IF NOT EXISTS account_composition_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER,
+            duration_code TEXT,
+            slot_type TEXT NOT NULL,
+            slot_count INTEGER NOT NULL DEFAULT 1,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(family_id, duration_code, slot_type),
+            FOREIGN KEY(family_id) REFERENCES product_families(id) ON DELETE CASCADE
+        )
+    `);
+
+    // جدول المطابقة بين مبيعات سلة (salla_order_items) وسجلات التسليم الفعلية — يُبنى ويُحدَّث بواسطة
+    // خدمة التكامل عند الطلب، وليس مصدر بيانات مستقل: كل صف يشير لأدلة حقيقية من الجدولين المصدر.
+    db.run(`
+        CREATE TABLE IF NOT EXISTS salla_reconciliation_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_reference_id TEXT NOT NULL,
+            family_id INTEGER,
+            duration_code TEXT,
+            salla_status_slug TEXT,
+            is_sale INTEGER NOT NULL DEFAULT 0,
+            stock_movement_found INTEGER NOT NULL DEFAULT 0,
+            delivery_found INTEGER NOT NULL DEFAULT 0,
+            mismatch_reason TEXT,
+            checked_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    db.run("CREATE INDEX IF NOT EXISTS idx_salla_reconciliation_order ON salla_reconciliation_log(order_reference_id)", (err) => { /* تجاهل الخطأ */ });
+
+    // جداول حسابات بلس الجديدة (plus_accounts / plus_account_slots) — نموذج مُطبَّع (slot_type + slot_index
+    // كصفوف، وليس أعمدة ثابتة) يحقق متطلب "تركيبة حساب قابلة للتهيئة" فعلياً، بخلاف ps_plus_accounts
+    // (أعمدة ثابتة: ps5_1_*, ps5_2_*, ps4_* فقط — مثبت أنه يدعم PS4 واحد فقط لا اثنين).
+    // جدول منفصل تماماً عن ps_plus_accounts و game_accounts/game_slots الحاليين — لا صف ولا استعلام
+    // فيهما يتغيّر بإضافة هذا الجدول، فسلوك التسليم الحالي يبقى كما هو دون أي مخاطرة.
+    // family_id/duration_code إلزاميان (NOT NULL) منذ الإنشاء — لا حاجة لأي تعبئة لاحقة على الحسابات
+    // الجديدة كما كان الحال مع الأعمدة الاختيارية المضافة على الجداول القديمة.
+    db.run(`
+        CREATE TABLE IF NOT EXISTS plus_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            family_id INTEGER NOT NULL,
+            duration_code TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            is_archived INTEGER DEFAULT 0,
+            FOREIGN KEY(family_id) REFERENCES product_families(id) ON DELETE RESTRICT
+        )
+    `);
+    db.run("CREATE INDEX IF NOT EXISTS idx_plus_accounts_family_duration ON plus_accounts(family_id, duration_code)", (err) => { /* تجاهل الخطأ */ });
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS plus_account_slots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            slot_type TEXT NOT NULL,
+            slot_index INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'AVAILABLE',
+            order_reference_id TEXT,
+            customer_phone TEXT,
+            code TEXT,
+            reserved_at TEXT,
+            delivered_by TEXT,
+            delivered_at TEXT,
+            blocked_reason TEXT,
+            expires_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(account_id, slot_type, slot_index),
+            CHECK(slot_type IN ('PS5','PS4')),
+            CHECK(status IN ('AVAILABLE','RESERVED','DELIVERED','BLOCKED','EXPIRED')),
+            FOREIGN KEY(account_id) REFERENCES plus_accounts(id) ON DELETE CASCADE
+        )
+    `);
+    db.run("CREATE INDEX IF NOT EXISTS idx_plus_slots_status ON plus_account_slots(slot_type, status)", (err) => { /* تجاهل الخطأ */ });
+    db.run("CREATE INDEX IF NOT EXISTS idx_plus_slots_order ON plus_account_slots(order_reference_id)", (err) => { /* تجاهل الخطأ */ });
 
     // إضافة بيانات تجريبية للمصروفات في حال كان الجدول فارغاً
     db.get("SELECT COUNT(*) as count FROM expenses", (err, row) => {

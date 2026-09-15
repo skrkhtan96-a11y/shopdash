@@ -655,8 +655,8 @@ function nav(name, updateHash = true) {
     if (name === 'ext-country-analytics') loadExtCountryAnalytics();
     if (name === 'campaigns') renderCampaigns();
     if (name === 'ai-analysis') initAiAnalysisPage();
-    if (name === 'salla-orders') renderOrders();
-    if (name === 'salla-carts') renderCarts();
+    if (name === 'salla-orders') loadOrders();
+    if (name === 'salla-carts') loadCarts();
     if (name === 'salla-wallet') renderWallet();
     if (name === 'salla-products') renderProducts();
     if (name === 'pricing-settings') loadPricingSettings();
@@ -922,8 +922,8 @@ async function loadOrders(reset = false) {
     if (ordLoading) ordLoading.style.display = 'flex';
     if (ordTblWrap) ordTblWrap.style.display = 'none';
 
-    const from = document.getElementById('ordFrom').value || (CURRENT_MONTH + '-01');
-    const to = document.getElementById('ordTo').value || TODAY;
+    const from = document.getElementById('ordFrom')?.value || '';
+    const to = document.getElementById('ordTo')?.value || '';
     const q = document.getElementById('ordQ')?.value || '';
     const selectedStatuses = [];
     document.querySelectorAll('.status-chk').forEach(chk => {
@@ -936,11 +936,12 @@ async function loadOrders(reset = false) {
         : '';
 
     const sort = document.getElementById('ordSort')?.value || 'desc';
+    const period = document.getElementById('ordPeriod')?.value || '';
     const minAmt = document.getElementById('ordMinAmt')?.value || '';
     const maxAmt = document.getElementById('ordMaxAmt')?.value || '';
 
     try {
-        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&products=${encodeURIComponent(productsParam)}&sort=${sort}&min_amt=${minAmt}&max_amt=${maxAmt}&per_page=3000`;
+        let url = `/api/salla/orders?page=${ordPage}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}&products=${encodeURIComponent(productsParam)}&period=${encodeURIComponent(period)}&sort=${sort}&min_amt=${minAmt}&max_amt=${maxAmt}&per_page=3000`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -1117,15 +1118,20 @@ function payLabel(m) {
 function updateOrdKPIs() {
     const el = document.getElementById('ordKPIs');
     if (!el) return;
-    const total = sallaOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || 0), 0);
+    const total = sallaOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || o.amount || 0), 0);
     const completed = sallaOrders.filter(o => o.status?.slug === 'completed').length;
-    const pending = sallaOrders.filter(o => o.status?.slug === 'under_review' || o.status?.slug === 'payment_pending').length;
+    const pendingOrders = sallaOrders.filter(o => o.status?.slug === 'under_review' || o.status?.slug === 'payment_pending');
+    const pending = pendingOrders.length;
+    const pendingTotal = pendingOrders.reduce((s, o) => s + (o.payment_actions?.refund_action?.paid_amount?.amount || o.total?.amount || o.amount || 0), 0);
     
-    document.getElementById('ordTotal').textContent = `${sallaOrders.length} طلب`;
+    const ordTotalEl = document.getElementById('ordTotal');
+    if (ordTotalEl) {
+        ordTotalEl.textContent = `${sallaOrders.length} طلب`;
+    }
     el.innerHTML = `
         <div class="kpi k-green"><i class="ti ti-shopping-cart kpi-ico"></i><div class="kpi-label">إجمالي المبيعات</div><div class="kpi-val accent">${sallaOrders.length.toLocaleString()}</div><div class="kpi-sub">ر.س ${fmt(total)}</div></div>
         <div class="kpi k-green"><i class="ti ti-check kpi-ico"></i><div class="kpi-label">طلبات مكتملة</div><div class="kpi-val green">${completed}</div><div class="kpi-sub">${sallaOrders.length ? ((completed / sallaOrders.length) * 100).toFixed(0) : 0}%</div></div>
-        <div class="kpi k-amber"><i class="ti ti-clock kpi-ico"></i><div class="kpi-label">بانتظار المعالجة</div><div class="kpi-val amber">${pending}</div><div class="kpi-sub">طلب معلق</div></div>
+        <div class="kpi k-amber"><i class="ti ti-clock kpi-ico"></i><div class="kpi-label">بانتظار المعالجة</div><div class="kpi-val amber">${pending}</div><div class="kpi-sub">ر.س ${fmt(pendingTotal)} (${pending} طلب)</div></div>
         <div class="kpi k-blue"><i class="ti ti-currency-dollar kpi-ico"></i><div class="kpi-label">متوسط قيمة الطلب</div><div class="kpi-val blue">${sallaOrders.length ? fmt(total / sallaOrders.length) : 0}</div><div class="kpi-sub">ر.س</div></div>
     `;
 }
@@ -1487,6 +1493,20 @@ function renderProducts() {
     (state.pricingRules || []).forEach(r => {
         if (r.product_name) allProductNames.add(r.product_name.trim());
     });
+    (sallaOrders || []).forEach(o => {
+        if (o.product_name) {
+            o.product_name.split('+').forEach(pn => {
+                const cleanPn = pn.replace(/\s*-\s*\[object Object\]/gi, '').trim();
+                if (cleanPn) allProductNames.add(cleanPn);
+            });
+        }
+        (o.items || []).forEach(it => {
+            if (it.name) {
+                const cleanName = it.name.replace(/\s*-\s*\[object Object\]/gi, '').trim();
+                if (cleanName) allProductNames.add(cleanName);
+            }
+        });
+    });
 
     const combinedProducts = Array.from(allProductNames).map(name => {
         const invProd = (state.inventoryProducts || []).find(p => p.product_name && p.product_name.trim() === name);
@@ -1649,9 +1669,12 @@ function renderProducts() {
         if (isDifferent || ordOptionsDiv.innerHTML === '') {
             ordOptionsDiv.innerHTML = allNames.map(name => {
                 const isChecked = state.ordSelectedProducts.includes(name);
-                return `<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);cursor:pointer;padding:4px 6px;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
-                    <input type="checkbox" class="ord-prod-multi-chk" value="${escapeHtml(name)}" ${isChecked ? 'checked' : ''} onchange="onOrdProductCheckboxChange(this)" style="cursor:pointer;accent-color:var(--accent);">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" title="${escapeHtml(name)}">${name}</span>
+                const bg = isChecked ? 'rgba(59, 130, 246, 0.18)' : 'transparent';
+                const col = isChecked ? '#ffffff' : 'var(--text2)';
+                const fw = isChecked ? '600' : 'normal';
+                return `<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:${col};cursor:pointer;padding:6px 8px;border-radius:4px;background:${bg};font-weight:${fw};transition:all 0.15s;user-select:none;margin-bottom:2px;" onmouseover="if(!this.querySelector('input').checked) this.style.background='rgba(255,255,255,0.05)'" onmouseout="if(!this.querySelector('input').checked) this.style.background='transparent'">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;" title="${escapeHtml(name)}">${name}</span>
+                    <input type="checkbox" class="ord-prod-multi-chk" value="${escapeHtml(name)}" ${isChecked ? 'checked' : ''} onchange="onOrdProductCheckboxChange(this)" style="cursor:pointer;width:16px;height:16px;accent-color:#3b82f6;flex-shrink:0;">
                 </label>`;
             }).join('');
             updateOrdProdMultiBtnText();
@@ -4042,8 +4065,20 @@ function ordProdSelectAll(selectBool, e) {
     state.ordSelectedProducts = [];
     checkboxes.forEach(chk => {
         chk.checked = selectBool;
+        const label = chk.closest('label');
         if (selectBool) {
             state.ordSelectedProducts.push(chk.value);
+            if (label) {
+                label.style.background = 'rgba(59, 130, 246, 0.18)';
+                label.style.color = '#ffffff';
+                label.style.fontWeight = '600';
+            }
+        } else {
+            if (label) {
+                label.style.background = 'transparent';
+                label.style.color = 'var(--text2)';
+                label.style.fontWeight = 'normal';
+            }
         }
     });
     updateOrdProdMultiBtnText();
@@ -4052,12 +4087,23 @@ function ordProdSelectAll(selectBool, e) {
 
 function onOrdProductCheckboxChange(chk) {
     const val = chk.value;
+    const label = chk.closest('label');
     if (chk.checked) {
         if (!state.ordSelectedProducts.includes(val)) {
             state.ordSelectedProducts.push(val);
         }
+        if (label) {
+            label.style.background = 'rgba(59, 130, 246, 0.18)';
+            label.style.color = '#ffffff';
+            label.style.fontWeight = '600';
+        }
     } else {
         state.ordSelectedProducts = state.ordSelectedProducts.filter(p => p !== val);
+        if (label) {
+            label.style.background = 'transparent';
+            label.style.color = 'var(--text2)';
+            label.style.fontWeight = 'normal';
+        }
     }
     updateOrdProdMultiBtnText();
     loadOrders(true);
