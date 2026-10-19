@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "extract-audio": "node scripts/extract_audio.js",
+    "transcribe": "python3 scripts/transcribe.py",
     "test": "cross-env NODE_ENV=test mocha tests/**/*.test.js --timeout 10000 --exit"
   },
   "dependencies": {
