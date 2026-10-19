@@ -7,14 +7,14 @@
 
 أمثلة:
   python3 scripts/transcribe.py video.mp4
-  python3 scripts/transcribe.py video.mp4 --lang en --srt
+  python3 scripts/transcribe.py video.mp4 --lang en --srt --model small
 
 المتطلبات:
   pip install sherpa-onnx numpy
   ffmpeg
-  نموذج Whisper (sherpa-onnx-whisper-small) ونموذج silero_vad.onnx داخل STT_MODEL_DIR
+  نموذج Whisper (sherpa-onnx-whisper-turbo أو small) ونموذج silero_vad.onnx داخل STT_MODEL_DIR
   (الافتراضي: /opt/stt). التحميل:
-    https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2
+    https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-turbo.tar.bz2
     https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
 """
 
@@ -28,7 +28,6 @@ import sherpa_onnx
 
 SAMPLE_RATE = 16000
 MODEL_DIR = os.environ.get("STT_MODEL_DIR", "/opt/stt")
-WHISPER_DIR = os.path.join(MODEL_DIR, "sherpa-onnx-whisper-small")
 
 
 def load_audio(path):
@@ -39,17 +38,16 @@ def load_audio(path):
     return np.frombuffer(raw, dtype=np.float32)
 
 
-def model_file(name):
-    full = os.path.join(WHISPER_DIR, f"small-{name}.onnx")
-    int8 = os.path.join(WHISPER_DIR, f"small-{name}.int8.onnx")
-    return full if os.path.exists(full) else int8
+def model_file(model, name):
+    base = os.path.join(MODEL_DIR, f"sherpa-onnx-whisper-{model}", f"{model}-{name}")
+    return f"{base}.onnx" if os.path.exists(f"{base}.onnx") else f"{base}.int8.onnx"
 
 
-def build_recognizer(lang):
+def build_recognizer(model, lang):
     return sherpa_onnx.OfflineRecognizer.from_whisper(
-        encoder=model_file("encoder"),
-        decoder=model_file("decoder"),
-        tokens=os.path.join(WHISPER_DIR, "small-tokens.txt"),
+        encoder=model_file(model, "encoder"),
+        decoder=model_file(model, "decoder"),
+        tokens=os.path.join(MODEL_DIR, f"sherpa-onnx-whisper-{model}", f"{model}-tokens.txt"),
         language=lang,
         task="transcribe",
         num_threads=os.cpu_count() or 2,
@@ -91,6 +89,8 @@ def main():
     parser = argparse.ArgumentParser(description="استخراج الحوار من فيديو أو صوت")
     parser.add_argument("input")
     parser.add_argument("--lang", default="ar", help="لغة الكلام (ar, en, ...)")
+    parser.add_argument("--model", default="turbo",
+                        help="نموذج Whisper: turbo (أدق للعربية) أو small (أسرع)")
     parser.add_argument("--out", help="ملف النص (الافتراضي: بجانب الملف الأصلي)")
     parser.add_argument("--srt", action="store_true", help="إنشاء ملف ترجمة SRT أيضاً")
     args = parser.parse_args()
@@ -100,12 +100,16 @@ def main():
 
     print("🎵 جاري قراءة الصوت...", file=sys.stderr)
     samples = load_audio(args.input)
-    recognizer = build_recognizer(args.lang)
+    recognizer = build_recognizer(args.model, args.lang)
 
     results = []
     for start, seg in speech_segments(samples):
         stream = recognizer.create_stream()
-        stream.accept_waveform(SAMPLE_RATE, np.array(seg, dtype=np.float32))
+        # هامش صوتي قبل وبعد المقطع حتى لا تُقطع نهايات الكلمات
+        lo = max(0, start - int(0.2 * SAMPLE_RATE))
+        hi = min(len(samples), start + len(seg) + int(0.5 * SAMPLE_RATE))
+        padded = np.concatenate([samples[lo:hi], np.zeros(SAMPLE_RATE, dtype=np.float32)])
+        stream.accept_waveform(SAMPLE_RATE, padded)
         recognizer.decode_stream(stream)
         text = stream.result.text.strip()
         if text:
